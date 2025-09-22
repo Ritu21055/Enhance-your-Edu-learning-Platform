@@ -3,7 +3,7 @@
 
 import speech from '@google-cloud/speech';
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// Google Gemini removed - using only Ollama + rule-based fallback
 
 class LLMService {
   constructor() {
@@ -25,7 +25,76 @@ class LLMService {
     this.initializeSpeechClient();
     
     // Initialize LLM - Try multiple options in order of preference
-    this.initializeLLM();
+    this.initializeLLMAsync();
+  }
+
+  // Async initialization method
+  async initializeLLMAsync() {
+    try {
+      console.log('🤖 LLM: Starting initialization...');
+      await this.initializeLLM();
+      console.log('🤖 LLM initialization completed:', this.llmType);
+      
+      // Test Ollama if it's being used
+      if (this.llmType === 'ollama') {
+        console.log('🤖 LLM: Testing Ollama connection...');
+        const testResult = await this.testOllamaConnection();
+        if (testResult) {
+          console.log('✅ Ollama is working correctly');
+        } else {
+          console.log('⚠️ Ollama test failed, but will continue with fallback');
+        }
+      }
+    } catch (error) {
+      console.error('❌ LLM initialization failed:', error);
+      this.llmType = 'rule-based';
+      console.log('🤖 Falling back to rule-based question generation');
+    }
+  }
+
+  // Test Ollama connection and model availability
+  async testOllamaConnection() {
+    try {
+      console.log('🤖 Ollama: Testing connection and model...');
+      
+      // Test with a simple prompt
+      const testPrompt = "Hello, are you working?";
+      const response = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.ollamaModel,
+          prompt: testPrompt,
+          stream: false,
+          options: {
+            temperature: 0.1,
+            num_predict: 10
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🤖 Ollama: Test successful, model is working:', data.response);
+        return true;
+      } else {
+        console.error('🤖 Ollama: Test failed with status:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('🤖 Ollama: Test failed:', error.message);
+      return false;
+    }
+  }
+
+  // Get current LLM status for debugging
+  getLLMStatus() {
+    return {
+      llmType: this.llmType,
+      ollamaModel: this.ollamaModel,
+      isInitialized: !!this.llmType,
+      performanceStats: this.performanceStats
+    };
   }
 
   // Initialize Google Cloud Speech-to-Text client
@@ -49,25 +118,16 @@ class LLMService {
   }
 
   // Initialize LLM with fallback options
-  initializeLLM() {
+  async initializeLLM() {
     // Option 1: Ollama (Local - FREE)
-    if (this.isOllamaAvailable()) {
+    if (await this.isOllamaAvailable()) {
       this.llmType = 'ollama';
       this.ollamaModel = 'llama3.2:3b'; // Fast, free model
       console.log('🤖 Using Ollama (Local LLM) for question generation');
       return;
     }
 
-    // Option 2: Google Gemini (if API key available)
-    if (process.env.GOOGLE_GEMINI_API_KEY && process.env.GOOGLE_GEMINI_API_KEY !== 'demo-key') {
-      this.llmType = 'gemini';
-      this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
-      this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      console.log('🤖 Using Google Gemini for question generation');
-      return;
-    }
-
-    // Option 3: Fallback to rule-based (always available)
+    // Option 2: Fallback to rule-based (always available)
     this.llmType = 'rule-based';
     console.log('🤖 Using rule-based question generation (fallback)');
   }
@@ -80,6 +140,7 @@ class LLMService {
     }
 
     try {
+      console.log('🤖 Ollama: Checking if Ollama is available...');
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);
       
@@ -91,14 +152,32 @@ class LLMService {
       clearTimeout(timeoutId);
       const available = response.ok;
       
+      if (available) {
+        const data = await response.json();
+        console.log('🤖 Ollama: Available models:', data.models?.map(m => m.name) || []);
+        
+        // Check if our preferred model is available
+        const hasModel = data.models?.some(m => m.name === this.ollamaModel);
+        if (!hasModel) {
+          console.log(`🤖 Ollama: Model ${this.ollamaModel} not found, using first available model`);
+          if (data.models && data.models.length > 0) {
+            this.ollamaModel = data.models[0].name;
+            console.log(`🤖 Ollama: Using model: ${this.ollamaModel}`);
+          }
+        }
+      }
+      
       // Cache the result
       this._ollamaCache = {
         available,
         timestamp: Date.now()
       };
       
+      console.log('🤖 Ollama: Available:', available);
       return available;
     } catch (error) {
+      console.log('🤖 Ollama: Not available:', error.message);
+      
       // Cache negative result for shorter time
       this._ollamaCache = {
         available: false,
@@ -222,11 +301,6 @@ class LLMService {
         generatedQuestion = result.question;
         modelName = 'ollama-llama3.2';
         confidence = 0.85;
-      } else if (this.llmType === 'gemini') {
-        const result = await this.generateWithGemini(transcriptContext, topics, sentiment);
-        generatedQuestion = result.question;
-        modelName = 'gemini-1.5-flash';
-        confidence = 0.9;
       } else {
         // Fallback to rule-based
         const result = this.generateWithRuleBased(topics, sentiment, transcriptContext);
@@ -279,17 +353,30 @@ class LLMService {
 
   // Generate question using Ollama (Local LLM - FREE)
   async generateWithOllama(transcriptContext, topics, sentiment) {
+    console.log('🤖 Ollama: Generating question with context:', {
+      transcriptLength: transcriptContext?.length || 0,
+      topicsCount: topics?.length || 0,
+      sentiment: sentiment,
+      model: this.ollamaModel
+    });
+
+    // Detect language from transcript context
+    const detectedLanguage = this.detectLanguageFromContext(transcriptContext);
+    
     const prompt = `You are an intelligent meeting assistant. Generate ONE professional follow-up question for this business meeting.
 
 CONVERSATION: "${transcriptContext}"
 TOPICS: ${topics.map(t => t.topic).join(', ')}
 SENTIMENT: ${sentiment}
+LANGUAGE: ${detectedLanguage}
 
-Generate a concise, actionable question that builds on the discussion. Return only the question.`;
+Generate a concise, actionable question that builds on the discussion. Return only the question in the same language as the conversation.`;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30 seconds
+      
+      console.log('🤖 Ollama: Sending request to Ollama API...');
       
       const response = await fetch('http://localhost:11434/api/generate', {
         method: 'POST',
@@ -299,9 +386,10 @@ Generate a concise, actionable question that builds on the discussion. Return on
           prompt: prompt,
           stream: false,
           options: {
-            temperature: 0.7,
-            max_tokens: 100,
-            num_predict: 50 // Limit response length for faster generation
+            temperature: 0.3, // Lower temperature for more focused responses
+            num_predict: 30, // Shorter responses for faster generation
+            top_p: 0.9,
+            repeat_penalty: 1.1
           }
         }),
         signal: controller.signal
@@ -309,13 +397,20 @@ Generate a concise, actionable question that builds on the discussion. Return on
 
       clearTimeout(timeoutId);
       
+      console.log('🤖 Ollama: Response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error(`Ollama API error: ${response.status}`);
+        const errorText = await response.text();
+        console.error('🤖 Ollama: API error response:', errorText);
+        throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
+      console.log('🤖 Ollama: Generated question:', data.response);
+      
       return { question: data.response.trim() };
     } catch (error) {
+      console.error('🤖 Ollama: Error generating question:', error);
       if (error.name === 'AbortError') {
         throw new Error('Ollama request timeout');
       }
@@ -323,33 +418,38 @@ Generate a concise, actionable question that builds on the discussion. Return on
     }
   }
 
-  // Generate question using Google Gemini
-  async generateWithGemini(transcriptContext, topics, sentiment) {
-    const prompt = `You are an intelligent meeting assistant. Analyze this meeting conversation and generate a relevant, professional follow-up question.
+  // Google Gemini method removed - using only Ollama + rule-based fallback
 
-CONVERSATION CONTEXT: "${transcriptContext}"
-DETECTED TOPICS: ${topics.map(t => `${t.topic} (${Math.round(t.confidence * 100)}%)`).join(', ')}
-SENTIMENT: ${sentiment}
-
-Generate ONE professional follow-up question that builds on the current discussion. Return only the question.`;
-
-    try {
-      const result = await this.model.generateContent({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          maxOutputTokens: 100,
-          temperature: 0.7,
-          topP: 0.8,
-          topK: 40
-        }
-      });
-      
-      const response = await result.response;
-      return { question: response.text().trim() };
-    } catch (error) {
-      console.error('Gemini API error:', error);
-      throw new Error('Failed to generate question with Gemini');
+  /**
+   * Detect language from transcript context
+   * @param {string} text - Text to analyze
+   * @returns {string} Detected language
+   */
+  detectLanguageFromContext(text) {
+    if (!text || text.length < 10) return 'english';
+    
+    const lowerText = text.toLowerCase();
+    const languagePatterns = {
+      'spanish': /[ñáéíóúü]/i,
+      'french': /[àâäéèêëïîôöùûüÿç]/i,
+      'german': /[äöüß]/i,
+      'hindi': /[अ-ह]/,
+      'english': /[a-z]/i
+    };
+    
+    let maxMatches = 0;
+    let detectedLang = 'english';
+    
+    for (const [lang, pattern] of Object.entries(languagePatterns)) {
+      const matches = (lowerText.match(pattern) || []).length;
+      if (matches > maxMatches) {
+        maxMatches = matches;
+        detectedLang = lang;
+      }
     }
+    
+    console.log(`🌍 LLM Language detected: ${detectedLang}`);
+    return detectedLang;
   }
 
   // Generate question using rule-based system

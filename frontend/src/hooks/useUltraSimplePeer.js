@@ -1874,8 +1874,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
       // Add a small delay to ensure the video element is rendered
       setTimeout(() => {
         console.log('🎥 UltraSimplePeer: Starting delayed media initialization...');
-      initializeMedia();
-      }, 500);
+        initializeMedia();
+      }, 1000); // Increased delay to ensure video element is ready
     }
   }, [isHost, isWaitingForApproval, initializeMedia]);
 
@@ -2041,6 +2041,44 @@ const useUltraSimplePeer = (meetingId, userName) => {
       if (!data.participantId || data.audioEnabled === undefined || data.videoEnabled === undefined) {
         console.log('❌ UltraSimplePeer: Invalid media state change data:', data);
         return;
+      }
+      
+      // Handle video track management for the participant
+      if (data.participantId !== socketRef.current?.id) {
+        // This is a remote participant's media state change
+        console.log(`📡 UltraSimplePeer: Handling remote participant media state change for ${data.participantId}`);
+        
+        // Get the remote stream for this participant
+        const remoteStream = remoteStreams[data.participantId];
+        if (remoteStream) {
+          console.log(`📡 UltraSimplePeer: Found remote stream for ${data.participantId}, managing tracks`);
+          
+          // Handle video track
+          const videoTracks = remoteStream.getVideoTracks();
+          videoTracks.forEach(track => {
+            if (data.videoEnabled) {
+              console.log(`📹 UltraSimplePeer: Enabling video track for ${data.participantId}`);
+              track.enabled = true;
+            } else {
+              console.log(`📹 UltraSimplePeer: Disabling video track for ${data.participantId}`);
+              track.enabled = false;
+            }
+          });
+          
+          // Handle audio track
+          const audioTracks = remoteStream.getAudioTracks();
+          audioTracks.forEach(track => {
+            if (data.audioEnabled) {
+              console.log(`🎤 UltraSimplePeer: Enabling audio track for ${data.participantId}`);
+              track.enabled = true;
+            } else {
+              console.log(`🎤 UltraSimplePeer: Disabling audio track for ${data.participantId}`);
+              track.enabled = false;
+            }
+          });
+        } else {
+          console.log(`📡 UltraSimplePeer: No remote stream found for ${data.participantId}`);
+        }
       }
       
       // Update participant's media state in the participants list

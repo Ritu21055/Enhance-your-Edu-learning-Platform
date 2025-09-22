@@ -145,23 +145,56 @@ const UltraSimpleVideo = ({
         remoteVideoRefs.current[participantId] = el;
         
         if (remoteStreams[participantId]) {
-          el.srcObject = remoteStreams[participantId];
-          el.play().catch(err => {
-            console.log(`❌ UltraSimpleVideo: Video play failed for ${participantId}:`, err);
-          });
+          const stream = remoteStreams[participantId];
+          // Validate stream before assignment
+          if (stream && stream.active && stream.getTracks().length > 0) {
+            console.log(`✅ UltraSimpleVideo: Valid stream for ${participantId}, assigning...`);
+            el.srcObject = stream;
+            el.play().catch(err => {
+              console.log(`❌ UltraSimpleVideo: Video play failed for ${participantId}:`, err);
+              // Retry play after a short delay
+              setTimeout(() => {
+                el.play().catch(retryErr => {
+                  console.log(`❌ UltraSimpleVideo: Video play retry failed for ${participantId}:`, retryErr);
+                });
+              }, 500);
+            });
+          } else {
+            console.log(`❌ UltraSimpleVideo: Invalid stream for ${participantId}:`, {
+              stream: !!stream,
+              active: stream?.active,
+              tracks: stream?.getTracks?.()?.length
+            });
+          }
         }
         
         // Force stream assignment after a short delay to ensure element is ready
         // Only if stream is not already assigned
         setTimeout(() => {
           if (remoteStreams[participantId] && el.srcObject !== remoteStreams[participantId]) {
-            console.log(`🔄 UltraSimpleVideo: Force assigning stream after delay for ${participantId}`);
-            el.srcObject = remoteStreams[participantId];
-            el.play().then(() => {
-              console.log(`✅ UltraSimpleVideo: Force video play successful for ${participantId}`);
-            }).catch(err => {
-              console.log(`❌ UltraSimpleVideo: Force video play failed for ${participantId}:`, err);
-            });
+            const stream = remoteStreams[participantId];
+            // Validate stream before force assignment
+            if (stream && stream.active && stream.getTracks().length > 0) {
+              console.log(`🔄 UltraSimpleVideo: Force assigning valid stream after delay for ${participantId}`);
+              el.srcObject = stream;
+              el.play().then(() => {
+                console.log(`✅ UltraSimpleVideo: Force video play successful for ${participantId}`);
+              }).catch(err => {
+                console.log(`❌ UltraSimpleVideo: Force video play failed for ${participantId}:`, err);
+                // Retry force play after a short delay
+                setTimeout(() => {
+                  el.play().catch(retryErr => {
+                    console.log(`❌ UltraSimpleVideo: Force video play retry failed for ${participantId}:`, retryErr);
+                  });
+                }, 1000);
+              });
+            } else {
+              console.log(`❌ UltraSimpleVideo: Invalid stream for force assignment ${participantId}:`, {
+                stream: !!stream,
+                active: stream?.active,
+                tracks: stream?.getTracks?.()?.length
+              });
+            }
           } else if (remoteStreams[participantId] && el.srcObject === remoteStreams[participantId]) {
             console.log(`✅ UltraSimpleVideo: Stream already assigned for ${participantId}, skipping force assignment`);
           }
@@ -189,8 +222,25 @@ const UltraSimpleVideo = ({
       });
       
       localVideoRef.current.srcObject = localStream;
+      
+      // Force video element to be visible and properly configured
+      localVideoRef.current.style.width = '100%';
+      localVideoRef.current.style.height = '100%';
+      localVideoRef.current.style.objectFit = 'cover';
+      localVideoRef.current.style.backgroundColor = 'transparent';
+      localVideoRef.current.style.display = 'block';
+      
+      // Force video to load and play
+      localVideoRef.current.load();
       localVideoRef.current.play().catch(err => {
         console.log('🎥 UltraSimpleVideo: Local video play failed:', err);
+        // Retry local video play after a short delay
+        setTimeout(() => {
+          localVideoRef.current.load();
+          localVideoRef.current.play().catch(retryErr => {
+            console.log('🎥 UltraSimpleVideo: Local video play retry failed:', retryErr);
+          });
+        }, 500);
       });
       } else {
         console.log('🎥 UltraSimpleVideo: Local stream already set, skipping');
@@ -206,8 +256,25 @@ const UltraSimpleVideo = ({
         const retrySetStream = () => {
           if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
+            
+            // Force video element to be visible and properly configured
+            localVideoRef.current.style.width = '100%';
+            localVideoRef.current.style.height = '100%';
+            localVideoRef.current.style.objectFit = 'cover';
+            localVideoRef.current.style.backgroundColor = 'transparent';
+            localVideoRef.current.style.display = 'block';
+            
+            // Force video to load and play
+            localVideoRef.current.load();
             localVideoRef.current.play().catch(err => {
               console.log('🎥 UltraSimpleVideo: Local video play failed (retry):', err);
+              // Retry play after a short delay
+              setTimeout(() => {
+                localVideoRef.current.load();
+                localVideoRef.current.play().catch(retryErr => {
+                  console.log('🎥 UltraSimpleVideo: Local video play retry failed (retry):', retryErr);
+                });
+              }, 500);
             });
             console.log('🎥 UltraSimpleVideo: Local video stream set on video element (retry)');
           } else {
@@ -218,6 +285,45 @@ const UltraSimpleVideo = ({
       }
     }
   }, [localStream]);
+
+  // Aggressive fix for white screens - continuously check and fix video elements
+  useEffect(() => {
+    const fixWhiteScreens = () => {
+      // Fix local video
+      if (localVideoRef.current && localStream) {
+        const video = localVideoRef.current;
+        if (video.srcObject !== localStream || !video.videoWidth || !video.videoHeight) {
+          console.log('🔧 UltraSimpleVideo: Fixing local video white screen');
+          video.srcObject = localStream;
+          video.load();
+          video.play().catch(err => console.log('🔧 Local video play failed:', err));
+        }
+      }
+      
+      // Fix remote videos
+      Object.keys(remoteVideoRefs.current).forEach(participantId => {
+        const video = remoteVideoRefs.current[participantId];
+        const stream = remoteStreams[participantId];
+        
+        if (video && stream && stream.active) {
+          if (video.srcObject !== stream || !video.videoWidth || !video.videoHeight) {
+            console.log(`🔧 UltraSimpleVideo: Fixing remote video white screen for ${participantId}`);
+            video.srcObject = stream;
+            video.load();
+            video.play().catch(err => console.log(`🔧 Remote video play failed for ${participantId}:`, err));
+          }
+        }
+      });
+    };
+    
+    // Run immediately
+    fixWhiteScreens();
+    
+    // Run every 2 seconds to catch any missed fixes
+    const interval = setInterval(fixWhiteScreens, 2000);
+    
+    return () => clearInterval(interval);
+  }, [localStream, remoteStreams]);
 
   // Memoize participants to prevent unnecessary re-renders
   const memoizedParticipants = useMemo(() => {
@@ -503,6 +609,9 @@ const UltraSimpleVideo = ({
                   autoPlay
                   playsInline
                   className="video-element"
+                  style={{
+                    display: participant.videoEnabled ? 'block' : 'none'
+                  }}
                 />
                 
                 {/* Debug info for camera state */}
