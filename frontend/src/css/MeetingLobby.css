@@ -1,0 +1,213 @@
+/* Meeting Lobby Styles */
+.lobby-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 50%, #6D28D9 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.lobby-card {
+  max-width: 500px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(25px);
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 10;
+}
+
+.lobby-content {
+  padding: 32px;
+  text-align: center;
+}
+
+.lobby-avatar {
+  width: 80px;
+  height: 80px;
+  background-color: #7C3AED;
+  margin: 0 auto 24px;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: white;
+  font-weight: bold;
+}
+
+.lobby-title {
+  margin-bottom: 16px;
+  color: #333;
+  font-weight: bold;
+  font-size: 2rem;
+}
+
+.lobby-meeting-id {
+  margin-bottom: 24px;
+  color: #666;
+  font-size: 1.25rem;
+}
+
+.lobby-form {
+  margin-bottom: 24px;
+}
+
+.lobby-textfield {
+  margin-bottom: 24px;
+}
+
+.lobby-textfield .MuiOutlinedInput-root {
+  border-radius: 12px;
+}
+
+.lobby-role-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.lobby-role-button {
+  border-radius: 12px;
+  text-transform: none;
+  font-weight: 600;
+  padding: 12px 24px;
+}
+
+.lobby-role-button.host {
+  background-color: #7C3AED;
+  color: white;
+  border: 2px solid #7C3AED;
+}
+
+.lobby-role-button.host:hover {
+  background-color: #6D28D9;
+  border-color: #6D28D9;
+}
+
+.lobby-role-button.participant {
+  background-color: transparent;
+  color: #7C3AED;
+  border: 2px solid #7C3AED;
+}
+
+.lobby-role-button.participant:hover {
+  background-color: rgba(124, 58, 237, 0.04);
+  border-color: #6D28D9;
+}
+
+.lobby-join-button {
+  background-color: #7C3AED;
+  color: white;
+  border-radius: 12px;
+  padding: 16px 32px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-transform: none;
+  width: 100%;
+}
+
+.lobby-join-button:hover {
+  background-color: #6D28D9;
+}
+
+.lobby-waiting-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.lobby-waiting-text {
+  color: #666;
+  margin-left: 16px;
+}
+
+.lobby-waiting-chip {
+  background-color: rgba(255, 193, 7, 0.1);
+  color: #F57C00;
+  border: 1px solid #F57C00;
+  margin-bottom: 24px;
+  border-radius: 20px;
+}
+
+.lobby-waiting-description {
+  color: #888;
+  margin-bottom: 24px;
+  font-size: 0.875rem;
+}
+
+.lobby-host-chip {
+  background-color: rgba(124, 58, 237, 0.1);
+  color: #7C3AED;
+  border: 1px solid #7C3AED;
+  margin-bottom: 16px;
+  border-radius: 20px;
+}
+
+.lobby-connecting-text {
+  color: #666;
+  margin-bottom: 24px;
+}
+
+.lobby-controls {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.lobby-leave-button {
+  border-color: #7C3AED;
+  color: #7C3AED;
+  border-radius: 12px;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.lobby-leave-button:hover {
+  border-color: #6D28D9;
+  background-color: rgba(124, 58, 237, 0.04);
+}
+
+.lobby-status-container {
+  margin-top: 16px;
+}
+
+.lobby-connecting-chip {
+  border-radius: 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+  .lobby-container {
+    padding: 8px;
+  }
+  
+  .lobby-content {
+    padding: 24px;
+  }
+  
+  .lobby-role-buttons {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .lobby-role-button {
+    width: 100%;
+  }
+  
+  .lobby-controls {
+    flex-direction: column;
+  }
+  
+  .lobby-leave-button {
+    width: 100%;
+  }
+}

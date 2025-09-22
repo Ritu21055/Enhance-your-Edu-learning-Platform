@@ -1,0 +1,223 @@
+/* Share Highlight Reel Styles */
+.share-dialog .MuiDialog-paper {
+  border-radius: 16px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.9)) !important;
+  backdrop-filter: blur(20px) !important;
+}
+
+.share-dialog-title {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  color: white !important;
+  padding: 20px 24px !important;
+  border-radius: 16px 16px 0 0 !important;
+}
+
+.title-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-icon {
+  font-size: 28px !important;
+}
+
+.share-dialog-content {
+  padding: 24px !important;
+}
+
+/* Meeting Info */
+.meeting-info {
+  text-align: center;
+  margin-bottom: 24px;
+  padding: 20px;
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.meeting-title {
+  color: #1f2937 !important;
+  font-weight: 600 !important;
+  margin-bottom: 12px !important;
+}
+
+.meeting-stats {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Share Methods */
+.share-methods {
+  margin-bottom: 24px;
+}
+
+.methods-title {
+  color: #374151 !important;
+  font-weight: 600 !important;
+  margin-bottom: 16px !important;
+}
+
+.method-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.method-button {
+  flex: 1;
+  min-width: 120px;
+  border-radius: 12px !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  padding: 12px 16px !important;
+  transition: all 0.3s ease !important;
+}
+
+.method-button:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Link Sharing */
+.link-sharing {
+  margin-bottom: 16px;
+}
+
+.section-title {
+  color: #374151 !important;
+  font-weight: 600 !important;
+  margin-bottom: 12px !important;
+}
+
+.link-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.link-input {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-radius: 8px !important;
+}
+
+.copy-button {
+  background: rgba(99, 102, 241, 0.1) !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+}
+
+.copy-button:hover {
+  background: rgba(99, 102, 241, 0.2) !important;
+  transform: scale(1.05) !important;
+}
+
+.link-help {
+  color: #6b7280 !important;
+  margin-top: 8px !important;
+  display: block !important;
+}
+
+/* Email Sharing */
+.email-sharing {
+  margin-bottom: 16px;
+}
+
+.email-sharing .MuiTextField-root {
+  margin-bottom: 16px !important;
+}
+
+.email-sharing .MuiTextField-root:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Download Sharing */
+.download-sharing {
+  margin-bottom: 16px;
+}
+
+.download-info {
+  border-radius: 12px !important;
+  background: rgba(33, 150, 243, 0.05) !important;
+  border: 1px solid rgba(33, 150, 243, 0.1) !important;
+}
+
+/* Dialog Actions */
+.share-dialog-actions {
+  padding: 16px 24px 24px !important;
+  gap: 12px;
+}
+
+.share-dialog-actions .MuiButton-root {
+  border-radius: 12px !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  transition: all 0.3s ease !important;
+}
+
+.share-dialog-actions .MuiButton-contained {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3) !important;
+}
+
+.share-dialog-actions .MuiButton-contained:hover {
+  background: linear-gradient(135deg, #5b5cf0, #7c3aed) !important;
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+.share-dialog-actions .MuiButton-outlined {
+  border: 2px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+
+.share-dialog-actions .MuiButton-outlined:hover {
+  border-color: #6366f1 !important;
+  color: #6366f1 !important;
+  background: rgba(99, 102, 241, 0.05) !important;
+}
+
+/* Success Alert */
+.success-alert {
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  color: white !important;
+  font-weight: 600 !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .share-dialog-content {
+    padding: 16px !important;
+  }
+  
+  .method-buttons {
+    flex-direction: column;
+  }
+  
+  .method-button {
+    min-width: auto;
+  }
+  
+  .link-container {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .copy-button {
+    align-self: stretch;
+  }
+  
+  .share-dialog-actions {
+    flex-direction: column;
+    padding: 16px !important;
+  }
+  
+  .share-dialog-actions .MuiButton-root {
+    width: 100%;
+  }
+}

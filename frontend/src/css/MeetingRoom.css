@@ -1,0 +1,1516 @@
+/* MeetingRoom.css */
+
+/* Meeting Room Container */
+.meeting-room {
+  padding: 0;
+  min-height: 100vh;
+  height: 100vh;
+  background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 50%, #6D28D9 100%);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  width: 100%;
+}
+
+/* AI Features Notification */
+.ai-features-notification {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ai-analytics-button {
+  background: linear-gradient(135deg, #7c3aed, #8b5cf6) !important;
+}
+
+.ai-analytics-button:hover {
+  background: linear-gradient(135deg, #6d28d9, #7c3aed) !important;
+}
+
+/* Debug Tools */
+.debug-tools-notification {
+  display: flex;
+  align-items: center;
+}
+
+.debug-tools-button {
+  border-color: #6b7280 !important;
+  color: #6b7280 !important;
+}
+
+.debug-tools-button:hover {
+  border-color: #4b5563 !important;
+  background-color: rgba(107, 114, 128, 0.1) !important;
+}
+
+/* Sentiment Dashboard Waiting Indicator */
+.sentiment-waiting-indicator {
+  position: fixed;
+  top: 80px;
+  left: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 1;
+  background-color: rgba(0,0,0,0.8);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 15px;
+  font-size: 12px;
+}
+
+/* Highlight Indicator */
+.highlight-indicator {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 1;
+  background-color: rgba(0,0,0,0.8);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.highlight-indicator:hover {
+  background-color: rgba(0,0,0,0.9);
+  transform: scale(1.05);
+}
+
+/* Icon Styles */
+.psychology-icon {
+  font-size: 14px;
+}
+
+.star-icon {
+  font-size: 16px;
+  color: #ffd700;
+}
+
+.bold-text {
+  font-weight: bold;
+}
+
+/* Loading Spinner with Margin */
+.loading-spinner-with-margin {
+  margin-top: 24px;
+}
+
+/* Button with Margin */
+.button-with-margin {
+  margin-top: 24px;
+}
+
+/* Host highlighting styles */
+.host-video-container {
+  border: 3px solid #FFD700 !important;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5) !important;
+  position: relative;
+}
+
+.host-video-container::before {
+  content: '👑 HOST';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(255, 215, 0, 0.9);
+  color: #000;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  z-index: 10;
+  text-shadow: none;
+}
+
+.host-crown {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: #FFD700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+}
+
+.meeting-container {
+  padding: 0;
+  min-height: 100vh;
+  height: 100vh;
+  background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 50%, #6D28D9 100%);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  width: 100%;
+}
+
+.meeting-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.meeting-layout {
+  display: flex;
+  flex-direction: column;
+  height: 90vh;
+}
+
+.meeting-header {
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 15, 35, 0.95);
+  backdrop-filter: blur(25px);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  position: relative;
+  z-index: 10;
+}
+
+.meeting-header-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.pending-approvals-notification {
+  display: flex;
+  align-items: center;
+}
+
+.pending-approvals-notification .MuiButton-root {
+  background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+  color: white;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.pending-approvals-notification .MuiButton-root:hover {
+  background: linear-gradient(135deg, #F57C00 0%, #E65100 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 152, 0, 0.4);
+}
+
+.meeting-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.meeting-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.meeting-host {
+  font-size: 0.875rem;
+  color: #ffffff;
+  margin-top: 4px;
+}
+
+.meeting-subtitle {
+  font-size: 0.875rem;
+  color: #ffffff;
+  margin-top: 4px;
+}
+
+.meeting-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.meeting-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.pending-approvals-button {
+  position: relative;
+}
+
+.pending-approvals-button .MuiButton-root {
+  background-color: #ff9800;
+  color: white;
+}
+
+.pending-approvals-button .MuiButton-root:hover {
+  background-color: #f57c00;
+}
+
+.meeting-content {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+}
+
+.waiting-approval-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: rgba(15, 15, 35, 0.95);
+  backdrop-filter: blur(25px);
+  border-radius: 12px;
+  padding: 48px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+}
+
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(124, 58, 237, 0.2);
+  border-left: 4px solid #7C3AED;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.waiting-approval-card {
+  padding: 48px;
+  max-width: 500px;
+  background: rgba(15, 15, 35, 0.95);
+  backdrop-filter: blur(25px);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+              0 4px 16px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  position: relative;
+  z-index: 10;
+}
+
+.waiting-approval-title {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #7c3aed;
+}
+
+.waiting-approval-message {
+  font-size: 1.125rem;
+  color: #8b5cf6;
+  margin-bottom: 24px;
+}
+
+.loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.waiting-approval-subtitle {
+  font-size: 0.875rem;
+  color: #8b5cf6;
+}
+
+.meeting-main-content {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+}
+
+.video-grid-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.video-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+/* Responsive Video Layout */
+.video-container {
+  height: calc(100vh - 200px);
+  min-height: 400px;
+}
+
+/* Single video - full width */
+.video-single {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* Two videos - side by side */
+.video-two {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* Three videos - all in one row */
+.video-three {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* Four videos - 2x2 grid */
+.video-four {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* Five to six videos - 3x2 grid */
+.video-five-six {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+/* Seven or more videos - 4x3 grid */
+.video-seven-plus {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+}
+
+/* Scrollable Video Layout */
+.video-scrollable {
+  overflow-y: auto;
+  max-height: 100%;
+  padding-right: 8px;
+}
+
+/* Custom scrollbar for video area */
+.video-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.video-scrollable::-webkit-scrollbar-track {
+  background: rgba(15, 15, 35, 0.3);
+  border-radius: 4px;
+}
+
+.video-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.6);
+  border-radius: 4px;
+  transition: background 0.3s ease;
+}
+
+.video-scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.8);
+}
+
+/* Video item sizing for scrollable layout */
+.video-item-scrollable {
+  min-height: 200px;
+  max-height: 300px;
+  aspect-ratio: 16/9;
+}
+
+/* Single video layout - full screen */
+.video-single-fullscreen {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Single video container */
+.video-container-single {
+  padding: 0 !important;
+  display: flex !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Video area that takes remaining space */
+.video-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 80px - 80px); /* Full height minus header and control bar */
+  overflow: hidden;
+}
+
+/* UltraSimpleVideo container */
+.ultra-simple-video-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.video-item {
+  position: relative;
+  background: transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 300px;
+}
+
+.video-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block !important;
+  background: #f0f0f0;
+  /* Force video to be visible */
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 1 !important;
+  position: relative !important;
+  /* Force video to display without autoplay restrictions */
+  animation: forceVideoDisplay 0.1s ease-in-out;
+}
+
+@keyframes forceVideoDisplay {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* Host video highlighting */
+.host-video {
+  border: 3px solid #ff6b35 !important;
+  box-shadow: 0 0 20px rgba(255, 107, 53, 0.5) !important;
+}
+
+.host-video::before {
+  content: '👑';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 20px;
+  z-index: 10;
+  background: rgba(255, 107, 53, 0.9);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-placeholder {
+  width: 100%;
+  height: 200px;
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+}
+
+.video-controls-overlay {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.video-chip {
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 16px;
+}
+
+.host-chip {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+  border: 2px solid #fff;
+  border-radius: 16px;
+}
+
+.connection-status {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.status-connected {
+  color: #4caf50;
+}
+
+.status-connecting {
+  color: #ff9800;
+}
+
+.status-failed {
+  color: #f44336;
+}
+
+.chat-sidebar {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 300px;
+  height: calc(100vh - 160px);
+  padding: 16px;
+  background: rgba(15, 15, 35, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.chat-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.chat-header {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #7c3aed;
+  margin: 0;
+}
+
+.chat-close-button {
+  color: #7c3aed !important;
+  background: rgba(124, 58, 237, 0.1) !important;
+  border: 1px solid rgba(124, 58, 237, 0.3) !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  transition: all 0.3s ease !important;
+}
+
+.chat-close-button:hover {
+  background: rgba(124, 58, 237, 0.2) !important;
+  transform: scale(1.1) !important;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.chat-message {
+  padding: 0;
+}
+
+.chat-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+.chat-avatar.system {
+  background-color: #9e9e9e;
+}
+
+.chat-avatar.user {
+  background-color: #667eea;
+}
+
+.chat-message-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-username {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #7c3aed;
+}
+
+.chat-timestamp {
+  font-size: 0.75rem;
+  color: #8b5cf6;
+}
+
+.chat-text {
+  font-size: 0.875rem;
+  color: #8b5cf6;
+}
+
+.chat-input-container {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input {
+  flex: 1;
+}
+
+.chat-send-button {
+  background: #667eea;
+  color: white;
+}
+
+.chat-send-button:hover {
+  background: #5a6fd8;
+}
+
+.meeting-controls-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px 24px;
+  background: rgba(15, 15, 35, 0.98) !important;
+  backdrop-filter: blur(20px);
+  border-radius: 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
+  border: none;
+  border-top: 1px solid rgba(124, 58, 237, 0.4);
+  z-index: 1000;
+  width: 100%;
+  max-width: none;
+}
+
+/* Override Material-UI Paper default background */
+.meeting-controls-bottom.MuiPaper-root {
+  background: rgba(15, 15, 35, 0.98) !important;
+}
+
+/* Responsive adjustments for control bar */
+@media (max-width: 768px) {
+  .meeting-controls-bottom {
+    left: 0;
+    right: 0;
+    width: 100%;
+    padding: 16px 20px;
+    border-radius: 0;
+  }
+  
+  .control-button {
+    width: 48px !important;
+    height: 48px !important;
+  }
+  
+  .control-button .MuiSvgIcon-root {
+    font-size: 24px !important;
+  }
+  
+  .leave-button {
+    padding: 8px 16px !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+.controls-row {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  align-items: center;
+}
+
+.control-button {
+  width: 56px;
+  height: 56px;
+}
+
+.control-button.audio-enabled {
+  color: #667eea;
+}
+
+.control-button.audio-disabled {
+  color: #f44336;
+}
+
+.control-button.video-enabled {
+  color: #667eea;
+}
+
+.control-button.video-disabled {
+  color: #f44336;
+}
+
+.control-button.screen-sharing {
+  color: #ff9800;
+}
+
+/* Enhanced Control Button Styles - Project Theme */
+.control-button {
+  border-radius: 50% !important;
+  border: 2px solid !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button:hover {
+  transform: scale(1.05) !important;
+}
+
+/* Audio Control Button - Enhanced */
+.control-button.audio-enabled {
+  color: #7c3aed !important;
+  background: rgba(124, 58, 237, 0.2) !important;
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4) !important;
+}
+
+.control-button.audio-enabled:hover {
+  background: rgba(124, 58, 237, 0.3) !important;
+  box-shadow: 0 0 25px rgba(124, 58, 237, 0.5) !important;
+}
+
+.control-button.audio-disabled {
+  color: #ff4757 !important;
+  background: rgba(255, 71, 87, 0.2) !important;
+  border-color: #ff4757 !important;
+  box-shadow: 0 0 20px rgba(255, 71, 87, 0.4) !important;
+}
+
+.control-button.audio-disabled:hover {
+  background: rgba(255, 71, 87, 0.3) !important;
+  box-shadow: 0 0 25px rgba(255, 71, 87, 0.5) !important;
+}
+
+/* Video Control Button - Enhanced */
+.control-button.video-enabled {
+  color: #7c3aed !important;
+  background: rgba(124, 58, 237, 0.2) !important;
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4) !important;
+}
+
+.control-button.video-enabled:hover {
+  background: rgba(124, 58, 237, 0.3) !important;
+  box-shadow: 0 0 25px rgba(124, 58, 237, 0.5) !important;
+}
+
+.control-button.video-disabled {
+  color: #ff4757 !important;
+  background: rgba(255, 71, 87, 0.2) !important;
+  border-color: #ff4757 !important;
+  box-shadow: 0 0 20px rgba(255, 71, 87, 0.4) !important;
+}
+
+.control-button.video-disabled:hover {
+  background: rgba(255, 71, 87, 0.3) !important;
+  box-shadow: 0 0 25px rgba(255, 71, 87, 0.5) !important;
+}
+
+/* Screen Share Control Button - Enhanced */
+.control-button.screen-sharing {
+  color: #FFD700 !important;
+  background: rgba(255, 215, 0, 0.2) !important;
+  border-color: #FFD700 !important;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.4) !important;
+}
+
+.control-button.screen-sharing:hover {
+  background: rgba(255, 215, 0, 0.3) !important;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.5) !important;
+}
+
+.control-button.screen-share-inactive {
+  color: #7c3aed !important;
+  background: rgba(124, 58, 237, 0.2) !important;
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4) !important;
+}
+
+.control-button.screen-share-inactive:hover {
+  background: rgba(124, 58, 237, 0.3) !important;
+  box-shadow: 0 0 25px rgba(124, 58, 237, 0.5) !important;
+}
+
+/* Chat Control Button */
+.control-button.chat-toggle.active {
+  color: #8b5cf6 !important;
+  background: rgba(139, 92, 246, 0.3) !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4) !important;
+}
+
+.control-button.chat-toggle.active:hover {
+  background: rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.5) !important;
+}
+
+.control-button.chat-toggle {
+  color: #7c3aed !important;
+  background: rgba(124, 58, 237, 0.2) !important;
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4) !important;
+}
+
+.control-button.chat-toggle:hover {
+  background: rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.5) !important;
+}
+
+/* Participants Control Button */
+.control-button.participants-toggle.active {
+  color: #8b5cf6 !important;
+  background: rgba(139, 92, 246, 0.3) !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4) !important;
+}
+
+.control-button.participants-toggle.active:hover {
+  background: rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.5) !important;
+}
+
+.control-button.participants-toggle {
+  color: #7c3aed !important;
+  background: rgba(124, 58, 237, 0.2) !important;
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4) !important;
+}
+
+.control-button.participants-toggle:hover {
+  background: rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.5) !important;
+}
+
+/* Highlight Buttons - Enhanced */
+.control-button.highlight-button {
+  color: #FFD700 !important;
+  background: rgba(255, 215, 0, 0.2) !important;
+  border-color: #FFD700 !important;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.highlight-button:hover {
+  background: rgba(255, 215, 0, 0.3) !important;
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+.control-button.highlight-button:active {
+  background: rgba(255, 215, 0, 0.4) !important;
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.6) !important;
+  transform: scale(0.95) !important;
+}
+
+/* Decision Button */
+.control-button.decision-button {
+  color: #4CAF50 !important;
+  background: rgba(76, 175, 80, 0.2) !important;
+  border-color: #4CAF50 !important;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.decision-button:hover {
+  background: rgba(76, 175, 80, 0.3) !important;
+  box-shadow: 0 0 25px rgba(76, 175, 80, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+/* Action Button */
+.control-button.action-button {
+  color: #2196F3 !important;
+  background: rgba(33, 150, 243, 0.2) !important;
+  border-color: #2196F3 !important;
+  box-shadow: 0 0 20px rgba(33, 150, 243, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.action-button:hover {
+  background: rgba(33, 150, 243, 0.3) !important;
+  box-shadow: 0 0 25px rgba(33, 150, 243, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+/* Question Button */
+.control-button.question-button {
+  color: #FF9800 !important;
+  background: rgba(255, 152, 0, 0.2) !important;
+  border-color: #FF9800 !important;
+  box-shadow: 0 0 20px rgba(255, 152, 0, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.question-button:hover {
+  background: rgba(255, 152, 0, 0.3) !important;
+  box-shadow: 0 0 25px rgba(255, 152, 0, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+/* Summary Button */
+.control-button.summary-button {
+  color: #9C27B0 !important;
+  background: rgba(156, 39, 176, 0.2) !important;
+  border-color: #9C27B0 !important;
+  box-shadow: 0 0 20px rgba(156, 39, 176, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.summary-button:hover {
+  background: rgba(156, 39, 176, 0.3) !important;
+  box-shadow: 0 0 25px rgba(156, 39, 176, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+/* Dashboard Button */
+.control-button.dashboard-button {
+  color: #6366f1 !important;
+  background: rgba(99, 102, 241, 0.2) !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.dashboard-button:hover {
+  background: rgba(99, 102, 241, 0.3) !important;
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+/* Share Button */
+.control-button.share-button {
+  color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.share-button:hover {
+  background: rgba(16, 185, 129, 0.3) !important;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+/* Recording Control Styles */
+.control-button.recording-toggle {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.recording-toggle:hover {
+  background: rgba(239, 68, 68, 0.3) !important;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+.control-button.recording-active {
+  color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4) !important;
+  animation: recording-pulse 2s infinite;
+}
+
+.control-button.recording-inactive {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4) !important;
+}
+
+@keyframes recording-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Highlight Toast Notification */
+.highlight-toast {
+  position: fixed;
+  top: 100px;
+  right: 20px;
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #000;
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(255, 215, 0, 0.4);
+  border: 2px solid rgba(255, 215, 0, 0.6);
+  font-weight: 600;
+  font-size: 1rem;
+  z-index: 2000;
+  animation: highlightToastSlide 0.3s ease-out;
+  backdrop-filter: blur(10px);
+  max-width: 300px;
+}
+
+@keyframes highlightToastSlide {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.highlight-toast.fade-out {
+  animation: highlightToastFadeOut 0.3s ease-in forwards;
+}
+
+@keyframes highlightToastFadeOut {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Leave/End Meeting Button */
+.leave-button {
+  background: linear-gradient(135deg, #ff4757, #ff3742) !important;
+  color: #fff !important;
+  padding: 12px 24px !important;
+  border-radius: 25px !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  text-transform: none !important;
+  border: 2px solid rgba(255, 71, 87, 0.3) !important;
+  box-shadow: 0 8px 25px rgba(255, 71, 87, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.leave-button:hover {
+  background: linear-gradient(135deg, #ff3742, #ff2f3a) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 12px 35px rgba(255, 71, 87, 0.5) !important;
+}
+
+/* Control Button Icons */
+.control-button .MuiSvgIcon-root {
+  font-size: 28px !important;
+}
+
+.leave-button .MuiSvgIcon-root {
+  font-size: 24px !important;
+}
+
+.control-button.chat-toggle {
+  color: #2196F3;
+}
+
+.control-button.participants-toggle {
+  color: #4CAF50;
+}
+
+.host-controls-chip {
+  padding: 8px 16px;
+  background: #ff9800;
+  color: white;
+  border-radius: 16px;
+  font-weight: 600;
+}
+
+.leave-button {
+  padding: 12px 32px;
+  background: #f44336;
+  color: white;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.leave-button:hover {
+  background: #d32f2f;
+}
+
+/* Dialog Styles */
+.dialog-title {
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.pending-approval-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  padding: 16px;
+}
+
+.approval-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.approve-button {
+  background: #4caf50;
+  color: white;
+}
+
+.approve-button:hover {
+  background: #45a049;
+}
+
+.reject-button {
+  border-color: #f44336;
+  color: #f44336;
+}
+
+.reject-button:hover {
+  background-color: rgba(244, 67, 54, 0.04);
+}
+
+/* 🎯 ZOOM-LIKE VIDEO LAYOUT STYLES */
+.custom-video-grid-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* Single participant takes full width */
+.single-participant-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.single-participant-video {
+  width: 100%;
+  max-width: 800px;
+  height: 450px;
+}
+
+.single-participant-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.local-video-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.local-video-item {
+  width: 400px;
+  max-width: 100%;
+  position: relative;
+}
+
+.screen-share-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.screen-share-item {
+  width: 600px;
+  max-width: 100%;
+  position: relative;
+}
+
+.video-row {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.remote-video-item {
+  width: 300px;
+  max-width: 100%;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.video-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  /* Ensure video is visible */
+  opacity: 1;
+  visibility: visible;
+  z-index: 1;
+  position: relative;
+}
+
+.video-overlay-absolute {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+}
+
+.video-placeholder-centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
+  border-radius: 8px;
+}
+
+.video-placeholder-avatar {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  font-weight: 600;
+  font-size: 1.5rem;
+}
+
+.video-placeholder-name {
+  font-size: 0.875rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.video-placeholder-avatar {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 8px;
+}
+
+.video-placeholder-name {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.video-placeholder-status {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.debug-info-container {
+  margin-top: 16px;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.debug-info-container.compact {
+  padding: 8px 12px;
+  background-color: rgba(245, 245, 245, 0.8);
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.debug-title {
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.meeting-stats-container {
+  margin-top: 24px;
+}
+
+.debug-buttons-container {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.debug-btn-small {
+  min-width: 60px !important;
+  height: 32px !important;
+  font-size: 0.75rem !important;
+  padding: 4px 8px !important;
+}
+
+.chat-message-no-padding {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.no-participants-text {
+  text-align: center;
+  padding: 16px 0;
+}
+
+.participant-info-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .video-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+  
+  .chat-sidebar {
+    width: 280px;
+  }
+  
+  .local-video-item {
+    width: 350px;
+  }
+  
+  .screen-share-item {
+    width: 500px;
+  }
+  
+  .remote-video-item {
+    width: 250px;
+  }
+}
+
+@media (max-width: 768px) {
+  .meeting-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  
+  .meeting-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .meeting-content {
+    flex-direction: column;
+  }
+  
+  .chat-sidebar {
+    width: 100%;
+    order: -1;
+  }
+  
+  .video-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .local-video-item {
+    width: 100%;
+    max-width: 350px;
+  }
+  
+  .screen-share-item {
+    width: 100%;
+    max-width: 500px;
+  }
+  
+  .remote-video-item {
+    width: 100%;
+    max-width: 250px;
+  }
+  
+  .single-participant-video {
+    width: 100%;
+    max-width: 600px;
+    height: 350px;
+  }
+  
+  .video-row {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .controls-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .control-button {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .meeting-controls-bottom {
+    bottom: 10px;
+    padding: 12px 20px;
+    border-radius: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .meeting-container {
+    padding: 8px;
+  }
+  
+  .meeting-header {
+    padding: 12px;
+  }
+  
+  .waiting-approval-card {
+    padding: 24px;
+    margin: 16px;
+  }
+  
+  .waiting-approval-title {
+    font-size: 1.5rem;
+  }
+  
+  .local-video-item {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .screen-share-item {
+    width: 100%;
+    max-width: 400px;
+  }
+  
+  .remote-video-item {
+    width: 100%;
+    max-width: 200px;
+  }
+}

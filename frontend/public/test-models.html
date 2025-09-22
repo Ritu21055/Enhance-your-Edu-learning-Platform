@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Face-API Models</title>
+</head>
+<body>
+    <h1>Testing Face-API Models</h1>
+    <div id="status">Loading...</div>
+    
+    <script>
+        // Test if models are accessible
+        const testModel = async () => {
+            try {
+                const response = await fetch('/models/tiny_face_detector_model-weights_manifest.json');
+                if (response.ok) {
+                    document.getElementById('status').innerHTML = '✅ Models are accessible!';
+                    console.log('Models are accessible');
+                } else {
+                    document.getElementById('status').innerHTML = '❌ Models not accessible: ' + response.status;
+                    console.error('Models not accessible:', response.status);
+                }
+            } catch (error) {
+                document.getElementById('status').innerHTML = '❌ Error: ' + error.message;
+                console.error('Error:', error);
+            }
+        };
+        
+        testModel();
+    </script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+/* RegisterPage.css */
+
+.register-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #8B5CF6 100%);
+  color: white;
+  padding: 24px;
+  position: relative;
+}
+
+.register-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Header */
+.register-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.back-button {
+  color: white !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(10px);
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.page-title {
+  font-weight: 600;
+  color: white;
+}
+
+/* Container */
+.register-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 120px);
+}
+
+.register-card {
+  background: rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 24px !important;
+  padding: 48px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15),
+              0 8px 16px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 10;
+}
+
+.register-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* Welcome Section */
+.welcome-text {
+  color: white !important;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 8px !important;
+}
+
+.subtitle-text {
+  color: rgba(255, 255, 255, 0.8) !important;
+  text-align: center;
+  font-size: 1rem;
+}
+
+/* Form */
+.register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.name-row {
+  display: flex;
+  gap: 16px;
+}
+
+.name-input {
+  flex: 1;
+}
+
+.form-input .MuiOutlinedInput-root {
+  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.form-input .MuiOutlinedInput-root fieldset {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.form-input .MuiOutlinedInput-root:hover fieldset {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.form-input .MuiOutlinedInput-root.Mui-focused fieldset {
+  border-color: #FFD700;
+  border-width: 2px;
+}
+
+.form-input .MuiInputLabel-root {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.form-input .MuiInputLabel-root.Mui-focused {
+  color: #FFD700;
+  font-weight: 600;
+}
+
+/* Register Button */
+.register-button {
+  background: linear-gradient(135deg, #ff9800, #f57c00) !important;
+  color: white !important;
+  padding: 16px 32px !important;
+  border-radius: 12px !important;
+  font-weight: 600;
+  font-size: 1.1rem;
+  text-transform: none;
+  box-shadow: 0 8px 24px rgba(255, 152, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.register-button:hover {
+  background: linear-gradient(135deg, #f57c00, #ef6c00) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(255, 152, 0, 0.4);
+}
+
+/* Login Link */
+.login-link {
+  text-align: center;
+}
+
+.link-button {
+  color: #ff9800 !important;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .register-page {
+    padding: 16px;
+  }
+  
+  .register-card {
+    padding: 32px 24px;
+    border-radius: 20px !important;
+  }
+  
+  .register-content {
+    gap: 24px;
+  }
+  
+  .name-row {
+    flex-direction: column;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .register-card {
+    padding: 24px 20px;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+  }
+  
+  .welcome-text {
+    font-size: 1.5rem !important;
+  }
+}

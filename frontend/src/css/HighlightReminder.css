@@ -1,0 +1,87 @@
+/* Highlight Reminder Styles */
+.highlight-reminder-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1500;
+  max-width: 400px;
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+.highlight-reminder {
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 2px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.highlight-reminder .MuiAlert-message {
+  padding-right: 0 !important;
+}
+
+.reminder-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.reminder-mark-button {
+  background: linear-gradient(135deg, #4CAF50, #45a049) !important;
+  color: white !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3) !important;
+  transition: all 0.3s ease !important;
+}
+
+.reminder-mark-button:hover {
+  background: linear-gradient(135deg, #45a049, #4CAF50) !important;
+  box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+.reminder-dismiss-button {
+  border-radius: 8px !important;
+  text-transform: none !important;
+  font-weight: 500 !important;
+  transition: all 0.3s ease !important;
+}
+
+.reminder-dismiss-button:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Animation */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .highlight-reminder-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+  
+  .reminder-actions {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .reminder-mark-button,
+  .reminder-dismiss-button {
+    width: 100%;
+    font-size: 0.875rem !important;
+  }
+}

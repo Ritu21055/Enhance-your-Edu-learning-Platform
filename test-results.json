@@ -1,0 +1,58 @@
+{
+  "timestamp": "2025-09-13T13:31:45.874Z",
+  "networkInterfaces": [
+    {
+      "name": "Ethernet",
+      "address": "192.168.56.1",
+      "netmask": "255.255.255.0",
+      "mac": "0a:00:27:00:00:04"
+    },
+    {
+      "name": "Wi-Fi",
+      "address": "192.168.0.106",
+      "netmask": "255.255.255.0",
+      "mac": "30:03:c8:c5:cc:35"
+    }
+  ],
+  "backend": {
+    "url": "http://192.168.56.1:5000",
+    "healthUrl": "http://192.168.56.1:5000/api/health",
+    "test": {
+      "success": true,
+      "status": 200,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "*",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "55",
+        "etag": "W/\"37-ovK65Q/CyM84/zSPdjC0HJdD504\"",
+        "date": "Sat, 13 Sep 2025 13:31:45 GMT",
+        "connection": "keep-alive",
+        "keep-alive": "timeout=5"
+      }
+    },
+    "portTest": true
+  },
+  "frontend": {
+    "url": "http://192.168.56.1:3000",
+    "test": {
+      "success": true,
+      "status": 200,
+      "headers": {
+        "x-powered-by": "Express",
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "*",
+        "access-control-allow-headers": "*",
+        "content-type": "text/html; charset=utf-8",
+        "accept-ranges": "bytes",
+        "content-length": "830",
+        "etag": "W/\"33e-iMS6nT7F4Ys75m0vu6Z3EvLs/Mw\"",
+        "vary": "Accept-Encoding",
+        "date": "Sat, 13 Sep 2025 13:31:45 GMT",
+        "connection": "keep-alive",
+        "keep-alive": "timeout=5"
+      }
+    },
+    "portTest": true
+  }
+}

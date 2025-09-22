@@ -1,0 +1,544 @@
+/* LandingPage.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  overflow-x: hidden;
+}
+
+:root {
+  --primary-purple: #7C3AED;
+  --secondary-purple: #8B5CF6;
+  --tertiary-purple: #6D28D9;
+  --accent-orange: #FF6B35;
+  --text-white: #FFFFFF;
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --border-radius: 24px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.landing-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 50%, #6D28D9 100%);
+  color: white;
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.landing-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Organic flowing shapes removed for cleaner design */
+
+/* Header Navigation */
+.header-nav {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 32px 48px;
+  z-index: 10;
+}
+
+.nav-links {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.nav-link {
+  color: white !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 12px 0;
+  text-transform: none !important;
+  letter-spacing: 0.5px;
+  transition: var(--transition);
+  border-bottom: 2px solid transparent;
+}
+
+.nav-link:hover {
+  transform: translateY(-2px);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+/* Main Content */
+.main-content {
+  padding: 60px 24px 40px;
+  position: relative;
+  z-index: 5;
+  max-width: 1400px !important;
+}
+
+/* Content wrapper */
+.content-wrapper {
+  position: relative;
+}
+
+/* Hero Section */
+.hero-section {
+  margin-bottom: 40px;
+  position: relative;
+  z-index: 3;
+}
+
+.main-title {
+  font-size: 4rem !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+  margin-bottom: 24px !important;
+  color: white;
+  text-align: left;
+}
+
+.highlight-orange {
+  color: white;
+  font-weight: 800;
+}
+
+.highlight-white {
+  color: white;
+  font-weight: 800;
+}
+
+.subtitle {
+  font-size: 1.5rem !important;
+  font-weight: 400 !important;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 0 !important;
+  line-height: 1.4;
+  max-width: 500px;
+}
+
+/* Feature Cards */
+.feature-cards {
+  margin-top: 40px;
+  position: relative;
+  z-index: 3;
+}
+
+.feature-card {
+  background: rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: var(--border-radius) !important;
+  transition: var(--transition);
+  height: 380px;
+  position: relative;
+  overflow: visible;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.feature-card:hover {
+  transform: translateY(-8px);
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+.feature-content {
+  padding: 32px 24px !important;
+  text-align: center;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.feature-icon {
+  width: 80px !important;
+  height: 80px !important;
+  margin-bottom: 24px !important;
+  font-size: 2rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.feature-icon.blue {
+  background: linear-gradient(135deg, #00BFFF, #87CEEB) !important;
+  box-shadow: 0 8px 32px rgba(0, 191, 255, 0.3);
+}
+
+.feature-icon.yellow {
+  background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+  box-shadow: 0 8px 32px rgba(255, 215, 0, 0.3);
+}
+
+.feature-icon.orange {
+  background: linear-gradient(135deg, #FF8C00, #FF4500) !important;
+  box-shadow: 0 8px 32px rgba(255, 140, 0, 0.3);
+}
+
+.feature-title {
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: white !important;
+  margin-bottom: 16px !important;
+  line-height: 1.3 !important;
+  text-align: center;
+}
+
+.feature-description {
+  color: rgba(255, 255, 255, 0.8) !important;
+  line-height: 1.5;
+  font-size: 0.95rem !important;
+  text-align: center;
+}
+
+/* Visual Section - Phones */
+.visual-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  height: 500px;
+}
+
+.phones-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.phone {
+  position: absolute;
+  width: 140px;
+  height: 280px;
+  background: #2D3748;
+  border-radius: 24px;
+  border: 2px solid #4A5568;
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 8px 24px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.phone:hover {
+  transform: scale(1.05) !important;
+  z-index: 20 !important;
+  box-shadow: 
+    0 30px 80px rgba(0, 0, 0, 0.4),
+    0 12px 32px rgba(0, 0, 0, 0.3);
+}
+
+.phone-screen {
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  margin: 4px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #8B5CF6 100%);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.phone-status {
+  color: white !important;
+  font-weight: 600 !important;
+  font-size: 0.7rem !important;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.phone-avatar {
+  width: 60px !important;
+  height: 60px !important;
+  border: 3px solid white !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.phone-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.main-avatar {
+  width: 80px !important;
+  height: 80px !important;
+}
+
+.phone-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.control-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mic-btn {
+  background: #4CAF50;
+}
+
+.video-btn {
+  background: #2196F3;
+}
+
+.hangup-btn {
+  background: #f44336;
+}
+
+.control-btn:hover {
+  transform: scale(1.1);
+}
+
+/* Phone Positioning */
+.phone-1 {
+  top: 20%;
+  left: 15%;
+  transform: rotate(-12deg);
+  z-index: 5;
+}
+
+.phone-2 {
+  top: 10%;
+  left: 35%;
+  transform: rotate(-6deg);
+  z-index: 4;
+}
+
+.phone-3 {
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%) rotate(0deg);
+  z-index: 6;
+  width: 160px;
+  height: 320px;
+}
+
+.phone-4 {
+  top: 10%;
+  right: 35%;
+  transform: rotate(6deg);
+  z-index: 4;
+}
+
+.phone-5 {
+  top: 20%;
+  right: 15%;
+  transform: rotate(12deg);
+  z-index: 5;
+}
+
+/* Phone animations */
+.phone-1 { animation: phone-float-1 4s ease-in-out infinite; }
+.phone-2 { animation: phone-float-2 4s ease-in-out infinite 0.5s; }
+.phone-3 { animation: phone-float-3 4s ease-in-out infinite 1s; }
+.phone-4 { animation: phone-float-4 4s ease-in-out infinite 1.5s; }
+.phone-5 { animation: phone-float-5 4s ease-in-out infinite 2s; }
+
+@keyframes phone-float-1 {
+  0%, 100% { transform: translateY(0px) rotate(-12deg); }
+  50% { transform: translateY(-12px) rotate(-12deg); }
+}
+
+@keyframes phone-float-2 {
+  0%, 100% { transform: translateY(0px) rotate(-6deg); }
+  50% { transform: translateY(-8px) rotate(-6deg); }
+}
+
+@keyframes phone-float-3 {
+  0%, 100% { transform: translateX(-50%) translateY(0px) rotate(0deg); }
+  50% { transform: translateX(-50%) translateY(-15px) rotate(0deg); }
+}
+
+@keyframes phone-float-4 {
+  0%, 100% { transform: translateY(0px) rotate(6deg); }
+  50% { transform: translateY(-8px) rotate(6deg); }
+}
+
+@keyframes phone-float-5 {
+  0%, 100% { transform: translateY(0px) rotate(12deg); }
+  50% { transform: translateY(-12px) rotate(12deg); }
+}
+
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .main-title {
+    font-size: 3.5rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-nav {
+    padding: 16px 24px;
+  }
+  
+  .nav-links {
+    gap: 16px;
+  }
+  
+  .main-content {
+    padding: 60px 16px 40px;
+  }
+  
+  .main-title {
+    font-size: 2.5rem !important;
+    text-align: center;
+  }
+  
+  .subtitle {
+    font-size: 1.2rem !important;
+    text-align: center;
+  }
+  
+
+  
+  .visual-section {
+    height: 350px;
+    margin-top: 30px;
+  }
+  
+  .phone {
+    width: 100px;
+    height: 200px;
+  }
+  
+  .phone-3 {
+    width: 120px;
+    height: 240px;
+  }
+  
+  .phone-avatar {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  
+  .main-avatar {
+    width: 50px !important;
+    height: 50px !important;
+  }
+  
+  .control-btn {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-nav {
+    padding: 12px 16px;
+  }
+  
+  .nav-links {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .nav-link {
+    font-size: 0.85rem !important;
+    padding: 8px 12px !important;
+  }
+  
+  .main-content {
+    padding: 40px 12px 20px;
+  }
+  
+  .main-title {
+    font-size: 1.8rem !important;
+    line-height: 1.2 !important;
+    margin-bottom: 16px !important;
+  }
+  
+  .subtitle {
+    font-size: 0.95rem !important;
+    margin-bottom: 24px !important;
+  }
+  
+  .feature-cards {
+    margin-top: 24px;
+  }
+  
+  .feature-card {
+    height: 280px;
+    margin-bottom: 16px;
+  }
+  
+  .feature-content {
+    padding: 20px 16px !important;
+  }
+  
+  .feature-icon {
+    width: 50px !important;
+    height: 50px !important;
+    margin-bottom: 16px !important;
+  }
+  
+  .feature-title {
+    font-size: 1.1rem !important;
+    margin-bottom: 12px !important;
+  }
+  
+  .feature-description {
+    font-size: 0.85rem !important;
+  }
+  
+  .visual-section {
+    height: 250px;
+    margin-top: 20px;
+  }
+  
+  .phone {
+    width: 70px;
+    height: 140px;
+  }
+  
+  .phone-3 {
+    width: 90px;
+    height: 160px;
+  }
+  
+  .phone-avatar {
+    width: 30px !important;
+    height: 30px !important;
+  }
+  
+  .main-avatar {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  
+  .control-btn {
+    width: 12px;
+    height: 12px;
+  }
+  
+  .phone-status {
+    font-size: 0.6rem !important;
+    padding: 2px 6px;
+  }
+  
+}
