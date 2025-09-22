@@ -1,6 +1,6 @@
-# 🎥 WebNexus - Professional Video Conferencing App
+# 🎓 Enhance Your Edu-Learning Platform
 
-A Zoom-like video conferencing application built with React, Node.js, and WebRTC, featuring AI-powered capabilities and cross-device compatibility.
+An AI-powered video conferencing platform built with React, Node.js, and WebRTC, designed specifically for educational environments with intelligent insights and cross-device compatibility.
 
 ## ✨ Features
 
@@ -133,21 +133,14 @@ ollama pull llama3.2:3b
 ollama run llama3.2:3b "Hello, how are you?"
 ```
 
-### Option 2: Google Gemini (Free Tier)
-1. Get API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Set environment variable:
-   ```bash
-   export GOOGLE_GEMINI_API_KEY=your_api_key_here
-   ```
-
-### Option 3: Rule-based (No Setup)
+### Option 2: Rule-based (No Setup)
 - Works out of the box with intelligent fallback questions
 
 ## 🔧 Development
 
 ### Project Structure
 ```
-WebNexus/
+enhance-edu-learning-platform/
 ├── frontend/                 # React application
 │   ├── src/
 │   │   ├── components/      # React components
@@ -214,7 +207,7 @@ WebNexus/
 ### AI Question Generation
 - **Real-time Transcription**: Continuous audio processing
 - **Contextual Questions**: AI-generated follow-up questions
-- **Multiple LLM Support**: Ollama, Gemini, or rule-based
+- **Multiple LLM Support**: Ollama or rule-based
 - **Smart Timing**: Questions generated every 30 seconds
 
 ### Performance Monitoring
@@ -257,7 +250,7 @@ WebNexus/
 #### AI Features Issues
 - **Model Loading**: Check if AI models are properly loaded
 - **Performance**: Monitor AI performance dashboard
-- **LLM Setup**: Verify Ollama or Gemini configuration
+- **LLM Setup**: Verify Ollama configuration
 - **Console Logs**: Check browser console for errors
 
 ### Browser Compatibility
