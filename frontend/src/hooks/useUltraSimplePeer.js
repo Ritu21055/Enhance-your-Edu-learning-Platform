@@ -26,6 +26,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
   const reconnectionAttempts = useRef({});
   const pageVisibilityRef = useRef(true);
   const connectionHealthCheckRef = useRef(null);
+  const lastReconnectionAttempt = useRef({});
 
   // Handle page visibility changes
   useEffect(() => {
@@ -806,8 +807,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
       const iceConnectionState = peer._pc.iceConnectionState;
       
       // More lenient connection check - allow various active states
-      const isConnectionGood = connectionState === 'connected' || connectionState === 'connecting';
-      const isIceGood = iceConnectionState === 'connected' || iceConnectionState === 'completed' || iceConnectionState === 'checking';
+      const isConnectionGood = connectionState === 'connected' || connectionState === 'connecting' || connectionState === 'new';
+      const isIceGood = iceConnectionState === 'connected' || iceConnectionState === 'completed' || 
+                       iceConnectionState === 'checking' || iceConnectionState === 'new';
       
       console.log(`🔍 Connection check for ${participantId}:`, {
         connectionState,
@@ -818,6 +820,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
       });
       
       return isConnectionGood && isIceGood;
+    }
+    
+    // If peer exists but no _pc yet, consider it active (still establishing)
+    if (peer && !peer._pc) {
+      console.log(`🔍 Connection check for ${participantId}: Peer exists but no _pc yet, considering active`);
+      return true;
     }
     
     return false;
@@ -954,20 +962,48 @@ const useUltraSimplePeer = (meetingId, userName) => {
         clearInterval(connectionHealthCheckRef.current);
       }
       
+      // Reduced frequency and more lenient health check
       connectionHealthCheckRef.current = setInterval(() => {
         const allParticipants = participantsRef.current.filter(p => 
           p.id !== socketRef.current?.id && p.isApproved
         );
         
+        console.log(`🔍 HEALTH CHECK: Checking ${allParticipants.length} participants`);
+        
         allParticipants.forEach(participant => {
           const isActive = isConnectionActive(participant.id);
-          if (!isActive && peersRef.current[participant.id]) {
-            console.log(`🔍 HEALTH CHECK: Connection to ${participant.name} is inactive, attempting reconnection`);
-            // Trigger reconnection
-            createConnectionsToAllParticipants();
+          const hasPeer = peersRef.current[participant.id];
+          
+          console.log(`🔍 HEALTH CHECK: ${participant.name} - Active: ${isActive}, HasPeer: ${!!hasPeer}`);
+          
+          // Only attempt reconnection if peer exists but connection is truly dead
+          if (hasPeer && !isActive) {
+            const peer = peersRef.current[participant.id];
+            const connectionState = peer._pc?.connectionState;
+            const iceConnectionState = peer._pc?.iceConnectionState;
+            
+            // Only reconnect if connection is truly failed
+            if (connectionState === 'failed' || connectionState === 'disconnected' || 
+                iceConnectionState === 'failed' || iceConnectionState === 'disconnected') {
+              
+              // Check cooldown period (30 seconds between reconnection attempts)
+              const now = Date.now();
+              const lastAttempt = lastReconnectionAttempt.current[participant.id] || 0;
+              const cooldownPeriod = 30000; // 30 seconds
+              
+              if (now - lastAttempt > cooldownPeriod) {
+                console.log(`🔍 HEALTH CHECK: Connection to ${participant.name} is truly dead, attempting reconnection`);
+                lastReconnectionAttempt.current[participant.id] = now;
+                createConnectionsToAllParticipants();
+              } else {
+                console.log(`🔍 HEALTH CHECK: Connection to ${participant.name} is dead but in cooldown period, skipping reconnection`);
+              }
+            } else {
+              console.log(`🔍 HEALTH CHECK: Connection to ${participant.name} is still establishing, skipping reconnection`);
+            }
           }
         });
-      }, participantsRef.current.length <= 4 ? 5000 : 10000); // More frequent checks for small groups
+      }, 15000); // Increased to 15 seconds to reduce aggressive reconnections
     };
 
     // Start health check when we have participants
