@@ -785,9 +785,18 @@ Generate only the question, no explanations.`;
       return false;
     }
 
-    // Only generate questions if there's substantial conversation (at least 200 characters)
-    if (!transcriptContext || transcriptContext.length < 200) {
-      console.log('🤖 Question trigger: Insufficient conversation content');
+    // Only generate questions if there's substantial conversation (at least 500 characters)
+    if (!transcriptContext || transcriptContext.length < 500) {
+      console.log('🤖 Question trigger: Insufficient conversation content (need at least 500 chars)');
+      return false;
+    }
+    
+    // Check for meaningful conversation (not just repeated words or empty content)
+    const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
+    const uniqueWords = new Set(words.map(word => word.toLowerCase()));
+    
+    if (words.length < 30 || uniqueWords.size < 10) {
+      console.log('🤖 Question trigger: Insufficient meaningful conversation (need at least 30 words, 10 unique)');
       return false;
     }
 

@@ -217,10 +217,11 @@ const MeetingRoom = () => {
       console.log('🤖 Received AI status:', data);
       setAiStatus(data);
       
-      // Start question generation when AI is ready
-      if (data.status === 'ready' && !isQuestionGenerationActive) {
-        console.log('🤖 AI is ready, starting question generation...');
-        handleStartQuestionGeneration();
+      // Don't automatically start question generation - let user control it
+      if (data.status === 'ready') {
+        console.log('🤖 AI is ready, but not starting question generation automatically');
+        // Only start if there's already been some conversation
+        // handleStartQuestionGeneration(); // Commented out to prevent automatic start
       }
     };
 

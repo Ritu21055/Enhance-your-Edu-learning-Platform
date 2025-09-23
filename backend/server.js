@@ -1967,14 +1967,28 @@ io.on('connection', (socket) => {
     const { meetingId } = data;
     console.log('🤖 Starting question generation for meeting:', meetingId);
     
-    // Set up intelligent question generation (every 30 seconds)
+    // Set up intelligent question generation (every 60 seconds - reduced frequency)
     const questionTimer = setInterval(async () => {
       try {
         // Get recent transcript context
         const recentContext = llmService.getRecentTranscriptContext(meetingId, 5);
         
-        if (recentContext.length < 50) {
-          console.log('📝 Skipping question generation - insufficient transcript context');
+        console.log('🤖 Question generation check:', {
+          meetingId,
+          contextLength: recentContext.length,
+          context: recentContext.substring(0, 100) + '...'
+        });
+        
+        // More strict validation - require substantial conversation
+        if (recentContext.length < 200) {
+          console.log('📝 Skipping question generation - insufficient transcript context (need at least 200 chars)');
+          return;
+        }
+        
+        // Check if context contains actual conversation (not just empty strings)
+        const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
+        if (meaningfulWords < 20) {
+          console.log('📝 Skipping question generation - insufficient meaningful words (need at least 20 words)');
           return;
         }
         
@@ -2010,7 +2024,7 @@ io.on('connection', (socket) => {
       } catch (error) {
         console.error('❌ Question generation failed:', error);
       }
-    }, 30000); // Check every 30 seconds
+    }, 60000); // Check every 60 seconds - reduced frequency
     
     // Store timer for cleanup
     llmService.questionGenerationTimer.set(meetingId, questionTimer);
