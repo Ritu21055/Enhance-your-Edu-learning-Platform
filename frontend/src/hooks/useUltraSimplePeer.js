@@ -152,19 +152,19 @@ const useUltraSimplePeer = (meetingId, userName) => {
           participantsRef.current = updated;
           
           if (newParticipant.isApproved && newParticipant.id !== newSocket.id) {
-            setTimeout(() => {
-              createConnectionsToAllParticipants();
+        setTimeout(() => {
+      createConnectionsToAllParticipants();
             }, 200);
           }
         if (isHostRef.current && !localStream) {
           initializeMedia().then(newStream => {
             if (newStream) {
               setTimeout(() => {
-                createConnectionsToAllParticipants();
-              }, 1000);
+          createConnectionsToAllParticipants();
+        }, 1000);
             }
           });
-        }
+          }
           
           return updated;
         } else {
@@ -217,7 +217,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       
       // Only auto-show pending approvals if user is actively in the meeting
       if (pageVisibilityRef.current) {
-        setShowPendingApprovals(true);
+      setShowPendingApprovals(true);
       }
     });
 
@@ -337,14 +337,23 @@ const useUltraSimplePeer = (meetingId, userName) => {
         console.log('🔗 FORCE: This is for me, creating connection to:', fromId);
         
         // Ensure we have local stream
-        if (!localStream) {
+        let currentStream = localStream;
+        if (!currentStream) {
           console.log('🔗 FORCE: No local stream, initializing media first...');
-          await initializeMedia();
+          currentStream = await initializeMedia();
+          if (currentStream) {
+            setLocalStream(currentStream);
+          }
         }
         
         // Wait a bit for media to be ready
         setTimeout(async () => {
-          const currentStream = localStream || await initializeMedia();
+          if (!currentStream) {
+            currentStream = await initializeMedia();
+            if (currentStream) {
+              setLocalStream(currentStream);
+            }
+          }
           await createPeerConnection(fromId, currentStream);
         }, 500);
       }
@@ -594,9 +603,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraints,
-          audio: audioConstraints
-        });
+        video: videoConstraints,
+        audio: audioConstraints
+      });
       } catch (constraintError) {
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
@@ -634,6 +643,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     console.log(`🔗 CREATE-PEER: Creating connection to ${participantId}`);
     console.log(`🔗 CREATE-PEER: Has stream:`, !!stream);
     console.log(`🔗 CREATE-PEER: Stream active:`, stream?.active);
+    console.log(`🔗 CREATE-PEER: Stream tracks:`, stream?.getTracks()?.length);
     
     if (peersRef.current[participantId]) {
       console.log(`🔗 CREATE-PEER: Connection already exists for ${participantId}`);
@@ -648,6 +658,18 @@ const useUltraSimplePeer = (meetingId, userName) => {
         console.log(`🔗 CREATE-PEER: No local stream available, cannot create connection`);
         return;
       }
+    }
+    
+    // Ensure stream is active and has tracks
+    if (!stream || !stream.active || stream.getTracks().length === 0) {
+      console.log(`🔗 CREATE-PEER: Stream is not valid, trying to reinitialize...`);
+      const newStream = await initializeMedia();
+      if (!newStream) {
+        console.log(`🔗 CREATE-PEER: Failed to initialize stream, cannot create connection`);
+        return;
+      }
+      stream = newStream;
+      setLocalStream(stream);
     }
 
     const shouldBeInitiator = socketRef.current?.id && participantId && socketRef.current.id < participantId;
@@ -756,12 +778,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
           });
         }
         
-        const newStreams = {
-          ...prev,
-          [participantId]: stream
-        };
+          const newStreams = {
+            ...prev,
+            [participantId]: stream
+          };
         console.log(`🎥 STREAM: Updated remote streams:`, Object.keys(newStreams));
-        return newStreams;
+          return newStreams;
       });
     });
 
@@ -829,6 +851,19 @@ const useUltraSimplePeer = (meetingId, userName) => {
         console.log('🔗 CREATE-ALL: Failed to initialize stream');
         return;
       }
+      // Update the local stream state
+      setLocalStream(currentStream);
+    }
+    
+    // Ensure stream is active and has tracks
+    if (!currentStream || !currentStream.active || currentStream.getTracks().length === 0) {
+      console.log('🔗 CREATE-ALL: Stream is not active or has no tracks, reinitializing...');
+      currentStream = await initializeMedia();
+      if (!currentStream) {
+        console.log('🔗 CREATE-ALL: Failed to reinitialize stream');
+        return;
+      }
+      setLocalStream(currentStream);
     }
     
     if (isHostRef.current && (!currentStream || !currentStream.active || currentStream.getTracks().length === 0)) {
@@ -893,7 +928,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     }
     
     console.log('🔗 CREATE-ALL: Creating connections to:', participantsToConnect.length, 'participants');
-    
+      
     participantsToConnect.forEach((participant, index) => {
       console.log(`🔗 CREATE-ALL: Connecting to ${participant.name} (${participant.id})`);
       setTimeout(async () => {

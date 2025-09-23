@@ -94,7 +94,7 @@ class MediaProcessor {
 
       // Combine all clips with transitions
       const allClips = [introPath, ...clipFiles.flatMap((clip, i) => [clip, ...(transitionFiles[i] ? [transitionFiles[i]] : [])]), outroPath];
-      
+
       // Create file list for FFmpeg concatenation
       const fileListPath = path.join(this.tempDir, `filelist_${Date.now()}.txt`);
       const fileListContent = allClips.map(file => `file '${file}'`).join('\n');

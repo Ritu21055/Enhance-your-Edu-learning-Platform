@@ -271,16 +271,16 @@ async function detectImportantMoments(meetingId, existingHighlights) {
             text.includes('why') || 
             text.includes('when') || 
             text.includes('where')) {
-          autoHighlights.push({
-            timestamp,
-            participantId: 'auto-detected',
-            date: new Date(timestamp).toISOString(),
-            id: uuidv4(),
-            type: 'auto_question',
+            autoHighlights.push({
+              timestamp,
+              participantId: 'auto-detected',
+              date: new Date(timestamp).toISOString(),
+              id: uuidv4(),
+              type: 'auto_question',
             description: 'Important question asked',
-            priority: 'medium',
+              priority: 'medium',
             confidence: 0.6
-          });
+            });
         }
       });
     }
