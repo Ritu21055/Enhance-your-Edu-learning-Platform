@@ -53,6 +53,7 @@ import HighlightDashboard from './components/HighlightDashboard';
 import ShareHighlightReel from './components/ShareHighlightReel';
 
 import AIHighlightNotification from './components/AIHighlightNotification';
+import FreeTranscription from './components/FreeTranscription';
 
 // AI Features - Real-time Sentiment Analysis
 
@@ -84,6 +85,9 @@ const MeetingRoom = () => {
   const [suggestedQuestion, setSuggestedQuestion] = useState(null);
   const [showQuestionSuggestion, setShowQuestionSuggestion] = useState(false);
   const [isQuestionGenerationActive, setIsQuestionGenerationActive] = useState(false);
+  
+  // AI Status state
+  const [aiStatus, setAiStatus] = useState(null);
   // Refs (localVideoRef comes from useWebRTC hook)
 
   // Custom hooks
@@ -202,6 +206,30 @@ const MeetingRoom = () => {
       socket.off('follow_up_suggestion', handleFollowUpSuggestion);
     };
   }, [socket, isHost]);
+
+  // AI Status - Listen for AI initialization status (host only)
+  useEffect(() => {
+    if (!socket || !isHost) {
+      return;
+    }
+
+    const handleAIStatus = (data) => {
+      console.log('🤖 Received AI status:', data);
+      setAiStatus(data);
+      
+      // Start question generation when AI is ready
+      if (data.status === 'ready' && !isQuestionGenerationActive) {
+        console.log('🤖 AI is ready, starting question generation...');
+        handleStartQuestionGeneration();
+      }
+    };
+
+    socket.on('ai_status', handleAIStatus);
+
+    return () => {
+      socket.off('ai_status', handleAIStatus);
+    };
+  }, [socket, isHost, isQuestionGenerationActive]);
 
 
   // Start sentiment analysis when models are loaded and video is available (participants only)
@@ -596,6 +624,16 @@ const MeetingRoom = () => {
               🧠 {showSentimentDashboard ? 'Hide' : 'Show'} AI Analytics
             </Button>
             
+            {/* AI Status Display */}
+            {aiStatus && (
+              <Box sx={{ mt: 1, p: 1, backgroundColor: aiStatus.status === 'ready' ? '#e8f5e8' : aiStatus.status === 'limited' ? '#fff3cd' : '#f8d7da', borderRadius: 1, border: `1px solid ${aiStatus.status === 'ready' ? '#28a745' : aiStatus.status === 'limited' ? '#ffc107' : '#dc3545'}` }}>
+                <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {aiStatus.status === 'ready' ? '✅' : aiStatus.status === 'limited' ? '⚠️' : '❌'}
+                  <strong>AI Status:</strong> {aiStatus.message}
+                </Typography>
+              </Box>
+            )}
+            
             {/* Host Camera/Mic Request Component */}
             <HostCameraRequest
               isHost={isHost}
@@ -864,6 +902,16 @@ const MeetingRoom = () => {
         )}
       </Box>
 
+      {/* Free Transcription for AI Question Generation */}
+      <FreeTranscription
+        socket={socket}
+        meetingId={meetingId}
+        participantId={socket?.id}
+        isVisible={true}
+        onTranscriptUpdate={(transcript, confidence) => {
+          console.log('📝 Transcript update received:', { transcript, confidence });
+        }}
+      />
 
       {/* AI Highlight Notifications */}
       <AIHighlightNotification

@@ -17,6 +17,28 @@ import mediaRecorder from './src/utils/mediaRecorder.js';
 // Import AI Highlight Detector for Free Automatic Highlight Detection
 import AIHighlightDetector from './src/utils/aiHighlightDetector.js';
 
+// Import Meeting History Manager for persistent storage
+import meetingHistoryManager from './src/utils/meetingHistory.js';
+
+// Load persistent meeting history on server startup
+let persistentMeetings = new Map();
+let persistentHighlights = new Map();
+let persistentTranscripts = new Map();
+
+// Load existing meeting history on startup
+(async () => {
+  try {
+    const activeMeetings = await meetingHistoryManager.getActiveMeetings();
+    console.log('📋 Loaded persistent meeting history:', activeMeetings.length, 'meetings');
+    
+    // Populate in-memory maps for quick access
+    for (const meeting of activeMeetings) {
+      persistentMeetings.set(meeting.id, meeting);
+    }
+  } catch (error) {
+    console.error('❌ Failed to load persistent meeting history:', error);
+  }
+})();
 
 const app = express();
 const server = createServer(app);
@@ -165,37 +187,100 @@ async function detectImportantMoments(meetingId, existingHighlights) {
       });
     }
     
-    // 2. Detect question moments (based on transcript analysis)
+    // 2. Enhanced transcript analysis for important moments
     if (transcriptHistory && transcriptHistory.length > 0) {
       transcriptHistory.forEach((entry, index) => {
         const text = entry.transcript.toLowerCase();
+        const timestamp = currentTime - (transcriptHistory.length - index) * 30000;
         
-        // Look for question patterns
+        // Check if already covered
+        const isAlreadyCovered = existingHighlights.some(h => 
+          Math.abs(h.timestamp - timestamp) < 30000
+        );
+        
+        if (isAlreadyCovered) return;
+        
+        // Detect decision moments
+        const decisionKeywords = ['decided', 'agreed', 'concluded', 'final', 'approved', 'rejected', 'chosen', 'selected'];
+        if (decisionKeywords.some(keyword => text.includes(keyword))) {
+          autoHighlights.push({
+            timestamp,
+            participantId: 'auto-detected',
+            date: new Date(timestamp).toISOString(),
+            id: uuidv4(),
+            type: 'auto_decision',
+            description: 'Important decision made',
+            priority: 'high',
+            confidence: 0.9
+          });
+          return;
+        }
+        
+        // Detect problem mentions
+        const problemKeywords = ['problem', 'issue', 'challenge', 'concern', 'difficult', 'trouble', 'error', 'bug'];
+        if (problemKeywords.some(keyword => text.includes(keyword))) {
+          autoHighlights.push({
+            timestamp,
+            participantId: 'auto-detected',
+            date: new Date(timestamp).toISOString(),
+            id: uuidv4(),
+            type: 'auto_problem',
+            description: 'Problem or issue identified',
+            priority: 'high',
+            confidence: 0.8
+          });
+          return;
+        }
+        
+        // Detect solution proposals
+        const solutionKeywords = ['solution', 'fix', 'resolve', 'solve', 'propose', 'suggest', 'recommend', 'idea'];
+        if (solutionKeywords.some(keyword => text.includes(keyword))) {
+          autoHighlights.push({
+            timestamp,
+            participantId: 'auto-detected',
+            date: new Date(timestamp).toISOString(),
+            id: uuidv4(),
+            type: 'auto_solution',
+            description: 'Solution or approach proposed',
+            priority: 'high',
+            confidence: 0.8
+          });
+          return;
+        }
+        
+        // Detect action items
+        const actionKeywords = ['action', 'task', 'todo', 'assign', 'responsible', 'deadline', 'due', 'next step'];
+        if (actionKeywords.some(keyword => text.includes(keyword))) {
+          autoHighlights.push({
+            timestamp,
+            participantId: 'auto-detected',
+            date: new Date(timestamp).toISOString(),
+            id: uuidv4(),
+            type: 'auto_action',
+            description: 'Action item or task assigned',
+            priority: 'medium',
+            confidence: 0.7
+          });
+          return;
+        }
+        
+        // Detect questions (lower priority)
         if (text.includes('?') || 
             text.includes('what') || 
             text.includes('how') || 
             text.includes('why') || 
             text.includes('when') || 
             text.includes('where')) {
-          
-          const timestamp = currentTime - (transcriptHistory.length - index) * 30000;
-          
-          const isAlreadyCovered = existingHighlights.some(h => 
-            Math.abs(h.timestamp - timestamp) < 30000
-          );
-          
-          if (!isAlreadyCovered) {
-            autoHighlights.push({
-              timestamp,
-              participantId: 'auto-detected',
-              date: new Date(timestamp).toISOString(),
-              id: uuidv4(),
-              type: 'auto_question',
-              description: 'Important question detected',
-              priority: 'medium',
-              confidence: 0.7
-            });
-          }
+          autoHighlights.push({
+            timestamp,
+            participantId: 'auto-detected',
+            date: new Date(timestamp).toISOString(),
+            id: uuidv4(),
+            type: 'auto_question',
+            description: 'Important question asked',
+            priority: 'medium',
+            confidence: 0.6
+          });
         }
       });
     }
@@ -876,6 +961,114 @@ app.get('/api/meetings/:meetingId', (req, res) => {
   res.json({ meeting });
 });
 
+// Meeting History API Endpoints
+app.get('/api/meetings/:meetingId/history', async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const history = await meetingHistoryManager.getMeetingHistory(meetingId);
+    
+    if (!history) {
+      return res.status(404).json({ error: 'Meeting history not found' });
+    }
+    
+    res.json({ meetingHistory: history });
+  } catch (error) {
+    console.error('❌ Error getting meeting history:', error);
+    res.status(500).json({ error: 'Failed to get meeting history' });
+  }
+});
+
+app.get('/api/meetings/history/all', async (req, res) => {
+  try {
+    const histories = await meetingHistoryManager.getAllMeetingHistories();
+    res.json({ meetingHistories: histories });
+  } catch (error) {
+    console.error('❌ Error getting all meeting histories:', error);
+    res.status(500).json({ error: 'Failed to get meeting histories' });
+  }
+});
+
+app.get('/api/meetings/history/statistics', async (req, res) => {
+  try {
+    const statistics = await meetingHistoryManager.getMeetingStatistics();
+    res.json({ statistics });
+  } catch (error) {
+    console.error('❌ Error getting meeting statistics:', error);
+    res.status(500).json({ error: 'Failed to get meeting statistics' });
+  }
+});
+
+app.delete('/api/meetings/:meetingId/history', async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const success = await meetingHistoryManager.deleteMeetingHistory(meetingId);
+    
+    if (!success) {
+      return res.status(404).json({ error: 'Meeting history not found' });
+    }
+    
+    // Also remove from active meetings index
+    await meetingHistoryManager.removeFromActiveMeetings(meetingId);
+    
+    res.json({ message: 'Meeting history deleted successfully' });
+  } catch (error) {
+    console.error('❌ Error deleting meeting history:', error);
+    res.status(500).json({ error: 'Failed to delete meeting history' });
+  }
+});
+
+app.post('/api/meetings/history/cleanup', async (req, res) => {
+  try {
+    const { daysToKeep = 30 } = req.body;
+    const deletedCount = await meetingHistoryManager.cleanupOldHistories(daysToKeep);
+    
+    res.json({ 
+      message: `Cleanup completed: ${deletedCount} old meeting histories deleted`,
+      deletedCount 
+    });
+  } catch (error) {
+    console.error('❌ Error cleaning up meeting histories:', error);
+    res.status(500).json({ error: 'Failed to cleanup meeting histories' });
+  }
+});
+
+// API endpoint to get all active meetings (persistent)
+app.get('/api/meetings/active', async (req, res) => {
+  try {
+    const activeMeetings = await meetingHistoryManager.getActiveMeetings();
+    
+    res.json({
+      success: true,
+      data: activeMeetings,
+      count: activeMeetings.length
+    });
+  } catch (error) {
+    console.error('❌ Failed to get active meetings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get active meetings'
+    });
+  }
+});
+
+// API endpoint to get persistent meeting statistics
+app.get('/api/meetings/persistent/statistics', async (req, res) => {
+  try {
+    const stats = await meetingHistoryManager.getMeetingStatistics();
+    
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('❌ Failed to get persistent meeting statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get meeting statistics'
+    });
+  }
+});
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -1010,6 +1203,34 @@ io.on('connection', (socket) => {
       console.log(`👑 ${userName} is now the host of meeting ${meetingId} with socket ID: ${socket.id}`);
       console.log(`👑 Host name set to: "${meeting.host}"`);
       
+      // Initialize AI features for this meeting
+      console.log(`🤖 Initializing AI features for meeting ${meetingId}...`);
+      llmService.reinitializeForMeeting(meetingId).then((aiAvailable) => {
+        if (aiAvailable) {
+          console.log(`✅ AI features are ready for meeting ${meetingId}`);
+          // Notify host that AI is ready
+          socket.emit('ai_status', {
+            meetingId,
+            status: 'ready',
+            message: 'AI-powered features are active'
+          });
+        } else {
+          console.log(`⚠️ AI features are limited for meeting ${meetingId} (using fallback)`);
+          // Notify host that AI is limited
+          socket.emit('ai_status', {
+            meetingId,
+            status: 'limited',
+            message: 'AI features are limited (using basic mode)'
+          });
+        }
+      }).catch((error) => {
+        console.error(`❌ Failed to initialize AI for meeting ${meetingId}:`, error);
+        socket.emit('ai_status', {
+          meetingId,
+          status: 'error',
+          message: 'AI features are not available'
+        });
+      });
     }
     
     socket.join(meetingId);
@@ -1293,7 +1514,7 @@ io.on('connection', (socket) => {
     }, 30000); // 30 seconds to respond
   });
 
-  // Handle media state changes (camera/audio toggle)
+  // Handle media state changes (camera/audio toggle) with intelligent recording
   socket.on('media-state-change', (data) => {
     console.log(`📡 Media state change from ${data.participantId}:`, {
       audioEnabled: data.audioEnabled,
@@ -1314,6 +1535,32 @@ io.on('connection', (socket) => {
       console.log(`✅ Updated media state for participant ${participant.name}:`, {
         audioEnabled: data.audioEnabled,
         videoEnabled: data.videoEnabled
+      });
+    }
+    
+    // Update intelligent recording with media state
+    const mediaState = {
+      videoEnabled: data.videoEnabled,
+      audioEnabled: data.audioEnabled,
+      hasVideo: data.hasVideo || false,
+      hasAudio: data.hasAudio || false
+    };
+    
+    mediaRecorder.updateParticipantMediaState(data.meetingId, data.participantId, mediaState);
+    
+    // Get intelligent recording configuration
+    const recordingConfig = mediaRecorder.getIntelligentRecordingConfig(data.meetingId);
+    if (recordingConfig) {
+      console.log(`🎬 Recording strategy updated for meeting ${data.meetingId}:`, recordingConfig.strategy);
+      
+      // Emit recording strategy update to host
+      io.to(meeting.hostId).emit('recording_strategy_updated', {
+        meetingId: data.meetingId,
+        strategy: recordingConfig.strategy,
+        hasVideo: recordingConfig.hasVideo,
+        hasAudio: recordingConfig.hasAudio,
+        videoStreamCount: recordingConfig.videoStreamCount,
+        audioStreamCount: recordingConfig.audioStreamCount
       });
     }
     
@@ -1680,10 +1927,13 @@ io.on('connection', (socket) => {
     console.log(`${userName} left meeting ${meetingId}`);
   });
 
-  // AI-Driven Smart Follow-up Question Generation - Audio Data Handler
+  // AI-Driven Smart Follow-up Question Generation - Audio Data Handler with Intelligent Recording
   socket.on('audio_data', async (data) => {
     try {
       console.log('🎤 Received audio data:', { meetingId: data.meetingId, chunkIndex: data.chunkIndex });
+      
+      // Process audio with intelligent stream handling
+      mediaRecorder.processAudioChunk(data.meetingId, socket.id, data.audioChunk, data.timestamp);
       
       // Process audio for transcription
       const transcriptionResult = await llmService.getTranscription(data.audioChunk, data.meetingId);
@@ -1717,20 +1967,20 @@ io.on('connection', (socket) => {
     const { meetingId } = data;
     console.log('🤖 Starting question generation for meeting:', meetingId);
     
-    // Set up periodic question generation (every 30 seconds)
+    // Set up intelligent question generation (every 30 seconds)
     const questionTimer = setInterval(async () => {
       try {
-        // Check if enough time has passed since last question
-        if (!llmService.shouldGenerateQuestion(meetingId, 2)) {
-          console.log('⏰ Skipping question generation - too soon since last question');
-          return;
-        }
-        
         // Get recent transcript context
         const recentContext = llmService.getRecentTranscriptContext(meetingId, 5);
         
         if (recentContext.length < 50) {
           console.log('📝 Skipping question generation - insufficient transcript context');
+          return;
+        }
+        
+        // Use intelligent question generation trigger
+        if (!llmService.shouldGenerateQuestionIntelligently(meetingId, recentContext)) {
+          console.log('⏰ Skipping question generation - not a good time for questions');
           return;
         }
         
@@ -1753,7 +2003,7 @@ io.on('connection', (socket) => {
               timestamp: questionResult.timestamp
             });
             
-            console.log('❓ Sent follow-up question to host:', questionResult.question);
+            console.log('❓ Sent intelligent follow-up question to host:', questionResult.question);
           }
         }
         
@@ -1927,6 +2177,9 @@ io.on('connection', (socket) => {
       
       transcriptData.get(meetingId).push(transcriptEntry);
       
+      // Also add to LLM service for AI question generation
+      llmService.addToTranscriptHistory(meetingId, transcript);
+      
       // Analyze transcript for automatic highlight detection
       const highlight = aiHighlightDetector.analyzeAudioChunk(
         null, // No audio data for now, just text analysis
@@ -2044,11 +2297,24 @@ io.on('connection', (socket) => {
   socket.on('end_meeting', async (data) => {
     try {
       const { meetingId } = data;
-      console.log('🏁 Meeting ended, generating highlight reel for:', meetingId);
+      console.log('🏁 Meeting ended, generating highlight reel and saving to history for:', meetingId);
+      
+      // Get meeting data
+      const meeting = activeMeetings.get(meetingId);
+      if (!meeting) {
+        console.log('❌ Meeting not found:', meetingId);
+        return;
+      }
       
       // Get highlight timestamps for this meeting
       let highlights = highlightData.get(meetingId) || [];
       const recordingSession = recordingSessions.get(meetingId);
+      
+      // Get transcript history
+      const transcriptHistory = llmService.getTranscriptHistory(meetingId) || [];
+      
+      // Get sentiment data
+      const sentimentData = sentimentData.get(meetingId);
       
       // Auto-detect additional important moments if few highlights were marked
       if (highlights.length < 3) {
@@ -2056,6 +2322,39 @@ io.on('connection', (socket) => {
         const autoHighlights = await detectImportantMoments(meetingId, highlights);
         highlights = [...highlights, ...autoHighlights];
         console.log(`🎯 Auto-detected ${autoHighlights.length} additional highlights`);
+      }
+      
+      // Calculate meeting duration
+      const meetingDuration = recordingSession ? 
+        (recordingSession.endTime - recordingSession.startTime) : 
+        (Date.now() - new Date(meeting.createdAt).getTime());
+      
+      // Update meeting data with duration
+      meeting.duration = meetingDuration;
+      meeting.endedAt = new Date().toISOString();
+      meeting.status = 'completed';
+      
+      // Save meeting to history
+      try {
+        const historyPath = await meetingHistoryManager.saveMeetingToHistory(
+          meeting,
+          highlights,
+          recordingSession,
+          transcriptHistory,
+          sentimentData
+        );
+        console.log('💾 Meeting saved to history:', historyPath);
+        
+        // Emit history saved event
+        io.to(meetingId).emit('meeting_saved_to_history', {
+          meetingId,
+          historyPath,
+          highlights: highlights.length,
+          transcriptEntries: transcriptHistory.length,
+          hasRecording: !!recordingSession
+        });
+      } catch (historyError) {
+        console.error('❌ Failed to save meeting to history:', historyError);
       }
       
       if (highlights.length === 0) {
@@ -2097,22 +2396,26 @@ io.on('connection', (socket) => {
             recordingPath = recordingSession.recordingPath;
             console.log('🎬 Using real meeting recording:', recordingPath);
           } else {
-            // Fallback to test video for demonstration
-            recordingPath = `./temp/test_video_${meetingId}_${Date.now()}.mp4`;
-            console.log('🎬 No real recording found, creating test video');
-            
-            try {
-              await mediaProcessor.createTestVideo(recordingPath, 120); // 2 minutes of test content
-            } catch (error) {
-              console.log('🎬 Could not create test video with text, trying simple video');
-              await mediaProcessor.createSimpleTestVideo(recordingPath, 120);
-            }
+            // Create real meeting recording from collected data
+            console.log('🎬 Creating real meeting recording from collected data');
+            recordingPath = await mediaRecorder.createRealMeetingRecording(meetingId);
+            console.log('🎬 Real meeting recording created:', recordingPath);
           }
+          
+          // Prepare meeting information for intelligent highlight reel
+          const meetingInfo = {
+            title: meeting.title || `Meeting ${meetingId}`,
+            participants: meeting.participants?.length || 0,
+            duration: meetingDuration,
+            highlightCount: highlights.length,
+            date: meeting.createdAt
+          };
           
           highlightReelPath = await mediaProcessor.generateHighlightReel(
             recordingPath,
             highlights,
-            outputPath
+            outputPath,
+            meetingInfo
           );
           
           console.log('✅ Highlight reel generated successfully:', highlightReelPath);

@@ -52,6 +52,41 @@ class LLMService {
     }
   }
 
+  // Re-initialize LLM when meeting starts (to ensure Ollama is available)
+  async reinitializeForMeeting(meetingId) {
+    try {
+      console.log(`🤖 Re-initializing LLM for meeting ${meetingId}...`);
+      
+      // Clear cache to force fresh check
+      this._ollamaCache = null;
+      
+      // Re-initialize LLM
+      await this.initializeLLM();
+      console.log(`🤖 LLM re-initialization completed for meeting ${meetingId}:`, this.llmType);
+      
+      // Test Ollama if it's being used
+      if (this.llmType === 'ollama') {
+        console.log(`🤖 Testing Ollama connection for meeting ${meetingId}...`);
+        const testResult = await this.testOllamaConnection();
+        if (testResult) {
+          console.log(`✅ Ollama is working correctly for meeting ${meetingId}`);
+          return true;
+        } else {
+          console.log(`⚠️ Ollama test failed for meeting ${meetingId}, using fallback`);
+          this.llmType = 'rule-based';
+          return false;
+        }
+      }
+      
+      return this.llmType === 'ollama';
+    } catch (error) {
+      console.error(`❌ LLM re-initialization failed for meeting ${meetingId}:`, error);
+      this.llmType = 'rule-based';
+      console.log(`🤖 Falling back to rule-based question generation for meeting ${meetingId}`);
+      return false;
+    }
+  }
+
   // Test Ollama connection and model availability
   async testOllamaConnection() {
     try {
@@ -363,14 +398,31 @@ class LLMService {
     // Detect language from transcript context
     const detectedLanguage = this.detectLanguageFromContext(transcriptContext);
     
-    const prompt = `You are an intelligent meeting assistant. Generate ONE professional follow-up question for this business meeting.
+    // Analyze conversation context more deeply
+    const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
+    
+    const prompt = `You are an intelligent meeting facilitator. Analyze this conversation and generate ONE highly relevant follow-up question that will advance the discussion.
 
-CONVERSATION: "${transcriptContext}"
-TOPICS: ${topics.map(t => t.topic).join(', ')}
-SENTIMENT: ${sentiment}
-LANGUAGE: ${detectedLanguage}
+CONVERSATION CONTEXT:
+"${transcriptContext}"
 
-Generate a concise, actionable question that builds on the discussion. Return only the question in the same language as the conversation.`;
+ANALYSIS:
+- Main Topics: ${topics.map(t => t.topic).join(', ')}
+- Sentiment: ${sentiment}
+- Language: ${detectedLanguage}
+- Key Points: ${conversationAnalysis.keyPoints.join(', ')}
+- Unresolved Issues: ${conversationAnalysis.unresolvedIssues.join(', ')}
+- Recent Focus: ${conversationAnalysis.recentFocus}
+
+INSTRUCTIONS:
+1. Generate a question that builds directly on what was just discussed
+2. Focus on the most important or unresolved aspects
+3. Make it actionable and specific to the conversation
+4. Use the same language as the conversation
+5. Keep it concise but meaningful
+6. Avoid generic questions - be specific to this discussion
+
+Generate only the question, no explanations.`;
 
     try {
       const controller = new AbortController();
@@ -452,9 +504,74 @@ Generate a concise, actionable question that builds on the discussion. Return on
     return detectedLang;
   }
 
+  // Analyze conversation context for better question generation
+  analyzeConversationContext(transcriptContext) {
+    if (!transcriptContext || transcriptContext.length < 20) {
+      return {
+        keyPoints: [],
+        unresolvedIssues: [],
+        recentFocus: 'General discussion'
+      };
+    }
+
+    const text = transcriptContext.toLowerCase();
+    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    
+    // Extract key points from the conversation
+    const keyPoints = [];
+    const unresolvedIssues = [];
+    
+    // Look for decision points, problems, and important statements
+    sentences.forEach(sentence => {
+      const lowerSentence = sentence.toLowerCase();
+      
+      // Key points - decisions, conclusions, important statements
+      if (lowerSentence.includes('decided') || lowerSentence.includes('agreed') || 
+          lowerSentence.includes('concluded') || lowerSentence.includes('important') ||
+          lowerSentence.includes('key') || lowerSentence.includes('main')) {
+        keyPoints.push(sentence.trim());
+      }
+      
+      // Unresolved issues - problems, concerns, questions
+      if (lowerSentence.includes('problem') || lowerSentence.includes('issue') || 
+          lowerSentence.includes('concern') || lowerSentence.includes('challenge') ||
+          lowerSentence.includes('difficult') || lowerSentence.includes('unclear') ||
+          lowerSentence.includes('need to') || lowerSentence.includes('should we')) {
+        unresolvedIssues.push(sentence.trim());
+      }
+    });
+    
+    // Determine recent focus from the last few sentences
+    const recentSentences = sentences.slice(-3);
+    let recentFocus = 'General discussion';
+    
+    if (recentSentences.length > 0) {
+      const lastSentence = recentSentences[recentSentences.length - 1];
+      if (lastSentence.toLowerCase().includes('budget') || lastSentence.toLowerCase().includes('cost')) {
+        recentFocus = 'Budget and financial planning';
+      } else if (lastSentence.toLowerCase().includes('timeline') || lastSentence.toLowerCase().includes('schedule')) {
+        recentFocus = 'Timeline and scheduling';
+      } else if (lastSentence.toLowerCase().includes('team') || lastSentence.toLowerCase().includes('people')) {
+        recentFocus = 'Team and resources';
+      } else if (lastSentence.toLowerCase().includes('technical') || lastSentence.toLowerCase().includes('implementation')) {
+        recentFocus = 'Technical implementation';
+      } else if (lastSentence.toLowerCase().includes('customer') || lastSentence.toLowerCase().includes('user')) {
+        recentFocus = 'Customer/user experience';
+      }
+    }
+    
+    return {
+      keyPoints: keyPoints.slice(0, 3), // Limit to 3 most relevant
+      unresolvedIssues: unresolvedIssues.slice(0, 3), // Limit to 3 most relevant
+      recentFocus: recentFocus
+    };
+  }
+
   // Generate question using rule-based system
   generateWithRuleBased(topics, sentiment, transcriptContext) {
-    const followUpQuestions = this.generateContextualQuestions(topics, sentiment, transcriptContext);
+    // Use conversation analysis for better rule-based questions
+    const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
+    const followUpQuestions = this.generateContextualQuestions(topics, sentiment, transcriptContext, conversationAnalysis);
     const selectedQuestion = followUpQuestions[Math.floor(Math.random() * followUpQuestions.length)];
     return { question: selectedQuestion };
   }
@@ -510,8 +627,28 @@ Generate a concise, actionable question that builds on the discussion. Return on
   }
 
   // Generate contextual follow-up questions
-  generateContextualQuestions(topics, sentiment, transcript) {
+  generateContextualQuestions(topics, sentiment, transcript, conversationAnalysis = null) {
     const questions = [];
+
+    // If we have conversation analysis, use it for more specific questions
+    if (conversationAnalysis && conversationAnalysis.unresolvedIssues.length > 0) {
+      // Generate questions based on unresolved issues
+      conversationAnalysis.unresolvedIssues.forEach(issue => {
+        if (issue.toLowerCase().includes('budget') || issue.toLowerCase().includes('cost')) {
+          questions.push("What's the budget impact of this decision?");
+          questions.push("How can we optimize costs while maintaining quality?");
+        } else if (issue.toLowerCase().includes('timeline') || issue.toLowerCase().includes('schedule')) {
+          questions.push("What's a realistic timeline for resolving this?");
+          questions.push("Are there any dependencies we need to consider?");
+        } else if (issue.toLowerCase().includes('team') || issue.toLowerCase().includes('people')) {
+          questions.push("What resources do we need to address this?");
+          questions.push("Who should be involved in solving this?");
+        } else {
+          questions.push("What are the next steps to resolve this?");
+          questions.push("How can we move forward with this issue?");
+        }
+      });
+    }
 
     // Topic-based questions
     topics.forEach(topicData => {
@@ -623,6 +760,15 @@ Generate a concise, actionable question that builds on the discussion. Return on
     return recentTranscripts;
   }
 
+  // Get full transcript history for a meeting
+  getTranscriptHistory(meetingId) {
+    if (!this.transcriptHistory.has(meetingId)) {
+      return [];
+    }
+    
+    return this.transcriptHistory.get(meetingId);
+  }
+
   // Check if enough time has passed since last question
   shouldGenerateQuestion(meetingId, intervalMinutes = 2) {
     const lastTime = this.lastQuestionTime.get(meetingId) || 0;
@@ -630,6 +776,58 @@ Generate a concise, actionable question that builds on the discussion. Return on
     const intervalMs = intervalMinutes * 60 * 1000;
     
     return (now - lastTime) > intervalMs;
+  }
+
+  // Intelligent question generation trigger based on conversation flow
+  shouldGenerateQuestionIntelligently(meetingId, transcriptContext) {
+    // First check basic time interval
+    if (!this.shouldGenerateQuestion(meetingId, 1)) { // Reduced to 1 minute minimum
+      return false;
+    }
+
+    // Analyze conversation for question-worthy moments
+    const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
+    
+    // Generate questions if there are unresolved issues
+    if (conversationAnalysis.unresolvedIssues.length > 0) {
+      console.log('🤖 Question trigger: Unresolved issues detected');
+      return true;
+    }
+
+    // Generate questions if there are key points that need follow-up
+    if (conversationAnalysis.keyPoints.length > 0) {
+      console.log('🤖 Question trigger: Key points need follow-up');
+      return true;
+    }
+
+    // Generate questions if conversation seems to be stalling
+    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const recentSentences = sentences.slice(-3);
+    
+    // Check if recent conversation has question patterns
+    const hasQuestions = recentSentences.some(sentence => 
+      sentence.toLowerCase().includes('?') || 
+      sentence.toLowerCase().includes('what') || 
+      sentence.toLowerCase().includes('how') || 
+      sentence.toLowerCase().includes('why')
+    );
+
+    if (hasQuestions) {
+      console.log('🤖 Question trigger: Recent questions detected, good time for follow-up');
+      return true;
+    }
+
+    // Check if conversation has been going for a while without questions
+    const lastQuestionTime = this.lastQuestionTime.get(meetingId) || 0;
+    const timeSinceLastQuestion = Date.now() - lastQuestionTime;
+    const fiveMinutes = 5 * 60 * 1000;
+
+    if (timeSinceLastQuestion > fiveMinutes && transcriptContext.length > 200) {
+      console.log('🤖 Question trigger: Long conversation without questions');
+      return true;
+    }
+
+    return false;
   }
 
   // Update last question time

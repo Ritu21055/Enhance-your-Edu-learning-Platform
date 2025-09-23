@@ -204,12 +204,16 @@ class AIHighlightDetector {
       // Analyze transcript for keywords and sentiment
       const textAnalysis = this.analyzeText(transcript);
       
-      // Calculate importance score
+      // Enhanced conversation analysis for better highlight detection
+      const conversationAnalysis = this.analyzeConversationForHighlights(transcript);
+      
+      // Calculate importance score with conversation context
       const importanceScore = this.calculateImportanceScore({
         volume,
         speechPattern,
         textAnalysis,
-        timestamp
+        timestamp,
+        conversationAnalysis
       });
       
       // Check if this moment should be highlighted
@@ -218,7 +222,8 @@ class AIHighlightDetector {
           volume,
           speechPattern,
           textAnalysis,
-          transcript
+          transcript,
+          conversationAnalysis
         });
       }
       
@@ -227,6 +232,111 @@ class AIHighlightDetector {
       console.error('Error analyzing audio chunk:', error);
       return null;
     }
+  }
+
+  /**
+   * Analyze conversation content for important moments
+   * @param {string} transcript - The conversation transcript
+   * @returns {Object} Conversation analysis results
+   */
+  analyzeConversationForHighlights(transcript) {
+    if (!transcript || transcript.length < 10) {
+      return {
+        importanceLevel: 'low',
+        highlightType: 'general',
+        keyTopics: [],
+        emotionalIntensity: 'neutral',
+        decisionMoment: false,
+        problemMentioned: false,
+        solutionProposed: false,
+        actionItem: false
+      };
+    }
+
+    const text = transcript.toLowerCase();
+    const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 5);
+    
+    // Analyze for different types of important moments
+    const analysis = {
+      importanceLevel: 'low',
+      highlightType: 'general',
+      keyTopics: [],
+      emotionalIntensity: 'neutral',
+      decisionMoment: false,
+      problemMentioned: false,
+      solutionProposed: false,
+      actionItem: false,
+      urgencyLevel: 'normal'
+    };
+
+    // 1. Detect decision moments
+    const decisionKeywords = ['decided', 'agreed', 'concluded', 'final', 'approved', 'rejected', 'chosen', 'selected'];
+    if (decisionKeywords.some(keyword => text.includes(keyword))) {
+      analysis.decisionMoment = true;
+      analysis.importanceLevel = 'high';
+      analysis.highlightType = 'decision';
+    }
+
+    // 2. Detect problem mentions
+    const problemKeywords = ['problem', 'issue', 'challenge', 'concern', 'difficult', 'trouble', 'error', 'bug', 'broken'];
+    if (problemKeywords.some(keyword => text.includes(keyword))) {
+      analysis.problemMentioned = true;
+      analysis.importanceLevel = 'high';
+      analysis.highlightType = 'problem';
+    }
+
+    // 3. Detect solution proposals
+    const solutionKeywords = ['solution', 'fix', 'resolve', 'solve', 'propose', 'suggest', 'recommend', 'idea', 'approach'];
+    if (solutionKeywords.some(keyword => text.includes(keyword))) {
+      analysis.solutionProposed = true;
+      analysis.importanceLevel = 'high';
+      analysis.highlightType = 'solution';
+    }
+
+    // 4. Detect action items
+    const actionKeywords = ['action', 'task', 'todo', 'assign', 'responsible', 'deadline', 'due', 'next step', 'follow up'];
+    if (actionKeywords.some(keyword => text.includes(keyword))) {
+      analysis.actionItem = true;
+      analysis.importanceLevel = 'medium';
+      analysis.highlightType = 'action';
+    }
+
+    // 5. Detect emotional intensity
+    const emotionalKeywords = ['excited', 'frustrated', 'concerned', 'worried', 'happy', 'disappointed', 'surprised', 'angry'];
+    if (emotionalKeywords.some(keyword => text.includes(keyword))) {
+      analysis.emotionalIntensity = 'high';
+      analysis.importanceLevel = 'medium';
+    }
+
+    // 6. Detect urgency
+    const urgencyKeywords = ['urgent', 'asap', 'immediately', 'critical', 'emergency', 'priority', 'deadline', 'time sensitive'];
+    if (urgencyKeywords.some(keyword => text.includes(keyword))) {
+      analysis.urgencyLevel = 'high';
+      analysis.importanceLevel = 'high';
+    }
+
+    // 7. Detect key topics
+    const topicKeywords = {
+      'budget': ['budget', 'cost', 'money', 'financial', 'expense', 'revenue', 'funding'],
+      'timeline': ['timeline', 'schedule', 'deadline', 'time', 'when', 'due', 'milestone'],
+      'technical': ['technical', 'implementation', 'code', 'development', 'technology', 'system'],
+      'team': ['team', 'collaboration', 'work', 'people', 'staff', 'members', 'resources'],
+      'customer': ['customer', 'user', 'client', 'audience', 'experience', 'feedback']
+    };
+
+    for (const [topic, keywords] of Object.entries(topicKeywords)) {
+      if (keywords.some(keyword => text.includes(keyword))) {
+        analysis.keyTopics.push(topic);
+      }
+    }
+
+    // 8. Detect questions and discussions
+    if (text.includes('?') || text.includes('what') || text.includes('how') || text.includes('why')) {
+      analysis.highlightType = 'discussion';
+      analysis.importanceLevel = 'medium';
+    }
+
+    return analysis;
   }
 
   /**
@@ -325,25 +435,76 @@ class AIHighlightDetector {
   /**
    * Calculate overall importance score
    */
-  calculateImportanceScore({ volume, speechPattern, textAnalysis, timestamp }) {
+  calculateImportanceScore({ volume, speechPattern, textAnalysis, timestamp, conversationAnalysis }) {
     let score = 0;
     
-    // Volume factor (20% weight)
-    if (volume > 0.7) score += 0.2;
-    else if (volume > 0.5) score += 0.1;
+    // Volume factor (15% weight)
+    if (volume > 0.7) score += 0.15;
+    else if (volume > 0.5) score += 0.08;
     
-    // Speech pattern factor (30% weight)
-    if (speechPattern.type === 'emphasis') score += 0.3;
+    // Speech pattern factor (20% weight)
+    if (speechPattern.type === 'emphasis') score += 0.2;
     else if (speechPattern.type === 'pause') score += 0.1;
-    else score += 0.15;
-    
-    // Keyword factor (30% weight)
-    score += Math.min(textAnalysis.keywordScore * 0.3, 0.3);
-    
-    // Sentiment factor (20% weight)
-    if (textAnalysis.sentiment === 'positive') score += 0.2;
-    else if (textAnalysis.sentiment === 'negative') score += 0.15;
     else score += 0.1;
+    
+    // Text analysis factor (25% weight)
+    score += Math.min(textAnalysis.keywordScore * 0.15, 0.15);
+    
+    if (textAnalysis.sentiment === 'positive') score += 0.05;
+    else if (textAnalysis.sentiment === 'negative') score += 0.05;
+    else score += 0.05;
+    
+    // Conversation analysis factor (40% weight) - Most important
+    if (conversationAnalysis) {
+      // Decision moments are very important
+      if (conversationAnalysis.decisionMoment) {
+        score += 0.25;
+        console.log('🎯 Decision moment detected - high importance');
+      }
+      
+      // Problem mentions are important
+      if (conversationAnalysis.problemMentioned) {
+        score += 0.2;
+        console.log('🎯 Problem mentioned - high importance');
+      }
+      
+      // Solution proposals are important
+      if (conversationAnalysis.solutionProposed) {
+        score += 0.2;
+        console.log('🎯 Solution proposed - high importance');
+      }
+      
+      // Action items are important
+      if (conversationAnalysis.actionItem) {
+        score += 0.15;
+        console.log('🎯 Action item mentioned - medium importance');
+      }
+      
+      // Emotional intensity adds importance
+      if (conversationAnalysis.emotionalIntensity === 'high') {
+        score += 0.1;
+        console.log('🎯 High emotional intensity - medium importance');
+      }
+      
+      // Urgency adds importance
+      if (conversationAnalysis.urgencyLevel === 'high') {
+        score += 0.15;
+        console.log('🎯 High urgency detected - high importance');
+      }
+      
+      // Key topics add importance
+      if (conversationAnalysis.keyTopics.length > 0) {
+        score += 0.05 * conversationAnalysis.keyTopics.length;
+        console.log('🎯 Key topics detected:', conversationAnalysis.keyTopics);
+      }
+      
+      // Importance level from conversation analysis
+      if (conversationAnalysis.importanceLevel === 'high') {
+        score += 0.1;
+      } else if (conversationAnalysis.importanceLevel === 'medium') {
+        score += 0.05;
+      }
+    }
     
     return Math.min(score, 1);
   }
@@ -374,8 +535,28 @@ class AIHighlightDetector {
    * Determine highlight type based on context
    */
   determineHighlightType(context) {
-    const { textAnalysis, speechPattern } = context;
+    const { textAnalysis, speechPattern, conversationAnalysis } = context;
     
+    // Use conversation analysis for more accurate type determination
+    if (conversationAnalysis) {
+      if (conversationAnalysis.decisionMoment) {
+        return 'decision';
+      } else if (conversationAnalysis.problemMentioned) {
+        return 'problem';
+      } else if (conversationAnalysis.solutionProposed) {
+        return 'solution';
+      } else if (conversationAnalysis.actionItem) {
+        return 'action';
+      } else if (conversationAnalysis.urgencyLevel === 'high') {
+        return 'urgent';
+      } else if (conversationAnalysis.emotionalIntensity === 'high') {
+        return 'emotional';
+      } else if (conversationAnalysis.highlightType === 'discussion') {
+        return 'discussion';
+      }
+    }
+    
+    // Fallback to original logic
     if (textAnalysis.keywordScore > 0.3) {
       return 'educational';
     } else if (speechPattern.type === 'emphasis') {
@@ -403,11 +584,40 @@ class AIHighlightDetector {
    * Generate description for highlight
    */
   generateDescription(type, context) {
+    const { conversationAnalysis, transcript } = context;
+    
+    // Generate specific descriptions based on conversation analysis
+    if (conversationAnalysis) {
+      if (conversationAnalysis.decisionMoment) {
+        return 'Important decision made';
+      } else if (conversationAnalysis.problemMentioned) {
+        return 'Problem or issue identified';
+      } else if (conversationAnalysis.solutionProposed) {
+        return 'Solution or approach proposed';
+      } else if (conversationAnalysis.actionItem) {
+        return 'Action item or task assigned';
+      } else if (conversationAnalysis.urgencyLevel === 'high') {
+        return 'Urgent matter discussed';
+      } else if (conversationAnalysis.emotionalIntensity === 'high') {
+        return 'High emotional moment';
+      } else if (conversationAnalysis.keyTopics.length > 0) {
+        return `Discussion about ${conversationAnalysis.keyTopics.join(', ')}`;
+      }
+    }
+    
+    // Fallback descriptions
     const descriptions = {
       educational: 'Key educational concept discussed',
       important: 'Important point emphasized',
       positive: 'Positive feedback or achievement',
       concern: 'Issue or concern raised',
+      decision: 'Important decision made',
+      problem: 'Problem or issue identified',
+      solution: 'Solution or approach proposed',
+      action: 'Action item or task assigned',
+      urgent: 'Urgent matter discussed',
+      emotional: 'High emotional moment',
+      discussion: 'Important discussion',
       general: 'Notable moment in discussion'
     };
     
