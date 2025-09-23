@@ -129,14 +129,141 @@
   border-radius: 0;
 }
 
-/* Screen Share Video - Don't mirror */
-.video-element[data-screen-share="true"] {
+/* CAMERA VIDEO - Should be mirrored like a mirror (scaleX(-1)) */
+.video-element:not([data-screen-share="true"]),
+video:not([data-screen-share="true"]) {
+  /* CRITICAL: Mirror camera feeds like a mirror */
+  transform: scaleX(-1) !important;
+  -webkit-transform: scaleX(-1) !important;
+  -moz-transform: scaleX(-1) !important;
+  -ms-transform: scaleX(-1) !important;
+  -o-transform: scaleX(-1) !important;
+  
+  /* CRITICAL: Force proper sizing to remove black bars */
+  object-fit: cover !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  
+  /* CRITICAL: Remove black background */
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+/* SCREEN SHARE VIDEO - Should NOT be mirrored (scaleX(1)) */
+.video-element[data-screen-share="true"],
+video[data-screen-share="true"],
+.screen-share-container video[data-screen-share="true"],
+.screen-share-container video {
+  /* CRITICAL: Force no mirroring for screen shares */
+  transform: scaleX(1) !important;
+  -webkit-transform: scaleX(1) !important;
+  -moz-transform: scaleX(1) !important;
+  -ms-transform: scaleX(1) !important;
+  -o-transform: scaleX(1) !important;
+  
+  /* CRITICAL: Remove any other transforms */
+  scale: 1 !important;
+  -webkit-scale: 1 !important;
+  
+  /* CRITICAL: Force proper sizing to remove black bars */
+  object-fit: cover !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  
+  /* CRITICAL: Remove black background */
+  background: transparent !important;
+  border-radius: 0 !important;
+  
+  /* CRITICAL: Force no mirroring with matrix */
+  transform: matrix(1, 0, 0, 1, 0, 0) !important;
+  -webkit-transform: matrix(1, 0, 0, 1, 0, 0) !important;
+}
+
+/* Screen Share Container - Remove black bars */
+.screen-share-container {
+  position: relative;
+  background: transparent !important;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid #FF6B35;
+  box-shadow: 0 0 20px rgba(255, 107, 53, 0.5);
+}
+
+.screen-share-container:hover {
+  border-color: #7c3aed;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+}
+
+/* Screen Share Container - Make it expandable (updated above) */
+
+/* ULTRA AGGRESSIVE Expanded State */
+.screen-share-container.expanded {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+  border: 5px solid #7c3aed !important;
+  box-shadow: 0 0 50px rgba(124, 58, 237, 0.8) !important;
+  overflow: hidden !important;
+}
+
+.screen-share-container.expanded .video-element {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
   transform: none !important;
   -webkit-transform: none !important;
-  -moz-transform: none !important;
-  -ms-transform: none !important;
-  -o-transform: none !important;
-  object-fit: contain; /* Use contain for screen sharing to show full screen */
+  scale: 1 !important;
+  -webkit-scale: 1 !important;
+}
+
+/* Screen Share Header */
+.screen-share-header {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10;
+}
+
+.screen-share-title {
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.screen-share-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.screen-share-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.2s ease;
+}
+
+.screen-share-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 /* Video Overlay - Bold text with subtle border */
@@ -198,37 +325,143 @@
   color: #E0E0E0;
 }
 
-/* Camera Off Overlay */
+/* Camera Off Overlay - Enhanced Professional Design */
 .camera-off-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: #1a1a1a;
+  background: linear-gradient(135deg, #2d1b69 0%, #1a1a2e 50%, #16213e 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 16px;
   z-index: 2;
   pointer-events: none;
   border: 2px solid #7c3aed;
-  border-radius: 8px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 20px rgba(124, 58, 237, 0.3);
 }
 
 .camera-off-icon {
   color: #7c3aed;
   font-weight: bold;
-  font-size: 48px;
+  font-size: 64px;
+  text-shadow: 0 0 20px rgba(124, 58, 237, 0.6);
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .camera-off-text {
   color: #ffffff;
   text-align: center;
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.5px;
+}
+
+.camera-off-subtitle {
+  color: #b8b8b8;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 400;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  margin-top: -8px;
+}
+
+/* Avatar Placeholder for Camera Off */
+.camera-off-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.4);
+  border: 3px solid rgba(255, 255, 255, 0.2);
+}
+
+.camera-off-avatar-initials {
+  color: #ffffff;
+  font-size: 32px;
   font-weight: bold;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Pulse animation for camera icon */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* Mobile-specific camera-off improvements */
+@media (max-width: 768px) {
+  .camera-off-overlay {
+    gap: 12px;
+    border-radius: 8px;
+  }
+  
+  .camera-off-avatar {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 8px;
+  }
+  
+  .camera-off-avatar-initials {
+    font-size: 24px;
+  }
+  
+  .camera-off-icon {
+    font-size: 48px;
+  }
+  
+  .camera-off-text {
+    font-size: 16px;
+  }
+  
+  .camera-off-subtitle {
+    font-size: 12px;
+    margin-top: -4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .camera-off-overlay {
+    gap: 8px;
+  }
+  
+  .camera-off-avatar {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 6px;
+  }
+  
+  .camera-off-avatar-initials {
+    font-size: 20px;
+  }
+  
+  .camera-off-icon {
+    font-size: 40px;
+  }
+  
+  .camera-off-text {
+    font-size: 14px;
+  }
+  
+  .camera-off-subtitle {
+    font-size: 11px;
+    margin-top: -2px;
+  }
 }
 
 /* Audio Off Indicator */
@@ -335,15 +568,7 @@
 }
 
 
-/* Screen Share Container */
-.screen-share-container {
-  position: relative;
-  background: #000;
-  overflow: visible;
-  border-radius: var(--radius-md);
-  border: 3px solid #FF6B35;
-  box-shadow: 0 0 20px rgba(255, 107, 53, 0.5);
-}
+/* Duplicate removed - using the one above */
 
 .screen-share-header {
   position: absolute;

@@ -65,12 +65,14 @@ const UltraSimpleVideo = ({
   forceConnection,
   createConnectionsToAllParticipants,
   initializeMedia,
-  // Screen sharing props
+  // Screen sharing props (kept for future implementation)
   screenStream,
   remoteScreenStreams,
   forceRender: hookForceRender,
   // Participant management
-  onRemoveParticipant
+  onRemoveParticipant,
+  // Debug function
+  debugConnectionStatus
 }) => {
   const remoteVideoRefs = useRef({});
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
@@ -79,6 +81,10 @@ const UltraSimpleVideo = ({
   
   // Use the hook's forceRender if available, otherwise use local state
   const effectiveForceRender = hookForceRender !== undefined ? hookForceRender : forceRender;
+  
+  // Filter out current user from participants - MOVED TO TOP to prevent hoisting issues
+  const otherParticipants = participants.filter(p => p.id !== currentUserId);
+  const totalVideos = otherParticipants.length + 1; // +1 for local video
   
   // Debounce stream assignments to prevent blinking
   const streamAssignmentTimeouts = useRef({});
@@ -105,30 +111,118 @@ const UltraSimpleVideo = ({
     })));
   }, [participants]);
 
-  // Monitor and fix screen share video elements
+  // ROBUST Media State Monitoring & Video Mirroring
   useEffect(() => {
-    const fixScreenShareVideos = () => {
-      const screenShareVideos = document.querySelectorAll('video[data-screen-share="true"]');
-      screenShareVideos.forEach(video => {
-        if (video.style.transform !== 'none' || video.style.webkitTransform !== 'none') {
-          console.log('🖥️ UltraSimpleVideo: Fixing screen share video transform');
-          video.style.setProperty('transform', 'none', 'important');
-          video.style.setProperty('-webkit-transform', 'none', 'important');
-          video.style.setProperty('-moz-transform', 'none', 'important');
-          video.style.setProperty('-ms-transform', 'none', 'important');
-          video.style.setProperty('-o-transform', 'none', 'important');
+    const fixVideoMirroringAndMediaStates = () => {
+      // Find ALL video elements
+      const allVideos = document.querySelectorAll('video');
+      
+      console.log(`📹 UltraSimpleVideo: Found ${allVideos.length} total videos`);
+      
+      // Fix camera videos - should be mirrored like a mirror
+      allVideos.forEach((video, index) => {
+        console.log(`📹 UltraSimpleVideo: Fixing camera video ${index + 1}`);
+        
+        // CAMERA: Mirror like a mirror (scaleX(-1))
+        video.style.setProperty('transform', 'scaleX(-1)', 'important');
+        video.style.setProperty('-webkit-transform', 'scaleX(-1)', 'important');
+        video.style.setProperty('-moz-transform', 'scaleX(-1)', 'important');
+        video.style.setProperty('-ms-transform', 'scaleX(-1)', 'important');
+        video.style.setProperty('-o-transform', 'scaleX(-1)', 'important');
+        
+        // CAMERA: Force proper sizing
+        video.style.setProperty('object-fit', 'cover', 'important');
+        video.style.setProperty('background', 'transparent', 'important');
+        video.style.setProperty('width', '100%', 'important');
+        video.style.setProperty('height', '100%', 'important');
+        video.style.setProperty('display', 'block', 'important');
+        video.style.setProperty('border-radius', '0', 'important');
+        
+        console.log(`📹 UltraSimpleVideo: Applied camera mirroring to video ${index + 1}`);
+      });
+      
+      // ROBUST: Continuously monitor and fix media states
+      otherParticipants.forEach(participant => {
+        const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
+        if (videoElement) {
+          // Force apply media state changes
+          if (!participant.videoEnabled) {
+            console.log(`🔒 UltraSimpleVideo: FORCE HIDING video for ${participant.name} (camera off)`);
+            videoElement.style.setProperty('display', 'none', 'important');
+            videoElement.style.setProperty('visibility', 'hidden', 'important');
+            videoElement.style.setProperty('opacity', '0', 'important');
+            videoElement.style.setProperty('pointer-events', 'none', 'important');
+            videoElement.style.setProperty('z-index', '-1', 'important');
+          } else {
+            console.log(`🔓 UltraSimpleVideo: FORCE SHOWING video for ${participant.name} (camera on)`);
+            videoElement.style.setProperty('display', 'block', 'important');
+            videoElement.style.setProperty('visibility', 'visible', 'important');
+            videoElement.style.setProperty('opacity', '1', 'important');
+            videoElement.style.setProperty('pointer-events', 'auto', 'important');
+            videoElement.style.setProperty('z-index', '1', 'important');
+          }
         }
       });
     };
 
     // Fix immediately
-    fixScreenShareVideos();
+    fixVideoMirroringAndMediaStates();
 
-    // Set up interval to continuously monitor and fix
-    const interval = setInterval(fixScreenShareVideos, 1000);
+    // Set up interval to continuously monitor and fix (more frequent for robustness)
+    const interval = setInterval(fixVideoMirroringAndMediaStates, 50);
 
     return () => clearInterval(interval);
-  }, [remoteScreenStreams]);
+  }, [forceRender, otherParticipants]);
+
+  // DEDICATED Media State Monitoring - Runs independently to prevent issues
+  useEffect(() => {
+    const monitorMediaStates = () => {
+      console.log('🔍 UltraSimpleVideo: Monitoring media states...');
+      
+      otherParticipants.forEach(participant => {
+        const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
+        
+        if (videoElement) {
+          const currentDisplay = window.getComputedStyle(videoElement).display;
+          const currentVisibility = window.getComputedStyle(videoElement).visibility;
+          const currentOpacity = window.getComputedStyle(videoElement).opacity;
+          
+          console.log(`🔍 UltraSimpleVideo: ${participant.name} media state check:`, {
+            videoEnabled: participant.videoEnabled,
+            currentDisplay,
+            currentVisibility,
+            currentOpacity,
+            shouldBeVisible: participant.videoEnabled
+          });
+          
+          // Force correct media state if there's a mismatch
+          if (!participant.videoEnabled && (currentDisplay !== 'none' || currentVisibility !== 'hidden' || currentOpacity !== '0')) {
+            console.log(`🔒 UltraSimpleVideo: CORRECTING - Force hiding ${participant.name} video`);
+            videoElement.style.setProperty('display', 'none', 'important');
+            videoElement.style.setProperty('visibility', 'hidden', 'important');
+            videoElement.style.setProperty('opacity', '0', 'important');
+            videoElement.style.setProperty('pointer-events', 'none', 'important');
+            videoElement.style.setProperty('z-index', '-1', 'important');
+          } else if (participant.videoEnabled && (currentDisplay === 'none' || currentVisibility === 'hidden' || currentOpacity === '0')) {
+            console.log(`🔓 UltraSimpleVideo: GENTLY showing ${participant.name} video`);
+            videoElement.style.setProperty('display', 'block', 'important');
+            videoElement.style.setProperty('visibility', 'visible', 'important');
+            videoElement.style.setProperty('opacity', '1', 'important');
+            videoElement.style.setProperty('pointer-events', 'auto', 'important');
+            videoElement.style.setProperty('z-index', '1', 'important');
+          }
+        }
+      });
+    };
+
+    // Monitor immediately
+    monitorMediaStates();
+
+    // GENTLE MONITORING: Reduce monitoring frequency to prevent camera issues
+    const interval = setInterval(monitorMediaStates, 500); // Reduced to 500ms for stability
+
+    return () => clearInterval(interval);
+  }, [otherParticipants]);
 
   // Stable video element creation callback to prevent recreation
   const createVideoElement = useCallback((participantId) => {
@@ -398,14 +492,9 @@ const UltraSimpleVideo = ({
 
   // Set up remote videos
   useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Remote streams changed:', Object.keys(remoteStreams));
-    console.log('🎥 UltraSimpleVideo: Remote streams details:', remoteStreams);
-    console.log('🎥 UltraSimpleVideo: Current user ID:', currentUserId);
-    
     // Clean up video elements for streams that no longer exist
     Object.keys(remoteVideoRefs.current).forEach(participantId => {
       if (!remoteStreams[participantId]) {
-        console.log(`🧹 UltraSimpleVideo: Cleaning up video element for removed stream: ${participantId}`);
         const videoElement = remoteVideoRefs.current[participantId];
         if (videoElement) {
           videoElement.srcObject = null;
@@ -415,122 +504,66 @@ const UltraSimpleVideo = ({
     });
     
     Object.keys(remoteStreams).forEach(participantId => {
-      // Skip if this is the current user's own stream (prevent self-duplication)
       if (participantId === currentUserId) {
-        console.log(`🎥 UltraSimpleVideo: Skipping own stream for ${participantId}`);
         return;
       }
       
       const videoEl = remoteVideoRefs.current[participantId];
       const stream = remoteStreams[participantId];
       
-      console.log(`🔍 UltraSimpleVideo: Processing participant ${participantId}:`, {
-        hasVideoEl: !!videoEl,
-        hasStream: !!stream,
-        streamId: stream?.id,
-        streamActive: stream?.active,
-        videoElSrcObject: videoEl?.srcObject?.id,
-        streamTracks: stream?.getTracks().length
-      });
-      
       if (videoEl && stream) {
-        // Only set the stream if it's different from what's already set
         if (videoEl.srcObject !== stream) {
-        console.log(`🎥 UltraSimpleVideo: Setting remote stream for ${participantId}`);
-          console.log(`🎥 UltraSimpleVideo: Stream details:`, {
-            streamId: stream.id,
-            active: stream.active,
-            tracks: stream.getTracks().length,
-            videoTracks: stream.getVideoTracks().length,
-            audioTracks: stream.getAudioTracks().length
-          });
-          
-          // Check if stream is stable before assigning
           if (stream.active && stream.getTracks().length > 0) {
-            // Clear any existing timeout for this participant
             if (streamAssignmentTimeouts.current[participantId]) {
               clearTimeout(streamAssignmentTimeouts.current[participantId]);
             }
             
-            // Debounce stream assignment to prevent blinking
             streamAssignmentTimeouts.current[participantId] = setTimeout(() => {
-              console.log(`🎥 UltraSimpleVideo: Debounced stream assignment for ${participantId}`);
               videoEl.srcObject = stream;
               delete streamAssignmentTimeouts.current[participantId];
-            }, 50); // Small delay to prevent rapid reassignments
-          } else {
-            console.log(`⚠️ UltraSimpleVideo: Stream not ready for ${participantId}, waiting...`);
-            return;
+            }, 50);
           }
-          videoEl.play().then(() => {
-            console.log(`✅ UltraSimpleVideo: Remote video playing successfully for ${participantId}`);
-          }).catch(err => {
-            console.log(`❌ UltraSimpleVideo: Remote video play failed for ${participantId}:`, err);
-            // Try again after a short delay
+          
+          videoEl.play().catch(err => {
             setTimeout(() => {
-              console.log(`🔄 UltraSimpleVideo: Retrying video play for ${participantId}`);
               videoEl.srcObject = stream;
               videoEl.play().catch(retryErr => {
-                console.log(`❌ UltraSimpleVideo: Retry video play failed for ${participantId}:`, retryErr);
+                // Ignore play errors
               });
             }, 500);
           });
-        } else {
-          console.log(`🎥 UltraSimpleVideo: Stream already set for ${participantId}, skipping`);
         }
-      } else {
-        console.log(`❌ UltraSimpleVideo: Missing video element or stream for ${participantId}:`, {
-          hasVideoEl: !!videoEl,
-          hasStream: !!stream
-        });
       }
     });
   }, [remoteStreams, currentUserId]);
 
-  // Filter out current user from participants
-  const otherParticipants = participants.filter(p => p.id !== currentUserId);
-  const totalVideos = otherParticipants.length + 1; // +1 for local video
-  
-  console.log('🎥 UltraSimpleVideo: Total videos:', totalVideos, 'Local + Remote:', otherParticipants.length);
-  console.log('🎥 UltraSimpleVideo: Scrollable mode:', totalVideos > 2 ? 'YES' : 'NO');
-  console.log('🎥 UltraSimpleVideo: User name:', userName);
-  console.log('🎥 UltraSimpleVideo: Is host:', isHost);
-  console.log('🎥 UltraSimpleVideo: Rendering video overlay for user:', userName || 'You');
-  console.log('🎥 UltraSimpleVideo: Bold name text with subtle border positioned at BOTTOM-LEFT (60px from bottom)');
-  console.log('🎥 UltraSimpleVideo: Other participants:', otherParticipants.map(p => ({ id: p.id, name: p.name, audioEnabled: p.audioEnabled, videoEnabled: p.videoEnabled })));
-  console.log('🎥 UltraSimpleVideo: Remote streams available:', Object.keys(remoteStreams));
-  console.log('🎥 UltraSimpleVideo: Remote streams details:', remoteStreams);
-  
-  // Debug media state changes
-  console.log('🎥 UltraSimpleVideo: MEDIA STATE DEBUG - All participants media state:');
-  otherParticipants.forEach(participant => {
-    console.log(`🎥 UltraSimpleVideo: - ${participant.name} (${participant.id}): Audio=${participant.audioEnabled}, Video=${participant.videoEnabled}`);
-  });
-  
-  // Debug media state indicators
-  otherParticipants.forEach(participant => {
-    console.log(`🎥 UltraSimpleVideo: Participant ${participant.name} media state:`, {
-      audioEnabled: participant.audioEnabled,
-      videoEnabled: participant.videoEnabled,
-      audioIndicator: participant.audioEnabled === true ? '🎤' : '🔇',
-      videoIndicator: participant.videoEnabled === true ? '📹' : '📷'
-    });
-    
-    // Additional debugging for media state changes
-    if (participant.audioEnabled === false) {
-      console.log(`🔇 UltraSimpleVideo: Participant ${participant.name} has audio DISABLED`);
-    }
-    if (participant.videoEnabled === false) {
-      console.log(`📷 UltraSimpleVideo: Participant ${participant.name} has video DISABLED`);
-    }
-    
-    // Log media state changes for debugging
-    if (!participant.videoEnabled && remoteStreams[participant.id]) {
-      console.log(`🎥 UltraSimpleVideo: Participant ${participant.name} video is disabled, overlay will be shown`);
-    } else if (participant.videoEnabled && remoteStreams[participant.id]) {
-      console.log(`🎥 UltraSimpleVideo: Participant ${participant.name} video is enabled, video will be shown`);
-    }
-  });
+  useEffect(() => {
+    const forceCorrectMediaStates = () => {
+      otherParticipants.forEach(participant => {
+        const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
+        if (videoElement) {
+          videoElement.setAttribute('data-video-enabled', participant.videoEnabled);
+          videoElement.setAttribute('data-audio-enabled', participant.audioEnabled);
+          
+          if (!participant.videoEnabled) {
+            videoElement.style.setProperty('display', 'none', 'important');
+            videoElement.style.setProperty('visibility', 'hidden', 'important');
+            videoElement.style.setProperty('opacity', '0', 'important');
+            videoElement.style.setProperty('pointer-events', 'none', 'important');
+            videoElement.style.setProperty('z-index', '-1', 'important');
+          } else {
+            videoElement.style.setProperty('display', 'block', 'important');
+            videoElement.style.setProperty('visibility', 'visible', 'important');
+            videoElement.style.setProperty('opacity', '1', 'important');
+            videoElement.style.setProperty('pointer-events', 'auto', 'important');
+            videoElement.style.setProperty('z-index', '1', 'important');
+          }
+        }
+      });
+    };
+
+    forceCorrectMediaStates();
+  }, [otherParticipants, forceRender]);
   
 
   return (
@@ -609,8 +642,14 @@ const UltraSimpleVideo = ({
                   autoPlay
                   playsInline
                   className="video-element"
+                  data-participant-id={participant.id}
+                  data-video-enabled={participant.videoEnabled}
+                  data-audio-enabled={participant.audioEnabled}
                   style={{
-                    display: participant.videoEnabled ? 'block' : 'none'
+                    display: participant.videoEnabled ? 'block' : 'none',
+                    visibility: participant.videoEnabled ? 'visible' : 'hidden',
+                    opacity: participant.videoEnabled ? 1 : 0,
+                    pointerEvents: participant.videoEnabled ? 'auto' : 'none'
                   }}
                 />
                 
@@ -621,17 +660,17 @@ const UltraSimpleVideo = ({
                   shouldShowOverlay: !participant.videoEnabled
                 })}
                 
-                {/* Camera Off Overlay - Always show when video is disabled */}
+                {/* Camera Off Overlay - Simplified Design */}
                 {!participant.videoEnabled && (
                   <Box className="camera-off-overlay">
-                    <Box>
-                      <Typography variant="h4" className="camera-off-icon">
-                        📷
-                      </Typography>
-                      <Typography variant="caption" className="camera-off-text">
-                        Camera Off
+                    <Box className="camera-off-avatar">
+                      <Typography variant="h4" className="camera-off-avatar-initials">
+                        {participant.name ? participant.name.charAt(0).toUpperCase() : '?'}
                       </Typography>
                     </Box>
+                    <Typography variant="body2" className="camera-off-subtitle">
+                      {participant.name} has turned off their camera
+                    </Typography>
                   </Box>
                 )}
                 
@@ -709,15 +748,17 @@ const UltraSimpleVideo = ({
                       </Typography>
                     </Box>
                     
-                    {/* Video indicator */}
-                    <Box
-                      className={`media-indicator ${participant.videoEnabled === true ? 'video-enabled' : 'video-disabled'}`}
-                      title={participant.videoEnabled === true ? 'Camera On' : 'Camera Off'}
-                    >
-                      <Typography variant="caption" className="media-indicator-icon">
-                        {participant.videoEnabled === true ? '📹' : '📷'}
-                      </Typography>
-                    </Box>
+                    {/* Video indicator - only show when camera is on */}
+                    {participant.videoEnabled && (
+                      <Box
+                        className="media-indicator video-enabled"
+                        title="Camera On"
+                      >
+                        <Typography variant="caption" className="media-indicator-icon">
+                          📹
+                        </Typography>
+                      </Box>
+                    )}
                   </Box>
                   
                   {/* Debug info for media state */}
@@ -758,92 +799,7 @@ const UltraSimpleVideo = ({
               );
             })}
             
-            {/* Screen Sharing Streams */}
-            {screenStream && (
-              <Box 
-                className={`screen-share-container ${totalVideos > 2 ? 'video-item-scrollable' : ''}`}>
-                <video
-                  ref={(el) => {
-                    if (el && screenStream) {
-                      el.srcObject = screenStream;
-                    }
-                  }}
-                  autoPlay
-                  playsInline
-                  muted
-                  data-local="true"
-                  data-screen-share="true"
-                  className="video-element"
-                />
-                <Box className="screen-share-header">
-                  <Typography variant="body2" className="screen-share-title">
-                    🖥️ {userName}'s Screen
-                  </Typography>
-                </Box>
-              </Box>
-            )}
             
-            {/* Remote Screen Sharing Streams */}
-            {Object.keys(remoteScreenStreams).map(participantId => {
-              const screenStream = remoteScreenStreams[participantId];
-              const participant = participants.find(p => p.id === participantId);
-              
-              console.log('🖥️ UltraSimpleVideo: Rendering screen share for participant:', {
-                participantId,
-                participantName: participant?.name,
-                hasScreenStream: !!screenStream,
-                streamActive: screenStream?.active
-              });
-              
-              // Only render if we have a valid screen stream
-              if (!screenStream || !screenStream.active) {
-                console.log('🖥️ UltraSimpleVideo: Skipping screen share render - no valid stream for', participantId);
-                return null;
-              }
-              
-              return (
-                <Box 
-                  key={`screen-${participantId}`}
-                  className={`screen-share-container ${totalVideos > 2 ? 'video-item-scrollable' : ''}`}>
-                  <video
-                    ref={(el) => {
-                      if (el) {
-                        if (screenStream) {
-                          console.log('🖥️ UltraSimpleVideo: Setting screen share stream for', participantId);
-                          console.log('🖥️ UltraSimpleVideo: Screen stream details:', {
-                            streamId: screenStream.id,
-                            active: screenStream.active,
-                            trackCount: screenStream.getTracks().length,
-                            videoTracks: screenStream.getVideoTracks().length
-                          });
-                          el.srcObject = screenStream;
-                          
-                          console.log('🖥️ UltraSimpleVideo: Applied aggressive no-transform to screen share video');
-                          console.log('🖥️ UltraSimpleVideo: Video element computed style:', {
-                            transform: window.getComputedStyle(el).transform,
-                            webkitTransform: window.getComputedStyle(el).webkitTransform
-                          });
-                        } else {
-                          // Clear the video element when screen sharing stops
-                          console.log('🖥️ UltraSimpleVideo: Clearing screen share stream for', participantId);
-                          el.srcObject = null;
-                          el.pause();
-                        }
-                      }
-                    }}
-                    autoPlay
-                    playsInline
-                    data-screen-share="true"
-                    className="video-element"
-                  />
-                  <Box className="screen-share-header">
-                    <Typography variant="body2" className="screen-share-name">
-                      🖥️ {participant?.name || 'Participant'}'s Screen
-                    </Typography>
-                  </Box>
-                </Box>
-              );
-            })}
       </Box>
 
       {/* Debug Panel */}
@@ -853,6 +809,9 @@ const UltraSimpleVideo = ({
           <Box className="debug-panel-header">
             <Typography variant="h6" className="debug-panel-title">
               <BugReport /> Connection Tools
+            </Typography>
+            <Typography variant="body2" style={{ color: '#FF6B35', marginTop: '4px' }}>
+              All Videos: {document.querySelectorAll('video').length}
             </Typography>
             <IconButton 
               className="debug-panel-close"
@@ -1009,6 +968,253 @@ const UltraSimpleVideo = ({
             >
               🗑️ Test Remove Participant
             </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('📹 FIX: Force fixing camera mirroring...');
+                const allVideos = document.querySelectorAll('video');
+                
+                console.log(`📹 FIX: Found ${allVideos.length} total videos`);
+                
+                // Fix camera videos - mirror like a mirror
+                allVideos.forEach((video, index) => {
+                  console.log(`📹 FIX: Fixing camera video ${index + 1}`);
+                  video.style.setProperty('transform', 'scaleX(-1)', 'important');
+                  video.style.setProperty('-webkit-transform', 'scaleX(-1)', 'important');
+                  video.style.setProperty('object-fit', 'cover', 'important');
+                  video.style.setProperty('background', 'transparent', 'important');
+                  video.style.setProperty('width', '100%', 'important');
+                  video.style.setProperty('height', '100%', 'important');
+                  console.log(`📹 FIX: Applied camera mirroring to video ${index + 1}`);
+                });
+                
+                setForceRender(prev => prev + 1);
+                console.log('📹 FIX: Camera mirroring fix completed');
+              }}
+            >
+              📹 Fix Camera Mirroring
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('📱 FIX: Force updating media states...');
+                console.log('📱 FIX: Current participants media state:');
+                otherParticipants.forEach(participant => {
+                  console.log(`📱 FIX: - ${participant.name}: Audio=${participant.audioEnabled}, Video=${participant.videoEnabled}`);
+                });
+                
+                // Force re-render to update media states
+                setForceRender(prev => prev + 1);
+                
+                // Force hide videos for participants with camera off
+                otherParticipants.forEach(participant => {
+                  if (!participant.videoEnabled) {
+                    const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
+                    if (videoElement) {
+                      videoElement.style.setProperty('display', 'none', 'important');
+                      videoElement.style.setProperty('visibility', 'hidden', 'important');
+                      videoElement.style.setProperty('opacity', '0', 'important');
+                      videoElement.style.setProperty('pointer-events', 'none', 'important');
+                      console.log(`📱 FIX: Hidden video for ${participant.name} (camera off)`);
+                    }
+                  }
+                });
+                
+                console.log('📱 FIX: Media state update completed');
+              }}
+            >
+              📱 Fix Media States
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🎥 FIX: Force hiding all camera-off videos...');
+                const allVideos = document.querySelectorAll('video');
+                console.log(`🎥 FIX: Found ${allVideos.length} total video elements`);
+                
+                allVideos.forEach((video, index) => {
+                  const participantId = video.getAttribute('data-participant-id');
+                  if (participantId) {
+                    const participant = otherParticipants.find(p => p.id === participantId);
+                    if (participant && !participant.videoEnabled) {
+                      console.log(`🎥 FIX: Force hiding video for ${participant.name} (camera off)`);
+                      video.style.setProperty('display', 'none', 'important');
+                      video.style.setProperty('visibility', 'hidden', 'important');
+                      video.style.setProperty('opacity', '0', 'important');
+                      video.style.setProperty('pointer-events', 'none', 'important');
+                      video.style.setProperty('z-index', '-1', 'important');
+                    }
+                  }
+                });
+                
+                // Force re-render
+                setForceRender(prev => prev + 1);
+                console.log('🎥 FIX: Force hide completed');
+              }}
+            >
+              🎥 Force Hide Camera-Off Videos
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🔗 GENTLE FIX: Checking host stream sharing...');
+                console.log('🔗 GENTLE FIX: Current local stream:', localStream);
+                console.log('🔗 GENTLE FIX: Current remote streams:', Object.keys(remoteStreams));
+                console.log('🔗 GENTLE FIX: Current participants:', otherParticipants.map(p => ({ id: p.id, name: p.name })));
+                
+                // GENTLE: Only try connection once if needed
+                if (forceConnection && otherParticipants.length > 0) {
+                  console.log('🔗 GENTLE FIX: Attempting gentle connection to participants...');
+                  otherParticipants.forEach(participant => {
+                    console.log(`🔗 GENTLE FIX: Connecting to ${participant.name} (${participant.id})`);
+                    forceConnection(participant.id);
+                  });
+                }
+                
+                // Force re-render
+                setForceRender(prev => prev + 1);
+                console.log('🔗 GENTLE FIX: Gentle connection attempt completed');
+              }}
+            >
+              🔗 Gentle Share Host Stream
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🔗 GENTLE CONNECTION: Testing gentle connection approach...');
+                console.log('🔗 GENTLE CONNECTION: Current state:', {
+                  isHost,
+                  hasLocalStream: !!localStream,
+                  localStreamActive: localStream?.active,
+                  participantsCount: otherParticipants.length,
+                  remoteStreamsCount: Object.keys(remoteStreams).length
+                });
+                
+                // Test if we need to create connections
+                if (createConnectionsToAllParticipants && otherParticipants.length > 0) {
+                  console.log('🔗 GENTLE CONNECTION: Attempting to create connections to all participants...');
+                  createConnectionsToAllParticipants().then(() => {
+                    console.log('🔗 GENTLE CONNECTION: Connection creation completed');
+                  }).catch(error => {
+                    console.log('🔗 GENTLE CONNECTION: Connection creation failed:', error);
+                  });
+                } else {
+                  console.log('🔗 GENTLE CONNECTION: No participants to connect to or function not available');
+                }
+              }}
+            >
+              🔗 Test Gentle Connection
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🔍 STREAM ANALYSIS: Analyzing current stream state...');
+                console.log('🔍 STREAM ANALYSIS: Local stream analysis:', {
+                  exists: !!localStream,
+                  active: localStream?.active,
+                  id: localStream?.id,
+                  tracks: localStream?.getTracks()?.length,
+                  videoTracks: localStream?.getVideoTracks()?.length,
+                  audioTracks: localStream?.getAudioTracks()?.length
+                });
+                
+                console.log('🔍 STREAM ANALYSIS: Remote streams analysis:');
+                Object.keys(remoteStreams).forEach(participantId => {
+                  const stream = remoteStreams[participantId];
+                  const participant = otherParticipants.find(p => p.id === participantId);
+                  console.log(`🔍 STREAM ANALYSIS: ${participant?.name || participantId}:`, {
+                    exists: !!stream,
+                    active: stream?.active,
+                    id: stream?.id,
+                    tracks: stream?.getTracks()?.length,
+                    videoTracks: stream?.getVideoTracks()?.length,
+                    audioTracks: stream?.getAudioTracks()?.length
+                  });
+                });
+                
+                console.log('🔍 STREAM ANALYSIS: Video elements analysis:');
+                const allVideos = document.querySelectorAll('video');
+                allVideos.forEach((video, index) => {
+                  const participantId = video.getAttribute('data-participant-id');
+                  const isLocal = video.getAttribute('data-local') === 'true';
+                  console.log(`🔍 STREAM ANALYSIS: Video ${index + 1} (${isLocal ? 'LOCAL' : participantId}):`, {
+                    hasSrcObject: !!video.srcObject,
+                    srcObjectId: video.srcObject?.id,
+                    videoWidth: video.videoWidth,
+                    videoHeight: video.videoHeight,
+                    paused: video.paused,
+                    muted: video.muted
+                  });
+                });
+              }}
+            >
+              🔍 Analyze Streams
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🔍 GENTLE DEBUG: Using hook debug function...');
+                if (debugConnectionStatus) {
+                  debugConnectionStatus();
+                } else {
+                  console.log('🔍 GENTLE DEBUG: Debug function not available');
+                }
+              }}
+            >
+              🔍 Gentle Debug (Hook)
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🔍 CONNECTION DEBUG: Checking connection status...');
+                console.log('🔍 CONNECTION DEBUG: Local stream status:', {
+                  hasStream: !!localStream,
+                  streamActive: localStream?.active,
+                  trackCount: localStream?.getTracks()?.length,
+                  videoTracks: localStream?.getVideoTracks()?.length,
+                  audioTracks: localStream?.getAudioTracks()?.length
+                });
+                console.log('🔍 CONNECTION DEBUG: Remote streams:', Object.keys(remoteStreams));
+                console.log('🔍 CONNECTION DEBUG: Participants:', otherParticipants.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  isHost: p.isHost,
+                  isApproved: p.isApproved
+                })));
+                console.log('🔍 CONNECTION DEBUG: Total video elements:', document.querySelectorAll('video').length);
+                console.log('🔍 CONNECTION DEBUG: Video elements with srcObject:', 
+                  Array.from(document.querySelectorAll('video')).filter(v => v.srcObject).length
+                );
+                
+                // Check if we can see each other
+                console.log('🔍 CONNECTION DEBUG: Checking if participants can see each other...');
+                otherParticipants.forEach(participant => {
+                  const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
+                  const hasStream = !!remoteStreams[participant.id];
+                  const hasVideoElement = !!videoElement;
+                  const videoHasSrcObject = videoElement?.srcObject;
+                  
+                  console.log(`🔍 CONNECTION DEBUG: ${participant.name}:`, {
+                    hasStream,
+                    hasVideoElement,
+                    videoHasSrcObject,
+                    streamActive: remoteStreams[participant.id]?.active,
+                    streamTracks: remoteStreams[participant.id]?.getTracks()?.length
+                  });
+                });
+              }}
+            >
+              🔍 Debug Connection Status
+            </button>
+            
             
             {/* Individual Remove Buttons for Testing */}
             {otherParticipants.map(participant => (

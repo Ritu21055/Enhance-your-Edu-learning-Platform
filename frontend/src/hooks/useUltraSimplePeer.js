@@ -4,9 +4,6 @@ import SimplePeer from 'simple-peer';
 import { getBackendUrl } from '../config/network';
 
 const useUltraSimplePeer = (meetingId, userName) => {
-  console.log('🔌 UltraSimplePeer: Parameters received:', { meetingId, userName });
-  console.log('🔌 UltraSimplePeer: userName value:', userName);
-  console.log('🔌 UltraSimplePeer: userName type:', typeof userName);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState({});
   const [participants, setParticipants] = useState([]);
@@ -34,13 +31,6 @@ const useUltraSimplePeer = (meetingId, userName) => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       pageVisibilityRef.current = !document.hidden;
-      console.log('👁️ Page visibility changed:', pageVisibilityRef.current ? 'visible' : 'hidden');
-      
-      // If user returns to page and there are pending approvals, don't auto-show dialog
-      if (pageVisibilityRef.current && pendingApprovals.length > 0) {
-        console.log('👁️ User returned to page with pending approvals, not auto-showing dialog');
-        // Keep the pending approvals count but don't show the dialog automatically
-      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -50,8 +40,6 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
   // Initialize socket connection
   useEffect(() => {
-    console.log('🔌 UltraSimplePeer: Initializing socket connection...');
-    
     // Ignore Chrome extension errors (they don't affect functionality)
     const originalError = console.error;
     console.error = (...args) => {
@@ -67,86 +55,51 @@ const useUltraSimplePeer = (meetingId, userName) => {
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('✅ UltraSimplePeer: Socket connected with ID:', newSocket.id);
       setSocketConnected(true);
-      
-      // Make socket globally available for debugging
       window.socket = newSocket;
       
-      // Auto-join meeting (only if not already approved)
-      console.log('🎉 Auto-joining meeting with UltraSimplePeer...');
-      console.log('🔍 Checking if user is already approved...');
-      
       // Check if user is already approved by looking at URL or localStorage
-      // Only skip auto-join if user is actually a host (has host=true in URL)
       const isHostFromURL = window.location.search.includes('host=true');
       const isAlreadyApproved = window.location.search.includes('approved=true') || 
                                 localStorage.getItem(`approved_${meetingId}`) === 'true';
       
       if (isAlreadyApproved && isHostFromURL) {
-        console.log('✅ User is already approved, but still need to join meeting to update socket ID');
-        
-        // For approved users, we need to determine if they're the host
-        // isHostFromURL is already defined above
-        
-        console.log('🔍 Checking host status from URL:', isHostFromURL);
-        console.log('🔍 URL search params:', window.location.search);
-        
         if (isHostFromURL) {
-          console.log('👑 User is host based on URL parameters');
           setIsHost(true);
           isHostRef.current = true;
         } else {
-          console.log('👥 User is participant based on URL parameters');
           setIsHost(false);
           isHostRef.current = false;
         }
         
-        // Even if already approved, we need to join the meeting to update socket ID
-        console.log('🔄 Joining meeting to update socket ID for reconnected host');
         newSocket.emit('join-meeting', { meetingId, userName });
-        
         setIsWaitingForApproval(false);
         
-        // Just initialize media without joining
         if (!localStream) {
           initializeMedia();
         }
       } else {
-        console.log('🔄 User not approved yet or not a host, joining meeting...');
-        console.log('🔍 isAlreadyApproved:', isAlreadyApproved);
-        console.log('🔍 isHostFromURL:', isHostFromURL);
         newSocket.emit('join-meeting', {
           meetingId,
           userName: userName,
-          isHost: false  // Always false for auto-join, backend will determine if first participant
+          isHost: false
         });
       }
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log('❌ UltraSimplePeer: Socket disconnected, reason:', reason);
       setSocketConnected(false);
       
       // Enhanced reconnection logic for multiple laptops
       if (reason === 'io server disconnect') {
-        // Server initiated disconnect, try to reconnect
-        console.log('🔄 UltraSimplePeer: Server disconnect, attempting reconnection...');
         setTimeout(() => {
           if (!socketConnected) {
-            console.log('🔄 UltraSimplePeer: Reconnecting to server...');
             newSocket.connect();
           }
         }, 2000);
-      } else if (reason === 'io client disconnect') {
-        // Client initiated disconnect, don't auto-reconnect
-        console.log('🔄 UltraSimplePeer: Client disconnect, not auto-reconnecting');
-      } else {
-        // Network issues, try to reconnect
-        console.log('🔄 UltraSimplePeer: Network disconnect, attempting reconnection...');
+      } else if (reason !== 'io client disconnect') {
         setTimeout(() => {
           if (!socketConnected) {
-            console.log('🔄 UltraSimplePeer: Reconnecting after network issue...');
             newSocket.connect();
           }
         }, 3000);
@@ -155,7 +108,6 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
     // Handle meeting joined
     newSocket.on('meeting-joined', (data) => {
-      console.log('🎉 UltraSimplePeer: Meeting joined successfully!', data);
       setIsHost(data.isHost);
       isHostRef.current = data.isHost;
       const initialParticipants = (data.meeting.participants || []).map(participant => ({
@@ -167,45 +119,30 @@ const useUltraSimplePeer = (meetingId, userName) => {
       participantsRef.current = initialParticipants;
       
       if (data.isHost) {
-        console.log('👑 UltraSimplePeer: First participant - becoming host');
         setIsHost(true);
         isHostRef.current = true;
-        setIsWaitingForApproval(false); // Hosts don't wait for approval
+        setIsWaitingForApproval(false);
+        // Clear any existing pending approvals when host joins
+        setPendingApprovals([]);
+        setShowPendingApprovals(false);
       }
-      
-      console.log('👤 UltraSimplePeer: Current user info:', {
-        id: newSocket.id,
-        name: userName,
-        isHost: data.isHost
-      });
+    });
+
+    // Handle pending approvals summary (instead of flooding with all approvals)
+    newSocket.on('pending-approvals-summary', (data) => {
+      if (isHostRef.current) {
+        // Don't show the dialog immediately, just log the summary
+        console.log(`📝 Host has ${data.count} pending approvals - not showing dialog`);
+      }
     });
 
     // Handle participant joined
     newSocket.on('participant-joined', (data) => {
-      console.log('👥 UltraSimplePeer: Participant joined event received!');
-      console.log('👥 UltraSimplePeer: Event data:', data);
-      console.log('👥 UltraSimplePeer: Current user socket ID:', newSocket.id);
-      console.log('👥 UltraSimplePeer: Current participants before update:', participantsRef.current);
-      console.log('👥 UltraSimplePeer: New participant data:', data.participant);
-      console.log('👥 UltraSimplePeer: Meeting participants:', data.meeting.participants);
-      console.log('👥 UltraSimplePeer: Socket ID:', newSocket.id);
-      console.log('👥 UltraSimplePeer: Is Host:', isHost);
-      
-      // Add the new participant to the existing participants list
       setParticipants(prev => {
         const existingIds = prev.map(p => p.id);
         const newParticipant = data.participant;
         
-        console.log('👥 UltraSimplePeer: New participant data:', {
-          id: newParticipant?.id,
-          name: newParticipant?.name,
-          isHost: newParticipant?.isHost,
-          isApproved: newParticipant?.isApproved
-        });
-        
-        // Only add if not already in the list
         if (!existingIds.includes(newParticipant.id)) {
-          // Add default media states if not present
           const participantWithDefaults = {
             ...newParticipant,
             audioEnabled: newParticipant.audioEnabled ?? false,
@@ -213,37 +150,24 @@ const useUltraSimplePeer = (meetingId, userName) => {
           };
           const updated = [...prev, participantWithDefaults];
           participantsRef.current = updated;
-          console.log('👥 UltraSimplePeer: Added new participant, updated list:', updated);
           
-          // Create WebRTC connection to the new participant (multi-participant support)
           if (newParticipant.isApproved && newParticipant.id !== newSocket.id) {
-            console.log('🔗 MULTI-PARTICIPANT: Creating connection to new participant:', newParticipant.id);
-            
-        // Use the centralized function to create connections to all participants
-        console.log('👥 MULTI-PARTICIPANT: About to call createConnectionsToAllParticipants in 1000ms (from participant-joined)');
-        setTimeout(() => {
-          console.log('👥 MULTI-PARTICIPANT: Calling createConnectionsToAllParticipants now (from participant-joined)');
-          createConnectionsToAllParticipants();
-        }, 1000);
-        
-        // Also ensure host's stream is immediately available for sharing
-        if (isHostRef.current && localStream) {
-          console.log('👥 MULTI-PARTICIPANT: Host has local stream, ensuring it\'s ready for sharing');
-          console.log('👥 MULTI-PARTICIPANT: Host stream details:', {
-            streamId: localStream.id,
-            active: localStream.active,
-            trackCount: localStream.getTracks().length,
-            videoTracks: localStream.getVideoTracks().length,
-            audioTracks: localStream.getAudioTracks().length
-          });
-        } else if (isHostRef.current && !localStream) {
-          console.log('👥 MULTI-PARTICIPANT: Host has no local stream, this may cause issues');
-        }
+            setTimeout(() => {
+              createConnectionsToAllParticipants();
+            }, 200);
           }
+        if (isHostRef.current && !localStream) {
+          initializeMedia().then(newStream => {
+            if (newStream) {
+              setTimeout(() => {
+                createConnectionsToAllParticipants();
+              }, 1000);
+            }
+          });
+        }
           
           return updated;
         } else {
-          console.log('👥 UltraSimplePeer: Participant already exists, no update needed');
           return prev;
         }
       });
@@ -251,20 +175,16 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
     // Handle participant left
     newSocket.on('participant-left', (data) => {
-      console.log('👋 UltraSimplePeer: Participant left:', data);
       setParticipants(prev => {
         const updated = prev.filter(p => p.id !== data.participantId);
         participantsRef.current = updated;
         return updated;
       });
       
-      // Clean up peer connection
       if (peersRef.current[data.participantId]) {
         peersRef.current[data.participantId].destroy();
         delete peersRef.current[data.participantId];
       }
-      
-      // Remove remote stream
       setRemoteStreams(prev => {
         const newStreams = { ...prev };
         delete newStreams[data.participantId];
@@ -274,39 +194,30 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
     // Handle pending approval
     newSocket.on('pending-approval', (data) => {
-      console.log('⏳ UltraSimplePeer: Pending approval for:', data);
-      console.log('⏳ UltraSimplePeer: Data structure:', {
-        id: data?.id,
-        name: data?.name,
-        isHost: data?.isHost,
-        joinedAt: data?.joinedAt
-      });
-      console.log('⏳ UltraSimplePeer: Current user is host:', isHostRef.current);
-      console.log('⏳ UltraSimplePeer: Socket ID:', newSocket.id);
-      console.log('⏳ UltraSimplePeer: URL search params:', window.location.search);
-      console.log('⏳ UltraSimplePeer: Current pendingApprovals state:', pendingApprovals);
-      console.log('⏳ UltraSimplePeer: Current showPendingApprovals state:', showPendingApprovals);
-      
       // Only hosts should receive pending approval events
       if (!isHostRef.current) {
-        console.log('⏳ UltraSimplePeer: User is not host, ignoring pending-approval event');
         return;
       }
       
-      console.log('⏳ UltraSimplePeer: User is host, processing pending approval');
+      // Don't show pending approval for the host themselves
+      if (data.id === newSocket.id) {
+        return;
+      }
+      
       setPendingApprovals(prev => {
+        // Check if this participant is already in pending approvals to prevent duplicates
+        const alreadyExists = prev.some(p => p.id === data.id);
+        if (alreadyExists) {
+          return prev;
+        }
+        
         const newApprovals = [...prev, data];
-        console.log('⏳ UltraSimplePeer: Updated pending approvals:', newApprovals);
         return newApprovals;
       });
+      
       // Only auto-show pending approvals if user is actively in the meeting
-      // Don't auto-show if user is just returning to the page
       if (pageVisibilityRef.current) {
-        console.log('⏳ UltraSimplePeer: Setting showPendingApprovals to true (user is active)');
-      setShowPendingApprovals(true);
-      } else {
-        console.log('⏳ UltraSimplePeer: Not auto-showing pending approvals (user not active)');
-        // Just update the pending approvals count, don't show dialog
+        setShowPendingApprovals(true);
       }
     });
 
@@ -433,7 +344,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
         
         // Wait a bit for media to be ready
         setTimeout(async () => {
-          await createPeerConnection(fromId, localStream);
+          const currentStream = localStream || await initializeMedia();
+          await createPeerConnection(fromId, currentStream);
         }, 500);
       }
     });
@@ -650,37 +562,24 @@ const useUltraSimplePeer = (meetingId, userName) => {
   // Initialize media
   const initializeMedia = useCallback(async () => {
     try {
-      console.log('🎥 UltraSimplePeer: Starting media initialization...');
-      
-      // Check if mediaDevices is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('MediaDevices API not supported. Please use a modern browser with HTTPS.');
       }
       
-      // Detect network conditions for optimal quality
       const isMobileHotspot = window.location.hostname.includes('192.168.43') || 
                              window.location.hostname.includes('10.') ||
                              navigator.connection?.effectiveType === 'slow-2g' ||
                              navigator.connection?.effectiveType === '2g' ||
                              navigator.connection?.effectiveType === '3g';
       
-      // Optimize for multiple participants
       const isSlowConnection = navigator.connection?.effectiveType === 'slow-2g' || 
                               navigator.connection?.effectiveType === '2g' ||
-                              navigator.connection?.downlink < 1; // Less than 1 Mbps
+                              navigator.connection?.downlink < 1;
       
-      console.log('📱 Network conditions:', {
-        isMobileHotspot,
-        isSlowConnection,
-        effectiveType: navigator.connection?.effectiveType,
-        downlink: navigator.connection?.downlink
-      });
-      
-      // Adaptive quality based on network conditions
       const videoConstraints = {
-        width: isMobileHotspot || isSlowConnection ? 640 : 960, // Reduced from 1280
-        height: isMobileHotspot || isSlowConnection ? 480 : 540, // Reduced from 720
-        frameRate: isMobileHotspot || isSlowConnection ? 15 : 24, // Reduced from 30
+        width: isMobileHotspot || isSlowConnection ? 640 : 960,
+        height: isMobileHotspot || isSlowConnection ? 480 : 540,
+        frameRate: isMobileHotspot || isSlowConnection ? 15 : 24,
         facingMode: 'user'
       };
       
@@ -689,173 +588,41 @@ const useUltraSimplePeer = (meetingId, userName) => {
         noiseSuppression: true,
         autoGainControl: true,
         sampleRate: isMobileHotspot || isSlowConnection ? 16000 : 48000,
-        channelCount: 1,
-        latency: 0.01,
-        volume: 0.8, // Reduced volume to prevent echo
-        googEchoCancellation: true,
-        googAutoGainControl: true,
-        googNoiseSuppression: true,
-        googHighpassFilter: true,
-        googTypingNoiseDetection: true,
-        googAudioMirroring: false, // Prevent audio feedback
-        googDAEchoCancellation: true, // Advanced echo cancellation
-        googNoiseReduction: true, // Advanced noise reduction
-        googAudioMirroring: false, // Disable audio mirroring
-        googEchoCancellation2: true, // Additional echo cancellation
-        googAutoGainControl2: true, // Additional AGC
-        googNoiseSuppression2: true, // Additional noise suppression
-        googHighpassFilter2: true, // Additional high-pass filter
-        googTypingNoiseDetection2: true, // Additional typing noise detection
-        googAudioMirroring2: false, // Additional audio mirroring prevention
-        googDAEchoCancellation2: true, // Additional advanced echo cancellation
-        googNoiseReduction2: true, // Additional advanced noise reduction
-        googEchoCancellation3: true, // Triple echo cancellation
-        googAutoGainControl3: true, // Triple AGC
-        googNoiseSuppression3: true, // Triple noise suppression
-        googHighpassFilter3: true, // Triple high-pass filter
-        googTypingNoiseDetection3: true, // Triple typing noise detection
-        googAudioMirroring3: false, // Triple audio mirroring prevention
-        googDAEchoCancellation3: true, // Triple advanced echo cancellation
-        googNoiseReduction3: true // Triple advanced noise reduction
+        channelCount: 1
       };
-      
-      console.log('🎥 Using optimized constraints:', { videoConstraints, audioConstraints });
       
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: audioConstraints
-      });
+          video: videoConstraints,
+          audio: audioConstraints
+        });
       } catch (constraintError) {
-        console.warn('⚠️ Enhanced constraints failed, trying basic constraints:', constraintError);
-        // Fallback to basic constraints
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true
         });
       }
       
-      console.log('🎥 UltraSimplePeer: Media stream obtained:', {
-        streamId: stream.id,
-        trackCount: stream.getTracks().length,
-        videoTracks: stream.getVideoTracks().length,
-        audioTracks: stream.getAudioTracks().length
-      });
-      
-      // Ensure audio tracks are properly configured with enhanced settings
-      const audioTracks = stream.getAudioTracks();
-      audioTracks.forEach(track => {
-        console.log('🎤 UltraSimplePeer: Local audio track configured:', {
-          enabled: track.enabled,
-          readyState: track.readyState,
-          muted: track.muted,
-          constraints: track.getConstraints?.()
-        });
-        
-        // Ensure audio track is enabled and not muted
-        if (track.readyState === 'live') {
-          track.enabled = true;
-          
-          // Apply enhanced audio constraints for better quality
-          const enhancedAudioConstraints = {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: isMobileHotspot || isSlowConnection ? 16000 : 48000,
-            channelCount: 1,
-            latency: 0.01,
-            volume: 1.0,
-            googEchoCancellation: true,
-            googAutoGainControl: true,
-            googNoiseSuppression: true,
-            googHighpassFilter: true,
-            googTypingNoiseDetection: true,
-            googAudioMirroring: false,
-            googDAEchoCancellation: true,
-            googNoiseReduction: true
-          };
-          
-          try {
-            track.applyConstraints(enhancedAudioConstraints).then(() => {
-              console.log('🎤 UltraSimplePeer: Enhanced audio constraints applied to local track');
-            }).catch(error => {
-              console.log('🎤 UltraSimplePeer: Could not apply enhanced audio constraints:', error);
-              
-              // Fallback to basic constraints
-              const basicConstraints = {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-              };
-              
-              track.applyConstraints(basicConstraints).then(() => {
-                console.log('🎤 UltraSimplePeer: Basic audio constraints applied as fallback');
-              }).catch(fallbackError => {
-                console.log('🎤 UltraSimplePeer: Could not apply basic audio constraints:', fallbackError);
-              });
-            });
-          } catch (error) {
-            console.log('🎤 UltraSimplePeer: Error applying audio constraints:', error);
-          }
-          
-          // Note: muted property is read-only in newer browsers
-          // The track will be unmuted by default when enabled
-        }
-      });
-      
       setLocalStream(stream);
-      console.log('🎥 UltraSimplePeer: Local stream set in state:', stream);
       
-      // Wait for video element to be ready, then set the stream
-      const setStreamOnVideoElement = () => {
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        console.log('🎥 UltraSimplePeer: Local video stream set on video element');
-          return true;
-        }
-        return false;
-      };
-      
-      // Try immediately
-      if (!setStreamOnVideoElement()) {
-        // If video element not ready, wait and try again
-        console.log('🎥 UltraSimplePeer: Video element not ready, waiting...');
-        const checkVideoElement = () => {
-          if (setStreamOnVideoElement()) {
-            console.log('🎥 UltraSimplePeer: Video element ready, stream set successfully');
-          } else {
-            console.log('🎥 UltraSimplePeer: Video element still not ready, retrying...');
-            setTimeout(checkVideoElement, 100);
-          }
-        };
-        setTimeout(checkVideoElement, 100);
       }
-      
       return stream;
     } catch (error) {
-      console.error('❌ UltraSimplePeer: Failed to get media:', error);
-      
-      // Handle specific camera access errors
       if (error.name === 'NotAllowedError') {
-        console.error('🚫 Camera access denied by user');
         alert('Camera access denied. Please allow camera access and refresh the page.');
       } else if (error.name === 'NotFoundError') {
-        console.error('📹 No camera found');
         alert('No camera found. Please connect a camera and refresh the page.');
       } else if (error.name === 'NotReadableError') {
-        console.error('📹 Camera already in use by another application');
-        console.log('💡 Tip: For testing multiple participants, use different devices or close other camera applications');
-        alert('Camera is already in use by another browser or application.\n\nFor testing multiple participants:\n• Use different devices (laptop + phone)\n• Close other camera applications\n• Close other browser tabs using the camera');
+        alert('Camera is already in use by another browser or application.');
       } else if (error.name === 'OverconstrainedError') {
-        console.error('📹 Camera constraints not supported');
         alert('Camera does not support the required settings. Please try with a different camera or refresh the page.');
       } else if (error.message.includes('MediaDevices API not supported')) {
-        console.error('📹 MediaDevices API not supported');
-        alert('Your browser does not support camera access.\n\nPlease try:\n• Using a modern browser (Chrome, Firefox, Edge)\n• Accessing via HTTPS (https://)\n• Enabling camera permissions in browser settings');
+        alert('Your browser does not support camera access. Please use a modern browser with HTTPS.');
       } else {
-        console.error('📹 Unknown camera error:', error.message);
-        alert(`Camera error: ${error.message}\n\nPlease try:\n• Refreshing the page\n• Allowing camera permissions\n• Using a different browser\n• Checking if camera is connected`);
+        alert(`Camera error: ${error.message}`);
       }
       
       return null;
@@ -864,38 +631,31 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
   // Create peer connection
   const createPeerConnection = useCallback(async (participantId, stream = localStream) => {
+    console.log(`🔗 CREATE-PEER: Creating connection to ${participantId}`);
+    console.log(`🔗 CREATE-PEER: Has stream:`, !!stream);
+    console.log(`🔗 CREATE-PEER: Stream active:`, stream?.active);
+    
     if (peersRef.current[participantId]) {
-      console.log('🔗 UltraSimplePeer: Peer connection already exists for:', participantId);
+      console.log(`🔗 CREATE-PEER: Connection already exists for ${participantId}`);
       return;
     }
 
-    console.log('🔗 UltraSimplePeer: Creating peer connection for:', participantId);
-    console.log('🔗 UltraSimplePeer: Current user is host:', isHostRef.current);
-    console.log('🔗 UltraSimplePeer: Current user socket ID:', socketRef.current?.id);
-    console.log('🔗 UltraSimplePeer: Target participant ID:', participantId);
-    console.log('🔗 UltraSimplePeer: Stream provided:', stream);
-    console.log('🔗 UltraSimplePeer: Stream active:', stream?.active);
-    console.log('🔗 UltraSimplePeer: Stream tracks:', stream?.getTracks()?.length);
-    
-    // Host should be initiator when connecting to participants
-    // In a mesh network, we need to ensure only one side initiates
-    // Use socket ID comparison to determine initiator consistently
-    // The side with the LOWER socket ID should be the initiator
+    // If no stream is provided, try to get the current local stream
+    if (!stream) {
+      console.log(`🔗 CREATE-PEER: No stream provided, trying to get current local stream`);
+      stream = localStream;
+      if (!stream) {
+        console.log(`🔗 CREATE-PEER: No local stream available, cannot create connection`);
+        return;
+      }
+    }
+
     const shouldBeInitiator = socketRef.current?.id && participantId && socketRef.current.id < participantId;
-    
-    console.log('🔗 UltraSimplePeer: Creating peer as initiator:', shouldBeInitiator);
-    console.log('🔗 UltraSimplePeer: Socket ID comparison:', {
-      mySocketId: socketRef.current?.id,
-      targetSocketId: participantId,
-      myIdSmaller: socketRef.current?.id < participantId,
-      shouldBeInitiator: shouldBeInitiator
-    });
-    
-    // Performance optimization: reduce video quality for large groups
     const totalParticipants = participantsRef.current.length;
-    const isLargeGroup = totalParticipants > 2; // Reduced threshold for better performance
+    const isLargeGroup = totalParticipants > 2;
     
-    // Enhanced WebRTC configuration for stability and performance
+    console.log(`🔗 CREATE-PEER: Initiator: ${shouldBeInitiator}, Large group: ${isLargeGroup}`);
+    
     const peerConfig = {
       initiator: shouldBeInitiator,
       trickle: false,
@@ -911,14 +671,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
         rtcpMuxPolicy: 'require'
       },
       sdpTransform: (sdp) => {
-        // Optimize SDP for better performance
         return sdp
           .replace(/a=fmtp:111 minptime=10;useinbandfec=1/g, 'a=fmtp:111 minptime=10;useinbandfec=1;stereo=0')
           .replace(/a=fmtp:126 minptime=10;useinbandfec=1/g, 'a=fmtp:126 minptime=10;useinbandfec=1;stereo=0');
       }
     };
     
-    // Add video quality constraints for large groups
     if (isLargeGroup && stream) {
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
@@ -930,13 +688,11 @@ const useUltraSimplePeer = (meetingId, userName) => {
         
         try {
           await videoTrack.applyConstraints(constraints);
-          console.log('🔗 UltraSimplePeer: Applied performance constraints for large group');
         } catch (error) {
-          console.log('🔗 UltraSimplePeer: Could not apply constraints:', error);
+          // Ignore constraint errors
         }
       }
       
-      // Also reduce audio quality for better performance
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
         const audioConstraints = {
@@ -949,53 +705,16 @@ const useUltraSimplePeer = (meetingId, userName) => {
         
         try {
           await audioTrack.applyConstraints(audioConstraints);
-          console.log('🔗 UltraSimplePeer: Applied audio constraints for large group');
         } catch (error) {
-          console.log('🔗 UltraSimplePeer: Could not apply audio constraints:', error);
+          // Ignore constraint errors
         }
       }
     }
     
     const peer = new SimplePeer(peerConfig);
 
-    // Ensure stream is added to the peer connection using modern WebRTC API
-    if (stream && stream.active) {
-      const streamKey = `${participantId}-${stream.id}`;
-      if (!addedStreamsRef.current.has(streamKey)) {
-        console.log('🔗 UltraSimplePeer: Adding stream to peer connection using modern API');
-        console.log('🔗 UltraSimplePeer: Stream details for sharing:', {
-          streamId: stream.id,
-          streamActive: stream.active,
-          trackCount: stream.getTracks().length,
-          videoTracks: stream.getVideoTracks().length,
-          audioTracks: stream.getAudioTracks().length,
-          participantId: participantId
-        });
-        try {
-          // Use modern WebRTC API instead of deprecated addStream
-          stream.getTracks().forEach(track => {
-            console.log(`🔗 UltraSimplePeer: Adding ${track.kind} track to peer connection for ${participantId}`);
-            peer.addTrack(track, stream);
-          });
-          addedStreamsRef.current.add(streamKey);
-          console.log('🔗 UltraSimplePeer: Stream added successfully to peer connection for', participantId);
-        } catch (error) {
-          console.log('🔗 UltraSimplePeer: Stream already added to peer connection:', error.message);
-        }
-      } else {
-        console.log('🔗 UltraSimplePeer: Stream already added to this peer connection');
-      }
-    } else {
-      console.log('🔗 UltraSimplePeer: No active stream to add to peer connection');
-      console.log('🔗 UltraSimplePeer: Stream status:', {
-        hasStream: !!stream,
-        streamActive: stream?.active,
-        participantId: participantId
-      });
-    }
-
     peer.on('signal', (data) => {
-      console.log('📡 UltraSimplePeer: Sending signal to:', participantId);
+      console.log(`📡 SIGNAL: Sending signal to ${participantId}:`, data.type);
       socketRef.current.emit('signal', {
         to: participantId,
         from: socketRef.current.id,
@@ -1004,330 +723,69 @@ const useUltraSimplePeer = (meetingId, userName) => {
     });
 
     peer.on('stream', (stream) => {
-      console.log('🎥 UltraSimplePeer: Received stream from:', participantId);
-      console.log('🎥 UltraSimplePeer: Stream details:', {
-        streamId: stream.id,
-        trackCount: stream.getTracks().length,
-        videoTracks: stream.getVideoTracks().length,
-        audioTracks: stream.getAudioTracks().length,
-        streamActive: stream.active,
-        streamEnded: stream.ended
-      });
+      console.log(`🎥 STREAM: Received stream from ${participantId}`);
+      console.log(`🎥 STREAM: Stream active: ${stream.active}, tracks: ${stream.getTracks().length}`);
       
-      // Check if this is the host's stream
-      const isHostStream = participantsRef.current.find(p => p.id === participantId)?.isHost;
-      if (isHostStream) {
-        console.log('🎥 UltraSimplePeer: Received HOST stream from:', participantId);
-        console.log('🎥 UltraSimplePeer: Host stream details:', {
-          streamId: stream.id,
-          streamActive: stream.active,
-          trackCount: stream.getTracks().length,
-          videoTracks: stream.getVideoTracks().length,
-          audioTracks: stream.getAudioTracks().length
+      const isScreenShare = stream.getVideoTracks().some(track => 
+        track.label && (
+          track.label.includes('screen') || 
+          track.label.includes('Screen') ||
+          track.label.includes('window') ||
+          track.label.includes('desktop')
+        )
+      );
+      
+      if (isScreenShare) {
+        console.log(`🖥️ STREAM: Screen share detected from ${participantId}`);
+        setRemoteScreenStreams(prev => {
+          const newStreams = { ...prev };
+          newStreams[participantId] = stream;
+          return newStreams;
         });
+        setForceRender(prev => prev + 1);
+        return;
       }
       
-      // Additional debugging for stream issues
-      if (stream.getTracks().length === 0) {
-        console.error('❌ UltraSimplePeer: Stream has no tracks!');
-      }
-      if (!stream.active) {
-        console.error('❌ UltraSimplePeer: Stream is not active!');
-      }
-      
-      // Force stream processing
-      console.log('🔧 UltraSimplePeer: Force processing received stream');
-      stream.getTracks().forEach(track => {
-        console.log('🔧 UltraSimplePeer: Track details:', {
-          kind: track.kind,
-          enabled: track.enabled,
-          readyState: track.readyState,
-          muted: track.muted
-        });
-      });
-      
-      // Additional debugging for consent stream issues
-      console.log('🔧 UltraSimplePeer: Checking if this is a consent stream update');
-      console.log('🔧 UltraSimplePeer: Stream ID:', stream.id);
-      console.log('🔧 UltraSimplePeer: Stream active:', stream.active);
-      console.log('🔧 UltraSimplePeer: Video tracks:', stream.getVideoTracks().length);
-      console.log('🔧 UltraSimplePeer: Audio tracks:', stream.getAudioTracks().length);
-      
-      // Always update the stream (in case of reconnection or stream refresh)
+      console.log(`🎥 STREAM: Adding video stream from ${participantId}`);
       setRemoteStreams(prev => {
-        console.log('🎥 UltraSimplePeer: Updating stream for participant:', participantId);
-        
-        // Force the stream to be active and ensure tracks are enabled
         if (stream && stream.getTracks) {
           stream.getTracks().forEach(track => {
-            console.log('🎥 UltraSimplePeer: Track details:', {
-              kind: track.kind,
-              enabled: track.enabled,
-              readyState: track.readyState,
-              muted: track.muted
-            });
-            
-            // Ensure track is enabled and not muted
             if (track.readyState === 'live') {
               track.enabled = true;
-              // Note: muted property is read-only in newer browsers
-              
-              // Special handling for audio tracks to ensure smooth audio
-              if (track.kind === 'audio') {
-                console.log('🎤 UltraSimplePeer: Ensuring audio track is properly configured');
-                
-                // Apply enhanced audio constraints for better quality and stability
-                const isMobileHotspot = window.location.hostname.includes('192.168.43') || 
-                                       window.location.hostname.includes('10.');
-                
-                const audioConstraints = {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                  autoGainControl: true,
-                  sampleRate: isMobileHotspot ? 16000 : 48000, // Increased quality
-                  channelCount: 1,
-                  latency: 0.01,
-                  volume: 1.0,
-                  googEchoCancellation: true,
-                  googAutoGainControl: true,
-                  googNoiseSuppression: true,
-                  googHighpassFilter: true,
-                  googTypingNoiseDetection: true,
-                  googAudioMirroring: false,
-                  googDAEchoCancellation: true,
-                  googNoiseReduction: true
-                };
-                
-                try {
-                  track.applyConstraints(audioConstraints).then(() => {
-                    console.log('🎤 UltraSimplePeer: Enhanced audio constraints applied successfully');
-                    
-                    // Test audio flow to ensure it's working
-                    try {
-                      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                      const source = audioContext.createMediaStreamSource(stream);
-                      const analyser = audioContext.createAnalyser();
-                      source.connect(analyser);
-                      
-                      // Check if audio is actually flowing
-                      const bufferLength = analyser.frequencyBinCount;
-                      const dataArray = new Uint8Array(bufferLength);
-                      analyser.getByteFrequencyData(dataArray);
-                      
-                      const hasAudio = dataArray.some(value => value > 0);
-                      console.log('🎤 UltraSimplePeer: Remote audio flow test:', hasAudio ? 'Audio detected' : 'No audio detected');
-                      
-                      // Clean up
-                      source.disconnect();
-                      audioContext.close();
-                    } catch (audioTestError) {
-                      console.log('🎤 UltraSimplePeer: Audio test failed:', audioTestError);
-                    }
-                  }).catch(error => {
-                    console.log('🎤 UltraSimplePeer: Could not apply enhanced audio constraints:', error);
-                    
-                    // Fallback to basic constraints
-                    const basicConstraints = {
-                      echoCancellation: true,
-                      noiseSuppression: true,
-                      autoGainControl: true
-                    };
-                    
-                    track.applyConstraints(basicConstraints).then(() => {
-                      console.log('🎤 UltraSimplePeer: Basic audio constraints applied as fallback');
-                    }).catch(fallbackError => {
-                      console.log('🎤 UltraSimplePeer: Could not apply basic audio constraints:', fallbackError);
-                    });
-                  });
-                } catch (error) {
-                  console.log('🎤 UltraSimplePeer: Error applying audio constraints:', error);
-                }
-              }
             }
           });
         }
         
-        // Only update if stream is actually active
-        if (stream && stream.active) {
-          const newStreams = {
-            ...prev,
-            [participantId]: stream
-          };
-          console.log('🎥 UltraSimplePeer: Updated remote streams:', Object.keys(newStreams));
-          console.log('🎥 UltraSimplePeer: All remote streams now:', newStreams);
-          return newStreams;
-        } else {
-          console.log('🎥 UltraSimplePeer: Stream not active, keeping existing stream');
-          return prev;
-        }
+        const newStreams = {
+          ...prev,
+          [participantId]: stream
+        };
+        console.log(`🎥 STREAM: Updated remote streams:`, Object.keys(newStreams));
+        return newStreams;
       });
     });
 
     peer.on('connect', () => {
-      console.log('✅ UltraSimplePeer: Connected to:', participantId);
-      
-      // Ensure stream is added after connection is established
-      if (stream && stream.active) {
-        const streamKey = `${participantId}-${stream.id}`;
-        if (!addedStreamsRef.current.has(streamKey)) {
-          console.log('🔗 UltraSimplePeer: Adding stream after connection established');
-          try {
-            // Use modern WebRTC API instead of deprecated addStream
-            stream.getTracks().forEach(track => {
-              console.log(`🔗 UltraSimplePeer: Adding ${track.kind} track after connection established`);
-              peer.addTrack(track, stream);
-            });
-            addedStreamsRef.current.add(streamKey);
-            console.log('🔗 UltraSimplePeer: Stream added successfully after connection');
-          } catch (error) {
-            console.log('🔗 UltraSimplePeer: Stream already added after connection:', error.message);
-          }
-        } else {
-          console.log('🔗 UltraSimplePeer: Stream already added to this peer connection');
-        }
-        
-        // Ensure bidirectional stream sharing
-        if (peer.getSenders && peer.addTrack) {
-          console.log('🔗 UltraSimplePeer: Ensuring bidirectional stream sharing for:', participantId);
-          try {
-            // Check current senders
-            const senders = peer.getSenders();
-            const hasVideoTrack = senders.some(sender => sender.track && sender.track.kind === 'video');
-            const hasAudioTrack = senders.some(sender => sender.track && sender.track.kind === 'audio');
-            
-            console.log('🔗 UltraSimplePeer: Current tracks - Video:', hasVideoTrack, 'Audio:', hasAudioTrack);
-            
-            // Force re-add all tracks to ensure bidirectional sharing
-            console.log('🔗 UltraSimplePeer: Force re-adding all tracks for bidirectional sharing');
-            stream.getTracks().forEach(track => {
-              console.log('🔗 UltraSimplePeer: Force adding track:', track.kind, 'enabled:', track.enabled);
-              try {
-                peer.addTrack(track, stream);
-                console.log('🔗 UltraSimplePeer: Successfully added track:', track.kind);
-              } catch (error) {
-                console.log('🔗 UltraSimplePeer: Track already added or error:', track.kind, error.message);
-              }
-            });
-          } catch (error) {
-            console.log('🔗 UltraSimplePeer: Error in bidirectional stream sharing:', error.message);
-          }
-        }
-      } else {
-        // Try to get stream from video element as fallback
-        console.log('🔗 UltraSimplePeer: No stream passed, trying to get from video element');
-        const videoElement = document.querySelector('video[data-local="true"]');
-        if (videoElement && videoElement.srcObject) {
-          const streamKey = `${participantId}-${videoElement.srcObject.id}`;
-          if (!addedStreamsRef.current.has(streamKey)) {
-            console.log('🔗 UltraSimplePeer: Found stream in video element, adding to peer');
-            try {
-              // Use modern WebRTC API instead of deprecated addStream
-              videoElement.srcObject.getTracks().forEach(track => {
-                console.log(`🔗 UltraSimplePeer: Adding ${track.kind} track from video element`);
-                peer.addTrack(track, videoElement.srcObject);
-              });
-              addedStreamsRef.current.add(streamKey);
-              console.log('🔗 UltraSimplePeer: Stream from video element added successfully');
-            } catch (error) {
-              console.log('🔗 UltraSimplePeer: Stream from video element already added:', error.message);
-            }
-          } else {
-            console.log('🔗 UltraSimplePeer: Stream from video element already added to this peer');
-          }
-        } else {
-          console.log('🔗 UltraSimplePeer: No stream found anywhere');
-        }
-      }
-      
-      // Force a connection check
-      setTimeout(() => {
-        if (peer._pc) {
-          console.log('🔍 CONNECTION CHECK: Connection state:', peer._pc.connectionState);
-          console.log('🔍 CONNECTION CHECK: ICE connection state:', peer._pc.iceConnectionState);
-        }
-      }, 1000);
-      
-      // Start enhanced connection monitoring for stability
-      startConnectionMonitoring(participantId, peer);
+      console.log(`✅ CONNECT: Connected to ${participantId}`);
     });
 
     peer.on('close', () => {
-      console.log('🔌 UltraSimplePeer: Connection closed to:', participantId);
-      
-      // Clean up monitoring interval
-      if (peer._monitorInterval) {
-        clearInterval(peer._monitorInterval);
-        delete peer._monitorInterval;
-      }
-      
       delete peersRef.current[participantId];
-      
-      // Clean up added streams tracking for this participant
       const streamKeysToRemove = Array.from(addedStreamsRef.current).filter(key => key.startsWith(`${participantId}-`));
       streamKeysToRemove.forEach(key => addedStreamsRef.current.delete(key));
-      console.log('🔌 UltraSimplePeer: Cleaned up stream tracking for:', participantId);
     });
 
     peer.on('error', (error) => {
-      console.error('❌ UltraSimplePeer: Peer error:', error);
+      console.error('Peer error:', error);
     });
 
     peersRef.current[participantId] = peer;
   }, [localStream]);
 
-  // Enhanced connection monitoring for stability
-  const startConnectionMonitoring = useCallback((participantId, peer) => {
-    console.log(`🔍 CONNECTION MONITOR: Starting enhanced monitoring for ${participantId}`);
-    
-    // Light monitoring for connection health without interfering with streams
-    const monitorInterval = setInterval(() => {
-      if (!peersRef.current[participantId]) {
-        clearInterval(monitorInterval);
-        return;
-      }
-      
-      const currentPeer = peersRef.current[participantId];
-      if (currentPeer && currentPeer._pc) {
-        const connectionState = currentPeer._pc.connectionState;
-        const iceConnectionState = currentPeer._pc.iceConnectionState;
-        
-        // Only log if there are issues, don't interfere with working connections
-        if (connectionState === 'failed' || iceConnectionState === 'failed') {
-          console.log(`🔍 CONNECTION MONITOR: ${participantId} connection failed, attempting gentle recovery`);
-          
-          // Gentle recovery - only if connection is truly failed
-          setTimeout(() => {
-            if (peersRef.current[participantId] && 
-                peersRef.current[participantId]._pc &&
-                peersRef.current[participantId]._pc.connectionState === 'failed') {
-              console.log(`🔄 CONNECTION MONITOR: Reconnecting to ${participantId}`);
-              // Clean restart of the connection
-              const failedPeer = peersRef.current[participantId];
-              failedPeer.destroy();
-              delete peersRef.current[participantId];
-              
-              // Recreate connection after a delay
-              setTimeout(() => {
-                if (localStream) {
-                  createPeerConnection(participantId, localStream);
-                }
-              }, 2000);
-            }
-          }, 5000);
-        }
-      }
-    }, 30000); // Check every 30 seconds - less aggressive
-    
-    // Store interval for cleanup
-    peer._monitorInterval = monitorInterval;
-  }, [localStream, createPeerConnection]);
-
-  // Function to prevent duplicate connections
   const isConnectionActive = useCallback((participantId) => {
     const peer = peersRef.current[participantId];
     if (!peer) return false;
     
-    // Check if peer is connected and has active connection
     if (peer.connected && peer._pc) {
       const connectionState = peer._pc.connectionState;
       const iceConnectionState = peer._pc.iceConnectionState;
@@ -1352,241 +810,101 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
   // Function to create connections to all existing participants
   const createConnectionsToAllParticipants = useCallback(async () => {
-    console.log('🔗 CREATE-ALL: ===== STARTING CREATE-ALL FUNCTION =====');
-    console.log('🔗 CREATE-ALL: Current participants:', participantsRef.current);
-    console.log('🔗 CREATE-ALL: Current user socket ID:', socketRef.current?.id);
-    console.log('🔗 CREATE-ALL: Current user is host:', isHostRef.current);
+    console.log('🔗 CREATE-ALL: Starting connection process');
+    console.log('🔗 CREATE-ALL: Participants:', participantsRef.current.length);
+    console.log('🔗 CREATE-ALL: Local stream:', !!localStream);
+    console.log('🔗 CREATE-ALL: Is host:', isHostRef.current);
     
-    // Ensure we have local stream
-    if (!localStream) {
-      console.log('🔗 CREATE-ALL: No local stream, initializing media first...');
-      const newStream = await initializeMedia();
-      console.log('🔗 CREATE-ALL: Stream initialization result:', newStream);
-      if (!newStream) {
-        console.log('🔗 CREATE-ALL: Failed to initialize stream, aborting connections');
+    if (participantsRef.current.length === 0) {
+      console.log('🔗 CREATE-ALL: No participants to connect to');
+      return;
+    }
+    
+    let currentStream = localStream;
+    
+    if (!currentStream) {
+      console.log('🔗 CREATE-ALL: No local stream, initializing...');
+      currentStream = await initializeMedia();
+      if (!currentStream) {
+        console.log('🔗 CREATE-ALL: Failed to initialize stream');
         return;
       }
     }
     
-    console.log('🔗 CREATE-ALL: Local stream status:', {
-      hasStream: !!localStream,
-      streamActive: localStream?.active,
-      trackCount: localStream?.getTracks()?.length,
-      videoTracks: localStream?.getVideoTracks()?.length,
-      audioTracks: localStream?.getAudioTracks()?.length
-    });
+    if (isHostRef.current && (!currentStream || !currentStream.active || currentStream.getTracks().length === 0)) {
+      console.log('🔗 CREATE-ALL: Host has no valid stream');
+      return;
+    }
     
-    // PERFORMANCE OPTIMIZATION: Use selective connection strategy
     const allParticipants = participantsRef.current.filter(participant => 
       participant.id !== socketRef.current?.id && participant.isApproved
     );
     
-    // Performance threshold: optimize connection strategy based on participant count
-    const PERFORMANCE_THRESHOLD = 6; // Increased for better multi-participant support
-    const MAX_CONNECTIONS = 8; // Increased maximum connections for stability
-    
     let participantsToConnect = [];
     
     if (isHostRef.current) {
-      // HOST: Connect to all participants (act as relay)
       participantsToConnect = allParticipants.filter(participant => 
         peersRef.current[participant.id] === undefined
       );
-      console.log('🔗 CREATE-ALL: HOST MODE - Connecting to all participants:', participantsToConnect.length);
-      console.log('🔗 CREATE-ALL: HOST MODE - Host stream details:', {
-        hasStream: !!localStream,
-        streamActive: localStream?.active,
-        trackCount: localStream?.getTracks()?.length,
-        videoTracks: localStream?.getVideoTracks()?.length,
-        audioTracks: localStream?.getAudioTracks()?.length
-      });
     } else {
-      // PARTICIPANT: Connect primarily to host, optionally to other participants
       const host = allParticipants.find(p => p.isHost);
       const otherParticipants = allParticipants.filter(p => !p.isHost);
       
-      console.log('🔗 CREATE-ALL: PARTICIPANT MODE - Looking for host:', {
-        hostFound: !!host,
-        hostId: host?.id,
-        hostName: host?.name,
-        isHostApproved: host?.isApproved
-      });
-      
-      // Always connect to host first
       if (host && !peersRef.current[host.id]) {
         participantsToConnect.push(host);
-        console.log('🔗 CREATE-ALL: PARTICIPANT MODE - Will connect to host:', host.name);
       }
       
-      // Connect to other participants with improved strategy for multiple browsers
-      if (allParticipants.length <= PERFORMANCE_THRESHOLD) {
-        // For small groups (up to 6 participants), connect to everyone
+      if (allParticipants.length <= 6) {
         const otherParticipantsToConnect = otherParticipants.filter(p => 
           !peersRef.current[p.id]
         );
         participantsToConnect.push(...otherParticipantsToConnect);
-        console.log('🔗 CREATE-ALL: PARTICIPANT MODE - Small group, connecting to all:', participantsToConnect.length);
       } else {
-        // For larger groups, prioritize host + recent participants
         const additionalParticipants = otherParticipants
           .filter(p => !peersRef.current[p.id])
-          .slice(0, 4); // Increased to 4 additional participants
+          .slice(0, 4);
         participantsToConnect.push(...additionalParticipants);
-        console.log('🔗 CREATE-ALL: PARTICIPANT MODE - Large group, connecting to host + 4 others:', participantsToConnect.length);
       }
     }
     
-    // Filter out already connected participants, but allow reconnection for failed streams
     participantsToConnect = participantsToConnect.filter(participant => {
       const alreadyConnected = isConnectionActive(participant.id);
       const hasPeer = peersRef.current[participant.id];
       
-      console.log(`🔗 CREATE-ALL: Participant ${participant.name} (${participant.id}): shouldConnect=true, isApproved=${participant.isApproved}, isSelf=${participant.id === socketRef.current?.id}, alreadyConnected=${alreadyConnected}, hasPeer=${!!hasPeer}`);
-      
-      // For small groups (3-4 participants), be more aggressive about connections
-      const isSmallGroup = allParticipants.length <= 4;
-      
-      if (alreadyConnected && !isSmallGroup) {
-        console.log(`🔗 CREATE-ALL: Skipping ${participant.name} - already connected`);
+      if (alreadyConnected && allParticipants.length > 4) {
         return false;
       }
       
-      // If peer exists but connection is not active, allow reconnection
       if (hasPeer && !alreadyConnected) {
-        console.log(`🔗 CREATE-ALL: Reconnecting to ${participant.name} - connection failed`);
-        // Clean up the failed peer
         try {
           hasPeer.destroy();
         } catch (error) {
-          console.log(`🔗 CREATE-ALL: Error destroying failed peer for ${participant.name}:`, error);
+          // Ignore destroy errors
         }
         delete peersRef.current[participant.id];
-        return true;
-      }
-      
-      // For small groups, always try to connect even if peer exists
-      if (isSmallGroup && hasPeer && alreadyConnected) {
-        console.log(`🔗 CREATE-ALL: Small group - ensuring connection to ${participant.name}`);
         return true;
       }
       
       return true;
     });
     
-    console.log('🔗 CREATE-ALL: Participants to connect to:', participantsToConnect.length);
-    console.log('🔗 CREATE-ALL: Participants to connect to details:', participantsToConnect.map(p => ({ id: p.id, name: p.name, isApproved: p.isApproved })));
-    
     if (participantsToConnect.length === 0) {
-      console.log('🔗 CREATE-ALL: No participants to connect to, exiting');
-      console.log('🔗 CREATE-ALL: Existing peer connections:', Object.keys(peersRef.current));
-      console.log('🔗 CREATE-ALL: Checking existing peer connection states...');
-      
-      // Check the state of existing peer connections
-      Object.entries(peersRef.current).forEach(([participantId, peer]) => {
-        console.log(`🔗 CREATE-ALL: Peer ${participantId} state:`, {
-          connected: peer.connected,
-          destroyed: peer.destroyed,
-          readyState: peer._pc ? peer._pc.connectionState : 'no _pc',
-          hasStream: peer._pc && peer._pc.getSenders ? peer._pc.getSenders().length : 'no _pc',
-          hasReceivers: peer._pc && peer._pc.getReceivers ? peer._pc.getReceivers().length : 'no _pc'
-        });
-        
-        // If peer is not connected, try to understand why
-        if (!peer.connected && peer._pc) {
-          console.log(`🔗 CREATE-ALL: Peer ${participantId} not connected - checking connection state:`, {
-            connectionState: peer._pc.connectionState,
-            iceConnectionState: peer._pc.iceConnectionState,
-            iceGatheringState: peer._pc.iceGatheringState,
-            signalingState: peer._pc.signalingState
-          });
-        }
-      });
-      
-      // Try to retry connections for peers that are not connected (less aggressive)
-      const disconnectedPeers = Object.entries(peersRef.current).filter(([participantId, peer]) => 
-        !peer.connected && !peer.destroyed && peer._pc && 
-        peer._pc.connectionState === 'failed' && peer._pc.iceConnectionState === 'failed'
-      );
-      
-      if (disconnectedPeers.length > 0) {
-        console.log(`🔗 CREATE-ALL: Found ${disconnectedPeers.length} truly failed peers, attempting to retry connections...`);
-        disconnectedPeers.forEach(([participantId, peer]) => {
-          console.log(`🔗 CREATE-ALL: Retrying connection to ${participantId}...`);
-          // Force a new connection attempt with longer delay
-          setTimeout(async () => {
-            if (peersRef.current[participantId] && !isConnectionActive(participantId)) {
-              console.log(`🔗 CREATE-ALL: Creating new connection to ${participantId} (retry)`);
-              // Clean up the failed connection first
-              peersRef.current[participantId].destroy();
-              delete peersRef.current[participantId];
-              await createPeerConnection(participantId, localStream);
-            }
-          }, 5000); // Increased delay to 5 seconds
-        });
-      }
-      
       return;
     }
     
-    // Create connections to all other participants
+    console.log('🔗 CREATE-ALL: Creating connections to:', participantsToConnect.length, 'participants');
+    
     participantsToConnect.forEach((participant, index) => {
-      console.log(`🔗 CREATE-ALL: [${index + 1}/${participantsToConnect.length}] Creating connection to participant:`, participant.id);
-      
+      console.log(`🔗 CREATE-ALL: Connecting to ${participant.name} (${participant.id})`);
       setTimeout(async () => {
-        // Try multiple methods to get the stream
-        let currentStream = null;
-        let streamSource = 'none';
-        
-        // Method 1: Try to get stream from video element with data-local attribute
-        const videoElement = document.querySelector('video[data-local="true"]');
-        if (videoElement && videoElement.srcObject) {
-          currentStream = videoElement.srcObject;
-          streamSource = 'video element (data-local)';
-          console.log('🔗 CREATE-ALL: Found stream in video element (data-local):', currentStream);
-        } else {
-          // Method 2: Try to get stream from any video element that has a stream
-          const allVideos = document.querySelectorAll('video');
-          for (const video of allVideos) {
-            if (video.srcObject && video.srcObject.active) {
-              currentStream = video.srcObject;
-              streamSource = 'any video element';
-              console.log('🔗 CREATE-ALL: Found stream in any video element:', currentStream);
-              break;
-            }
-          }
-        }
-        
-        // Method 3: Fallback to state variable
-        if (!currentStream) {
-          currentStream = localStream;
-          streamSource = 'state variable';
-          console.log('🔗 CREATE-ALL: Using stream from state:', currentStream);
-        }
-        
-        console.log('🔗 CREATE-ALL: About to create peer connection with stream:', currentStream);
-        console.log('🔗 CREATE-ALL: Stream source:', streamSource);
-        console.log('🔗 CREATE-ALL: Stream active:', currentStream?.active);
-        console.log('🔗 CREATE-ALL: Stream tracks:', currentStream?.getTracks()?.length);
-        
         try {
           await createPeerConnection(participant.id, currentStream);
-          console.log(`✅ CREATE-ALL: Successfully connected to ${participant.name}`);
+          console.log(`✅ CREATE-ALL: Connected to ${participant.name}`);
         } catch (error) {
-          console.error(`❌ CREATE-ALL: Failed to connect to ${participant.name}:`, error);
-          // Retry connection after delay
-          setTimeout(async () => {
-            try {
-              await createPeerConnection(participant.id, currentStream);
-              console.log(`✅ CREATE-ALL: Retry successful for ${participant.name}`);
-            } catch (retryError) {
-              console.error(`❌ CREATE-ALL: Retry failed for ${participant.name}:`, retryError);
-            }
-          }, allParticipants.length <= 4 ? 1500 : 3000); // Faster retry for small groups
+          console.log(`❌ CREATE-ALL: Failed to connect to ${participant.name}:`, error);
         }
-      }, 200 + (index * 150)); // Optimized stagger time for multi-device support
+      }, 200 + (index * 150));
     });
-    
-    console.log('🔗 CREATE-ALL: ===== FINISHED CREATE-ALL FUNCTION =====');
   }, [localStream, initializeMedia, createPeerConnection]);
 
   // Connection health check to ensure all streams stay active
@@ -1627,12 +945,13 @@ const useUltraSimplePeer = (meetingId, userName) => {
   // Handle incoming signals
   const handleSignal = useCallback((data) => {
     const { from, signal } = data;
+    console.log(`📡 HANDLE-SIGNAL: Received ${signal.type} from ${from}`);
     
     if (peersRef.current[from]) {
-      console.log('📡 UltraSimplePeer: Applying signal to existing peer:', from);
+      console.log(`📡 HANDLE-SIGNAL: Applying signal to existing peer: ${from}`);
       peersRef.current[from].signal(signal);
     } else {
-      console.log('📡 UltraSimplePeer: Creating new peer for signal from:', from);
+      console.log(`📡 HANDLE-SIGNAL: Creating new peer for signal from: ${from}`);
       
       const peer = new SimplePeer({
         initiator: false,
@@ -1762,6 +1081,39 @@ const useUltraSimplePeer = (meetingId, userName) => {
           }
         });
         
+        // Check if this is a screen share stream
+        const isScreenShare = stream.getVideoTracks().some(track => 
+          track.label && (
+            track.label.includes('screen') || 
+            track.label.includes('Screen') ||
+            track.label.includes('window') ||
+            track.label.includes('desktop')
+          )
+        );
+        
+        if (isScreenShare) {
+          console.log('🖥️ UltraSimplePeer: Detected screen share stream in handleSignal from:', from);
+          console.log('🖥️ UltraSimplePeer: Screen share stream details in handleSignal:', {
+            streamId: stream.id,
+            trackCount: stream.getTracks().length,
+            videoTracks: stream.getVideoTracks().length,
+            audioTracks: stream.getAudioTracks().length,
+            streamActive: stream.active
+          });
+          
+          // Store screen share stream separately
+          setRemoteScreenStreams(prev => {
+            const newStreams = { ...prev };
+            newStreams[from] = stream;
+            console.log('🖥️ UltraSimplePeer: Updated remote screen streams in handleSignal:', Object.keys(newStreams));
+            return newStreams;
+          });
+          
+          // Force re-render to show screen share
+          setForceRender(prev => prev + 1);
+          return;
+        }
+        
         setRemoteStreams(prev => {
           // Only update if stream is actually active
           if (stream && stream.active) {
@@ -1780,32 +1132,22 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
       peer.on('connect', () => {
         console.log('✅ UltraSimplePeer: Connected to:', from);
+        console.log('🔍 CRITICAL DEBUG: Connection established with participant:', from);
+        console.log('🔍 CRITICAL DEBUG: Current user is host:', isHostRef.current);
+        console.log('🔍 CRITICAL DEBUG: Local stream available:', !!localStream);
+        console.log('🔍 CRITICAL DEBUG: Local stream active:', localStream?.active);
         
-        // Ensure bidirectional stream sharing in handleSignal
-        if (localStream && localStream.active && peer.getSenders && peer.addTrack) {
-          console.log('🔗 UltraSimplePeer: Ensuring bidirectional stream sharing in handleSignal for:', from);
-          try {
-            // Check current senders
-            const senders = peer.getSenders();
-            const hasVideoTrack = senders.some(sender => sender.track && sender.track.kind === 'video');
-            const hasAudioTrack = senders.some(sender => sender.track && sender.track.kind === 'audio');
-            
-            console.log('🔗 UltraSimplePeer: Current tracks in handleSignal - Video:', hasVideoTrack, 'Audio:', hasAudioTrack);
-            
-            // Force re-add all tracks to ensure bidirectional sharing
-            console.log('🔗 UltraSimplePeer: Force re-adding all tracks in handleSignal for bidirectional sharing');
-            localStream.getTracks().forEach(track => {
-              console.log('🔗 UltraSimplePeer: Force adding track in handleSignal:', track.kind, 'enabled:', track.enabled);
-              try {
-                peer.addTrack(track, localStream);
-                console.log('🔗 UltraSimplePeer: Successfully added track in handleSignal:', track.kind);
-              } catch (error) {
-                console.log('🔗 UltraSimplePeer: Track already added or error in handleSignal:', track.kind, error.message);
-              }
-            });
-          } catch (error) {
-            console.log('🔗 UltraSimplePeer: Error in bidirectional stream sharing in handleSignal:', error.message);
-          }
+        // Stream sharing is already handled by SimplePeer constructor
+        // No need to add tracks again as this causes duplication errors
+        if (localStream && localStream.active) {
+          console.log('🔗 UltraSimplePeer: Stream already shared via SimplePeer constructor for:', from);
+          console.log('🔗 UltraSimplePeer: Stream details:', {
+            streamId: localStream.id,
+            streamActive: localStream.active,
+            trackCount: localStream.getTracks().length,
+            videoTracks: localStream.getVideoTracks().length,
+            audioTracks: localStream.getAudioTracks().length
+          });
         }
       });
 
@@ -1874,7 +1216,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       // Add a small delay to ensure the video element is rendered
       setTimeout(() => {
         console.log('🎥 UltraSimplePeer: Starting delayed media initialization...');
-        initializeMedia();
+      initializeMedia();
       }, 1000); // Increased delay to ensure video element is ready
     }
   }, [isHost, isWaitingForApproval, initializeMedia]);
@@ -1947,11 +1289,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
         if (peer && peer._pc && peer._pc.connectionState === 'connected') {
           try {
             console.log(`🖥️ UltraSimplePeer: Adding screen stream to peer ${participantId}`);
-            // Use modern WebRTC API instead of deprecated addStream
-            stream.getTracks().forEach(track => {
-              console.log(`🖥️ UltraSimplePeer: Adding ${track.kind} track for screen share`);
-              peer.addTrack(track, stream);
-            });
+            // Screen share stream is already passed to SimplePeer constructor
+            // No need to add tracks again
+            console.log('🖥️ UltraSimplePeer: Screen share stream already shared via SimplePeer constructor');
           } catch (error) {
             console.log(`🖥️ UltraSimplePeer: Could not add screen stream to peer ${participantId}:`, error.message);
           }
@@ -1987,6 +1327,14 @@ const useUltraSimplePeer = (meetingId, userName) => {
           console.log(`🖥️ UltraSimplePeer: Stopped screen track: ${track.kind}`);
         });
       }
+      
+      // Force clear screen stream state
+      setScreenStream(null);
+      
+      // Force re-render to update UI
+      setForceRender(prev => prev + 1);
+      
+      console.log('🖥️ UltraSimplePeer: Screen sharing cleanup completed, forcing UI update');
     }
   }, []);
 
@@ -2010,6 +1358,16 @@ const useUltraSimplePeer = (meetingId, userName) => {
           delete newStreams[participantId];
           console.log('🖥️ UltraSimplePeer: After cleanup - remote screen streams:', Object.keys(newStreams));
           return newStreams;
+        });
+        
+        // Clear any screen share video elements
+        const screenShareVideos = document.querySelectorAll('video[data-screen-share="true"]');
+        screenShareVideos.forEach(video => {
+          if (video.srcObject) {
+            console.log('🖥️ UltraSimplePeer: Clearing screen share video element');
+            video.srcObject = null;
+            video.pause();
+          }
         });
         
         // Also force a re-render to ensure UI updates
@@ -2188,9 +1546,11 @@ const useUltraSimplePeer = (meetingId, userName) => {
         
         // Add new tracks
         if (newStream) {
-          newStream.getTracks().forEach(track => {
-            console.log(`🔄 UltraSimplePeer: Adding new track: ${track.kind}`);
-            peer.addTrack(track, newStream);
+          console.log('🔄 UltraSimplePeer: New stream available, but tracks should be managed by SimplePeer');
+          console.log('🔄 UltraSimplePeer: New stream details:', {
+            streamId: newStream.id,
+            streamActive: newStream.active,
+            trackCount: newStream.getTracks().length
           });
         }
         
@@ -2200,24 +1560,22 @@ const useUltraSimplePeer = (meetingId, userName) => {
         setTimeout(() => {
           console.log(`🔄 UltraSimplePeer: Force re-sending stream to ${participantId} after consent`);
           if (newStream && newStream.active) {
-            newStream.getTracks().forEach(track => {
-              console.log(`🔄 UltraSimplePeer: Force re-adding track ${track.kind} to ${participantId}`);
-              try {
-                peer.addTrack(track, newStream);
-                console.log(`✅ UltraSimplePeer: Successfully re-added track ${track.kind} to ${participantId}`);
-              } catch (error) {
-                console.log(`⚠️ UltraSimplePeer: Track ${track.kind} already added to ${participantId}:`, error.message);
-              }
+            console.log('🔄 UltraSimplePeer: Stream update should be handled by SimplePeer automatically');
+            console.log('🔄 UltraSimplePeer: New stream details for', participantId, ':', {
+              streamId: newStream.id,
+              streamActive: newStream.active,
+              trackCount: newStream.getTracks().length
             });
           }
         }, 1000); // Wait 1 second then force re-send
         
-      } else if (peer && peer.addTrack) {
-        // Use modern WebRTC API
-        console.log(`🔄 UltraSimplePeer: Using modern addTrack API for participant ${participantId}`);
-        newStream.getTracks().forEach(track => {
-          console.log(`🔄 UltraSimplePeer: Adding ${track.kind} track using modern API`);
-          peer.addTrack(track, newStream);
+      } else if (peer) {
+        // Stream updates should be handled by SimplePeer automatically
+        console.log(`🔄 UltraSimplePeer: Stream updates handled by SimplePeer for participant ${participantId}`);
+        console.log(`🔄 UltraSimplePeer: New stream details:`, {
+          streamId: newStream.id,
+          streamActive: newStream.active,
+          trackCount: newStream.getTracks().length
         });
       }
     });
@@ -2271,6 +1629,43 @@ const useUltraSimplePeer = (meetingId, userName) => {
     };
   }, [updateLocalStream, localStream]);
 
+  // Gentle debugging function to understand connection issues
+  const debugConnectionStatus = useCallback(() => {
+    console.log('🔍 GENTLE DEBUG: Connection status analysis...');
+    console.log('🔍 GENTLE DEBUG: Current state:', {
+      isHost: isHostRef.current,
+      hasLocalStream: !!localStream,
+      localStreamActive: localStream?.active,
+      localStreamTracks: localStream?.getTracks()?.length,
+      participantsCount: participantsRef.current.length,
+      remoteStreamsCount: Object.keys(remoteStreams).length,
+      socketConnected: !!socket,
+      socketId: socket?.id
+    });
+    
+    console.log('🔍 GENTLE DEBUG: Participants details:');
+    participantsRef.current.forEach(participant => {
+      console.log(`🔍 GENTLE DEBUG: - ${participant.name} (${participant.id}):`, {
+        isHost: participant.isHost,
+        isApproved: participant.isApproved,
+        hasRemoteStream: !!remoteStreams[participant.id],
+        remoteStreamActive: remoteStreams[participant.id]?.active
+      });
+    });
+    
+    console.log('🔍 GENTLE DEBUG: Remote streams details:');
+    Object.keys(remoteStreams).forEach(participantId => {
+      const stream = remoteStreams[participantId];
+      const participant = participantsRef.current.find(p => p.id === participantId);
+      console.log(`🔍 GENTLE DEBUG: - ${participant?.name || participantId}:`, {
+        streamActive: stream?.active,
+        streamTracks: stream?.getTracks()?.length,
+        videoTracks: stream?.getVideoTracks()?.length,
+        audioTracks: stream?.getAudioTracks()?.length
+      });
+    });
+  }, [localStream, remoteStreams, socket]);
+
   return {
     localStream,
     remoteStreams,
@@ -2292,6 +1687,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     joinMeeting: () => {}, // Not needed in this simplified version
     initializeMedia,
     updateLocalStream, // Expose the method
+    debugConnectionStatus, // Expose the debug function
     // Screen sharing functionality
     screenStream,
     remoteScreenStreams,
