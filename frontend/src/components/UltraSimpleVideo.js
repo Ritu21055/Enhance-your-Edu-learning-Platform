@@ -255,6 +255,14 @@ const UltraSimpleVideo = ({
         
         if (remoteStreams[participantId]) {
           const stream = remoteStreams[participantId];
+          console.log(`🔍 UltraSimpleVideo: Stream details for ${participantId}:`, {
+            stream: !!stream,
+            active: stream?.active,
+            tracks: stream?.getTracks()?.length,
+            videoTracks: stream?.getVideoTracks()?.length,
+            audioTracks: stream?.getAudioTracks()?.length,
+            streamId: stream?.id
+          });
           // Validate stream before assignment
           if (stream && stream.active && stream.getTracks().length > 0) {
             console.log(`✅ UltraSimpleVideo: Valid stream for ${participantId}, assigning...`);

@@ -299,6 +299,13 @@ const useUltraSimplePeer = (meetingId, userName) => {
         setTimeout(() => {
           console.log('🎯 MULTI-PARTICIPANT: Calling createConnectionsToAllParticipants now');
           createConnectionsToAllParticipants();
+          
+          // Force connection to the new participant from all existing participants
+          console.log('🎯 MULTI-PARTICIPANT: Requesting force connections from existing participants');
+          socketRef.current.emit('force-connection', {
+            targetId: data.participantId,
+            fromId: socketRef.current.id
+          });
         }, 1000);
       } else {
         console.log('🎯 UltraSimplePeer: Skipping self-connection for participant:', data.participantId);
@@ -730,6 +737,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
     peer.on('stream', (stream) => {
       console.log(`🎥 STREAM: Received stream from ${participantId}`);
       console.log(`🎥 STREAM: Stream active: ${stream.active}, tracks: ${stream.getTracks().length}`);
+      console.log(`🎥 STREAM: Stream ID: ${stream.id}`);
+      console.log(`🎥 STREAM: Video tracks: ${stream.getVideoTracks().length}`);
+      console.log(`🎥 STREAM: Audio tracks: ${stream.getAudioTracks().length}`);
       
       const isScreenShare = stream.getVideoTracks().some(track => 
         track.label && (
@@ -868,19 +878,30 @@ const useUltraSimplePeer = (meetingId, userName) => {
       const host = allParticipants.find(p => p.isHost);
       const otherParticipants = allParticipants.filter(p => !p.isHost);
       
+      console.log('🔗 CREATE-ALL: Non-host connection logic:', {
+        isHost: isHostRef.current,
+        totalParticipants: allParticipants.length,
+        host: host ? { id: host.id, name: host.name } : null,
+        otherParticipants: otherParticipants.map(p => ({ id: p.id, name: p.name }))
+      });
+      
       if (host && !peersRef.current[host.id]) {
+        console.log('🔗 CREATE-ALL: Adding host to connection list:', host.name);
         participantsToConnect.push(host);
       }
       
+      // Always connect to other participants for small groups
       if (allParticipants.length <= 6) {
         const otherParticipantsToConnect = otherParticipants.filter(p => 
           !peersRef.current[p.id]
         );
+        console.log('🔗 CREATE-ALL: Adding other participants to connection list:', otherParticipantsToConnect.map(p => p.name));
         participantsToConnect.push(...otherParticipantsToConnect);
       } else {
         const additionalParticipants = otherParticipants
           .filter(p => !peersRef.current[p.id])
           .slice(0, 4);
+        console.log('🔗 CREATE-ALL: Adding limited participants to connection list:', additionalParticipants.map(p => p.name));
         participantsToConnect.push(...additionalParticipants);
       }
     }
@@ -911,9 +932,10 @@ const useUltraSimplePeer = (meetingId, userName) => {
     }
     
     console.log('🔗 CREATE-ALL: Creating connections to:', participantsToConnect.length, 'participants');
+    console.log('🔗 CREATE-ALL: Participants to connect:', participantsToConnect.map(p => ({ id: p.id, name: p.name, isHost: p.isHost })));
       
     participantsToConnect.forEach((participant, index) => {
-      console.log(`🔗 CREATE-ALL: Connecting to ${participant.name} (${participant.id})`);
+      console.log(`🔗 CREATE-ALL: Connecting to ${participant.name} (${participant.id}) - ${participant.isHost ? 'HOST' : 'PARTICIPANT'}`);
       setTimeout(async () => {
         try {
           await createPeerConnection(participant.id, currentStream);
