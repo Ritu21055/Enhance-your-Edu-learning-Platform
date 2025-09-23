@@ -780,29 +780,41 @@ Generate only the question, no explanations.`;
 
   // Intelligent question generation trigger based on conversation flow
   shouldGenerateQuestionIntelligently(meetingId, transcriptContext) {
-    // First check basic time interval
-    if (!this.shouldGenerateQuestion(meetingId, 1)) { // Reduced to 1 minute minimum
+    // First check basic time interval - increased to 3 minutes minimum
+    if (!this.shouldGenerateQuestion(meetingId, 3)) {
+      return false;
+    }
+
+    // Only generate questions if there's substantial conversation (at least 200 characters)
+    if (!transcriptContext || transcriptContext.length < 200) {
+      console.log('🤖 Question trigger: Insufficient conversation content');
       return false;
     }
 
     // Analyze conversation for question-worthy moments
     const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
     
-    // Generate questions if there are unresolved issues
+    // Only generate questions if there are clear unresolved issues
     if (conversationAnalysis.unresolvedIssues.length > 0) {
       console.log('🤖 Question trigger: Unresolved issues detected');
       return true;
     }
 
-    // Generate questions if there are key points that need follow-up
-    if (conversationAnalysis.keyPoints.length > 0) {
-      console.log('🤖 Question trigger: Key points need follow-up');
+    // Only generate questions if there are significant key points that need follow-up
+    if (conversationAnalysis.keyPoints.length > 2) {
+      console.log('🤖 Question trigger: Multiple key points need follow-up');
       return true;
     }
 
-    // Generate questions if conversation seems to be stalling
+    // Check if conversation has been active recently
     const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    const recentSentences = sentences.slice(-3);
+    const recentSentences = sentences.slice(-5); // Last 5 sentences
+    
+    // Only generate questions if there's been substantial recent activity
+    if (recentSentences.length < 3) {
+      console.log('🤖 Question trigger: Insufficient recent conversation activity');
+      return false;
+    }
     
     // Check if recent conversation has question patterns
     const hasQuestions = recentSentences.some(sentence => 
@@ -812,18 +824,9 @@ Generate only the question, no explanations.`;
       sentence.toLowerCase().includes('why')
     );
 
-    if (hasQuestions) {
-      console.log('🤖 Question trigger: Recent questions detected, good time for follow-up');
-      return true;
-    }
-
-    // Check if conversation has been going for a while without questions
-    const lastQuestionTime = this.lastQuestionTime.get(meetingId) || 0;
-    const timeSinceLastQuestion = Date.now() - lastQuestionTime;
-    const fiveMinutes = 5 * 60 * 1000;
-
-    if (timeSinceLastQuestion > fiveMinutes && transcriptContext.length > 200) {
-      console.log('🤖 Question trigger: Long conversation without questions');
+    // Only generate questions if conversation is stalling AND there's been substantial activity
+    if (!hasQuestions && sentences.length > 8 && transcriptContext.length > 500) {
+      console.log('🤖 Question trigger: Conversation stalling with substantial content');
       return true;
     }
 

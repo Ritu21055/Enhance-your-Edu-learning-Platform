@@ -173,24 +173,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       });
     });
 
-    // Handle participant left
-    newSocket.on('participant-left', (data) => {
-      setParticipants(prev => {
-        const updated = prev.filter(p => p.id !== data.participantId);
-        participantsRef.current = updated;
-        return updated;
-      });
-      
-      if (peersRef.current[data.participantId]) {
-        peersRef.current[data.participantId].destroy();
-        delete peersRef.current[data.participantId];
-      }
-      setRemoteStreams(prev => {
-        const newStreams = { ...prev };
-        delete newStreams[data.participantId];
-        return newStreams;
-      });
-    });
+    // Handle participant left - REMOVED DUPLICATE HANDLER
 
     // Handle pending approval
     newSocket.on('pending-approval', (data) => {

@@ -236,6 +236,21 @@ const UltraSimpleVideo = ({
           return;
         }
         
+        // Check if there are duplicate video elements in the DOM
+        const existingVideoElements = document.querySelectorAll(`video[data-participant-id="${participantId}"]`);
+        if (existingVideoElements.length > 1) {
+          console.log(`🧹 UltraSimpleVideo: Found ${existingVideoElements.length} duplicate video elements for ${participantId}, cleaning up...`);
+          // Keep the first one, remove the rest
+          for (let i = 1; i < existingVideoElements.length; i++) {
+            const duplicateEl = existingVideoElements[i];
+            if (duplicateEl.srcObject) {
+              duplicateEl.srcObject.getTracks().forEach(track => track.stop());
+            }
+            duplicateEl.srcObject = null;
+            duplicateEl.remove();
+          }
+        }
+        
         remoteVideoRefs.current[participantId] = el;
         
         if (remoteStreams[participantId]) {
@@ -292,7 +307,7 @@ const UltraSimpleVideo = ({
           } else if (remoteStreams[participantId] && el.srcObject === remoteStreams[participantId]) {
             console.log(`✅ UltraSimpleVideo: Stream already assigned for ${participantId}, skipping force assignment`);
           }
-        }, 100);
+        }, 300); // Increased delay for better stream assignment
       }
     };
   }, [remoteStreams]);
@@ -474,11 +489,31 @@ const UltraSimpleVideo = ({
         console.log(`🧹 UltraSimpleVideo: Cleaning up video ref for removed participant: ${participantId}`);
         const videoElement = remoteVideoRefs.current[participantId];
         if (videoElement) {
+          // Stop all tracks in the video element
+          if (videoElement.srcObject) {
+            videoElement.srcObject.getTracks().forEach(track => {
+              track.stop();
+            });
+          }
           // Clear the video source
           videoElement.srcObject = null;
           // Remove the video element from the ref
           delete remoteVideoRefs.current[participantId];
         }
+      }
+    });
+    
+    // Clean up any duplicate video elements in the DOM
+    const allVideoElements = document.querySelectorAll('video[data-participant-id]');
+    allVideoElements.forEach(videoEl => {
+      const participantId = videoEl.getAttribute('data-participant-id');
+      if (participantId && !currentParticipantIds.includes(participantId)) {
+        console.log(`🧹 UltraSimpleVideo: Removing orphaned video element for participant: ${participantId}`);
+        if (videoEl.srcObject) {
+          videoEl.srcObject.getTracks().forEach(track => track.stop());
+        }
+        videoEl.srcObject = null;
+        videoEl.remove();
       }
     });
     
@@ -519,9 +554,10 @@ const UltraSimpleVideo = ({
             }
             
             streamAssignmentTimeouts.current[participantId] = setTimeout(() => {
+              console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
               videoEl.srcObject = stream;
               delete streamAssignmentTimeouts.current[participantId];
-            }, 50);
+            }, 200); // Increased delay for better stream assignment
           }
           
           videoEl.play().catch(err => {
@@ -632,7 +668,7 @@ const UltraSimpleVideo = ({
         {/* Remote Videos - Now integrated into main grid */}
             {otherParticipants.map(participant => (
               <Box 
-                key={`${participant.id}-${participant.audioEnabled}-${participant.videoEnabled}-${totalVideos}`}
+                key={`${participant.id}-${participant.audioEnabled}-${participant.videoEnabled}`}
                 className={`video-item ${totalVideos > 2 ? 'video-item-scrollable' : ''} ${participant.isHost ? 'host-video' : ''}`}>
                 
                 {/* Remove participant button - completely removed to maintain perfect video layout */}
