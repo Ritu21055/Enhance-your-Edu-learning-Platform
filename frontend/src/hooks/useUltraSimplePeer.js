@@ -59,7 +59,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       setSocketConnected(true);
       window.socket = newSocket;
       
-      // Check if user is already approved by looking at URL or localStorage
+      // Check if user is trying to join as host
       const isHostFromURL = window.location.search.includes('host=true');
       const isAlreadyApproved = window.location.search.includes('approved=true') || 
                                 localStorage.getItem(`approved_${meetingId}`) === 'true';
@@ -71,8 +71,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
         userName
       });
       
-      if (isAlreadyApproved && isHostFromURL) {
-        console.log('🎯 Host joining with approval');
+      // If user is trying to join as host (from URL parameter), always treat them as host
+      if (isHostFromURL) {
+        console.log('🎯 Host joining (detected from URL parameter)');
         setIsHost(true);
         isHostRef.current = true;
         
@@ -82,6 +83,23 @@ const useUltraSimplePeer = (meetingId, userName) => {
           isHost: true 
         });
         setIsWaitingForApproval(false);
+        
+        // Set a timeout to check if host connection is successful
+        setTimeout(() => {
+          if (!localStream) {
+            console.log('⏰ Host connection timeout - retrying media initialization...');
+            initializeMedia().then(stream => {
+              if (stream) {
+                console.log('🎯 Host media initialized after timeout');
+                setTimeout(() => {
+                  createConnectionsToAllParticipants();
+                }, 1000);
+              }
+            }).catch(error => {
+              console.error('❌ Host media initialization failed after timeout:', error);
+            });
+          }
+        }, 5000);
         
         // Initialize media for host
         if (!localStream) {
@@ -96,6 +114,20 @@ const useUltraSimplePeer = (meetingId, userName) => {
             }
           }).catch(error => {
             console.error('❌ Host media initialization failed:', error);
+            // Retry media initialization after 2 seconds
+            setTimeout(() => {
+              console.log('🔄 Retrying host media initialization...');
+              initializeMedia().then(retryStream => {
+                if (retryStream) {
+                  console.log('🎯 Host media retry successful');
+                  setTimeout(() => {
+                    createConnectionsToAllParticipants();
+                  }, 1000);
+                }
+              }).catch(retryError => {
+                console.error('❌ Host media retry failed:', retryError);
+              });
+            }, 2000);
           });
         }
       } else {
