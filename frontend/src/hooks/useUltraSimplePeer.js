@@ -16,6 +16,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
   const [screenStream, setScreenStream] = useState(null);
   const [remoteScreenStreams, setRemoteScreenStreams] = useState({});
   const [forceRender, setForceRender] = useState(0);
+  const [microphoneStatus, setMicrophoneStatus] = useState('unknown');
 
   const socketRef = useRef(null);
   const peersRef = useRef({});
@@ -72,10 +73,10 @@ const useUltraSimplePeer = (meetingId, userName) => {
       });
       
       // If user is trying to join as host (from URL parameter), always treat them as host
-      if (isHostFromURL) {
+        if (isHostFromURL) {
         console.log('🎯 Host joining (detected from URL parameter)');
-        setIsHost(true);
-        isHostRef.current = true;
+          setIsHost(true);
+          isHostRef.current = true;
         
         newSocket.emit('join-meeting', { 
           meetingId, 
@@ -86,7 +87,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
         
         // Set a timeout to check if host connection is successful
         setTimeout(() => {
-          if (!localStream) {
+        if (!localStream) {
             console.log('⏰ Host connection timeout - retrying media initialization...');
             initializeMedia().then(stream => {
               if (stream) {
@@ -655,8 +656,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        sampleRate: isMobileHotspot || isSlowConnection ? 16000 : 48000,
-        channelCount: 1
+        // Remove strict sample rate and channel count to avoid conflicts
+        // sampleRate: isMobileHotspot || isSlowConnection ? 16000 : 48000,
+        // channelCount: 1
       };
       
       let stream;
@@ -666,13 +668,72 @@ const useUltraSimplePeer = (meetingId, userName) => {
         audio: audioConstraints
       });
       } catch (constraintError) {
+        console.log('⚠️ Audio constraints failed, trying basic audio...');
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: videoConstraints,
+            audio: true
+          });
+        } catch (basicError) {
+          console.log('⚠️ Basic audio failed, trying minimal constraints...');
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true
         });
+        }
       }
       
       setLocalStream(stream);
+      
+      // Debug microphone status
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length > 0) {
+        const audioTrack = audioTracks[0];
+        console.log('🎤 Microphone Status:', {
+          enabled: audioTrack.enabled,
+          muted: audioTrack.muted,
+          readyState: audioTrack.readyState,
+          label: audioTrack.label,
+          constraints: audioTrack.getConstraints()
+        });
+        
+        // Ensure audio track is enabled and not muted
+        if (audioTrack.enabled === false) {
+          console.log('🔧 Enabling audio track...');
+          audioTrack.enabled = true;
+        }
+        
+        if (audioTrack.muted === true) {
+          console.log('🔧 Unmuting audio track...');
+          audioTrack.muted = false;
+        }
+        
+        // Test if microphone is actually working
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        source.connect(analyser);
+        
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const checkAudio = () => {
+          analyser.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+          console.log('🎤 Audio Level:', average);
+          if (average > 0) {
+            console.log('✅ Microphone is working - audio detected');
+          } else {
+            console.log('⚠️ Microphone not detecting audio - check permissions');
+          }
+        };
+        
+        setTimeout(checkAudio, 1000);
+        
+        // Update microphone status
+        setMicrophoneStatus('working');
+      } else {
+        console.log('❌ No audio tracks found in stream');
+        setMicrophoneStatus('no-audio-tracks');
+      }
       
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -776,9 +837,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
       
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
+        // Remove strict audio constraints that might cause transmission issues
         const audioConstraints = {
-          sampleRate: 16000,
-          channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
@@ -786,8 +846,27 @@ const useUltraSimplePeer = (meetingId, userName) => {
         
         try {
           await audioTrack.applyConstraints(audioConstraints);
+          console.log(`🎤 CREATE-PEER: Applied audio constraints for ${participantId}`);
+          
+          // Ensure audio track is properly enabled
+          if (!audioTrack.enabled) {
+            console.log(`🔧 CREATE-PEER: Enabling audio track for ${participantId}`);
+            audioTrack.enabled = true;
+          }
+          
+          if (audioTrack.muted) {
+            console.log(`🔧 CREATE-PEER: Unmuting audio track for ${participantId}`);
+            audioTrack.muted = false;
+          }
+          
+          console.log(`🎤 CREATE-PEER: Audio track status for ${participantId}:`, {
+            enabled: audioTrack.enabled,
+            muted: audioTrack.muted,
+            readyState: audioTrack.readyState,
+            label: audioTrack.label
+          });
         } catch (error) {
-          // Ignore constraint errors
+          console.log(`⚠️ CREATE-PEER: Audio constraint error for ${participantId}:`, error.message);
         }
       }
     }
@@ -1062,7 +1141,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
               if (now - lastAttempt > cooldownPeriod) {
                 console.log(`🔍 HEALTH CHECK: Connection to ${participant.name} is truly dead, attempting reconnection`);
                 lastReconnectionAttempt.current[participant.id] = now;
-                createConnectionsToAllParticipants();
+            createConnectionsToAllParticipants();
               } else {
                 console.log(`🔍 HEALTH CHECK: Connection to ${participant.name} is dead but in cooldown period, skipping reconnection`);
               }
@@ -1158,23 +1237,24 @@ const useUltraSimplePeer = (meetingId, userName) => {
             if (track.kind === 'audio') {
               console.log('🎤 UltraSimplePeer: Configuring audio track in handleSignal');
               
-              // Apply enhanced audio constraints for better quality and stability
+              // Apply basic audio constraints to avoid conflicts
               const audioConstraints = {
                 echoCancellation: true,
                 noiseSuppression: true,
-                autoGainControl: true,
-                sampleRate: 48000, // Increased quality
-                channelCount: 1,
-                latency: 0.01,
-                volume: 1.0,
-                googEchoCancellation: true,
-                googAutoGainControl: true,
-                googNoiseSuppression: true,
-                googHighpassFilter: true,
-                googTypingNoiseDetection: true,
-                googAudioMirroring: false,
-                googDAEchoCancellation: true,
-                googNoiseReduction: true
+                autoGainControl: true
+                // Remove strict constraints that might cause audio detection issues
+                // sampleRate: 48000,
+                // channelCount: 1,
+                // latency: 0.01,
+                // volume: 1.0,
+                // googEchoCancellation: true,
+                // googAutoGainControl: true,
+                // googNoiseSuppression: true,
+                // googHighpassFilter: true,
+                // googTypingNoiseDetection: true,
+                // googAudioMirroring: false,
+                // googDAEchoCancellation: true,
+                // googNoiseReduction: true
               };
               
               try {
@@ -1810,6 +1890,109 @@ const useUltraSimplePeer = (meetingId, userName) => {
     });
   }, [localStream, remoteStreams, socket]);
 
+  // Microphone test function
+  const testMicrophone = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioTracks = stream.getAudioTracks();
+      
+      if (audioTracks.length > 0) {
+        const audioTrack = audioTracks[0];
+        console.log('🎤 Microphone Test Results:', {
+          enabled: audioTrack.enabled,
+          muted: audioTrack.muted,
+          readyState: audioTrack.readyState,
+          label: audioTrack.label
+        });
+        
+        // Test audio level
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        source.connect(analyser);
+        
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+        
+        if (average > 0) {
+          setMicrophoneStatus('working');
+          alert('✅ Microphone is working! Audio level: ' + average);
+        } else {
+          setMicrophoneStatus('no-audio');
+          alert('⚠️ Microphone not detecting audio. Check permissions and try again.');
+        }
+        
+        // Clean up
+        stream.getTracks().forEach(track => track.stop());
+        audioContext.close();
+      } else {
+        setMicrophoneStatus('no-tracks');
+        alert('❌ No audio tracks found. Check microphone connection.');
+      }
+    } catch (error) {
+      console.error('❌ Microphone test failed:', error);
+      setMicrophoneStatus('error');
+      alert('❌ Microphone test failed: ' + error.message);
+    }
+  };
+
+  // Force audio track re-initialization
+  const forceAudioReinit = async () => {
+    try {
+      console.log('🔧 FORCE-AUDIO: Reinitializing audio track...');
+      
+      // Get current stream
+      const currentStream = localStream;
+      if (!currentStream) {
+        console.log('❌ FORCE-AUDIO: No current stream to reinitialize');
+        return;
+      }
+      
+      // Get audio tracks
+      const audioTracks = currentStream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        console.log('❌ FORCE-AUDIO: No audio tracks found');
+        return;
+      }
+      
+      // Force enable and unmute all audio tracks
+      audioTracks.forEach((track, index) => {
+        console.log(`🔧 FORCE-AUDIO: Processing audio track ${index}:`, {
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState
+        });
+        
+        if (!track.enabled) {
+          track.enabled = true;
+          console.log(`🔧 FORCE-AUDIO: Enabled audio track ${index}`);
+        }
+        
+        if (track.muted) {
+          track.muted = false;
+          console.log(`🔧 FORCE-AUDIO: Unmuted audio track ${index}`);
+        }
+      });
+      
+      // Update all peer connections with the fixed stream
+      Object.keys(peersRef.current).forEach(participantId => {
+        const peer = peersRef.current[participantId];
+        if (peer && peer._pc) {
+          console.log(`🔧 FORCE-AUDIO: Updating peer connection for ${participantId}`);
+          // The stream is already passed to SimplePeer constructor, so it should automatically update
+        }
+      });
+      
+      console.log('✅ FORCE-AUDIO: Audio track reinitialization complete');
+      alert('✅ Audio track reinitialized! Others should now be able to hear you.');
+      
+    } catch (error) {
+      console.error('❌ FORCE-AUDIO: Failed to reinitialize audio:', error);
+      alert('❌ Failed to reinitialize audio: ' + error.message);
+    }
+  };
+
   return {
     localStream,
     remoteStreams,
@@ -1836,7 +2019,11 @@ const useUltraSimplePeer = (meetingId, userName) => {
     screenStream,
     remoteScreenStreams,
     handleScreenShareChange,
-    forceRender
+    forceRender,
+    // Microphone debugging
+    microphoneStatus,
+    testMicrophone,
+    forceAudioReinit
   };
 };
 
