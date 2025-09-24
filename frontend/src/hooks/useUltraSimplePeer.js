@@ -232,7 +232,16 @@ const useUltraSimplePeer = (meetingId, userName) => {
       
       // Initialize media if not already done
       if (!localStream) {
-        initializeMedia();
+        console.log('🎯 UltraSimplePeer: Initializing media for approved participant...');
+        initializeMedia().then(stream => {
+          if (stream) {
+            console.log('🎯 UltraSimplePeer: Media initialized successfully for approved participant');
+          } else {
+            console.error('❌ UltraSimplePeer: Failed to initialize media for approved participant');
+          }
+        }).catch(error => {
+          console.error('❌ UltraSimplePeer: Media initialization error for approved participant:', error);
+        });
       }
       
       // Emit participant-ready event to trigger WebRTC connections
@@ -275,6 +284,13 @@ const useUltraSimplePeer = (meetingId, userName) => {
       }
       
       setIsWaitingForApproval(true);
+      
+      // Set a timeout to show connection status
+      setTimeout(() => {
+        if (isWaitingForApproval) {
+          console.log('⏳ UltraSimplePeer: Still waiting for approval after 10 seconds');
+        }
+      }, 10000);
     });
 
     // Handle participant ready for WebRTC

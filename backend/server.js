@@ -1298,14 +1298,13 @@ io.on('connection', (socket) => {
       console.log(`🔄 Host reconnected, updating hostId from ${meeting.hostId} to ${socket.id}`);
       meeting.hostId = socket.id;
       
-      // Don't send all pending approvals at once - this causes the flood of approvals
-      // Only send a summary of pending approvals count
+      // Send individual pending approvals to host
       if (meeting.pendingApprovals && meeting.pendingApprovals.length > 0) {
-        console.log(`📝 Host has ${meeting.pendingApprovals.length} pending approvals - not flooding with all at once`);
-        // Only send a notification that there are pending approvals, not all of them
-        socket.emit('pending-approvals-summary', { 
-          count: meeting.pendingApprovals.length,
-          message: `You have ${meeting.pendingApprovals.length} pending approval requests`
+        console.log(`📝 Host has ${meeting.pendingApprovals.length} pending approvals - sending individual approvals`);
+        // Send each pending approval individually
+        meeting.pendingApprovals.forEach(pendingParticipant => {
+          console.log(`📤 Sending pending-approval to host for: ${pendingParticipant.name}`);
+          socket.emit('pending-approval', pendingParticipant);
         });
       } else {
         console.log(`📝 No pending approvals to send to reconnected host`);
