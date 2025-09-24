@@ -64,22 +64,42 @@ const useUltraSimplePeer = (meetingId, userName) => {
       const isAlreadyApproved = window.location.search.includes('approved=true') || 
                                 localStorage.getItem(`approved_${meetingId}`) === 'true';
       
+      console.log('🔌 Socket connected:', {
+        isHostFromURL,
+        isAlreadyApproved,
+        meetingId,
+        userName
+      });
+      
       if (isAlreadyApproved && isHostFromURL) {
-        if (isHostFromURL) {
-          setIsHost(true);
-          isHostRef.current = true;
-        } else {
-          setIsHost(false);
-          isHostRef.current = false;
-        }
+        console.log('🎯 Host joining with approval');
+        setIsHost(true);
+        isHostRef.current = true;
         
-        newSocket.emit('join-meeting', { meetingId, userName });
+        newSocket.emit('join-meeting', { 
+          meetingId, 
+          userName,
+          isHost: true 
+        });
         setIsWaitingForApproval(false);
         
+        // Initialize media for host
         if (!localStream) {
-          initializeMedia();
+          console.log('🎯 Host initializing media...');
+          initializeMedia().then(stream => {
+            if (stream) {
+              console.log('🎯 Host media initialized successfully');
+              // Create connections to existing participants
+              setTimeout(() => {
+                createConnectionsToAllParticipants();
+              }, 1000);
+            }
+          }).catch(error => {
+            console.error('❌ Host media initialization failed:', error);
+          });
         }
       } else {
+        console.log('🎯 Regular participant joining');
         newSocket.emit('join-meeting', {
           meetingId,
           userName: userName,

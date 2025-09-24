@@ -1080,11 +1080,12 @@ io.on('connection', (socket) => {
   });
 
   // Join meeting room
-  socket.on('join-meeting', ({ meetingId, userName, meetingTitle }) => {
+  socket.on('join-meeting', ({ meetingId, userName, meetingTitle, isHost }) => {
     console.log(`👤 ${userName} (${socket.id}) joining meeting ${meetingId}`);
-    console.log(`🔍 Join data:`, { meetingId, userName, meetingTitle });
+    console.log(`🔍 Join data:`, { meetingId, userName, meetingTitle, isHost });
     console.log('🔍 userName type:', typeof userName, 'length:', userName?.length);
     console.log('🔍 meetingTitle type:', typeof meetingTitle, 'value:', meetingTitle);
+    console.log('🔍 isHost type:', typeof isHost, 'value:', isHost);
     console.log('🔍 Current meeting state before join:', {
       meetingExists: !!activeMeetings.get(meetingId),
       hostId: activeMeetings.get(meetingId)?.hostId,
@@ -1162,8 +1163,7 @@ io.on('connection', (socket) => {
       console.log(`♻️ Using existing meeting ${meetingId} with ${meeting.participants.length} participants`);
     }
     
-    // SIMPLE LOGIC: First person becomes host, everyone else waits for approval
-    // BUT: If meeting exists with a hostId, it means someone was host before
+    // Use the isHost parameter from frontend, with fallback logic
     const isFirstParticipant = meeting.participants.length === 0 && !meeting.hostId;
     
     // Check if this user is the original host reconnecting (by username)
@@ -1172,9 +1172,11 @@ io.on('connection', (socket) => {
       meeting.host.includes(userName) && 
       meeting.host.includes('(Host)');
     
-    const becomesHost = isFirstParticipant || isOriginalHostReconnecting;
+    // Use frontend isHost parameter, or fallback to first participant logic
+    const becomesHost = isHost === true || isFirstParticipant || isOriginalHostReconnecting;
     
     console.log('🔍 SIMPLE Host detection logic:');
+    console.log('  - isHost parameter:', isHost);
     console.log('  - isFirstParticipant:', isFirstParticipant, '(participants.length:', meeting.participants.length, ')');
     console.log('  - meeting.hostId:', meeting.hostId);
     console.log('  - meeting.host:', meeting.host);
