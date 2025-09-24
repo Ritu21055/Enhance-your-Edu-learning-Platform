@@ -72,9 +72,10 @@ class LLMService {
           console.log(`✅ Ollama is working correctly for meeting ${meetingId}`);
           return true;
         } else {
-          console.log(`⚠️ Ollama test failed for meeting ${meetingId}, using fallback`);
-          this.llmType = 'rule-based';
-          return false;
+          console.log(`⚠️ Ollama test failed for meeting ${meetingId}, but keeping Ollama as fallback`);
+          // Don't fall back to rule-based immediately, keep Ollama for retry
+          console.log(`🤖 Ollama will be retried during question generation for meeting ${meetingId}`);
+          return true; // Return true to enable AI features, Ollama will be retried
         }
       }
       
@@ -92,8 +93,24 @@ class LLMService {
     try {
       console.log('🤖 Ollama: Testing connection and model...');
       
+      // First, check if Ollama is responding
+      const healthCheck = await fetch('http://localhost:11434/api/tags', {
+        method: 'GET',
+        timeout: 3000
+      });
+      
+      if (!healthCheck.ok) {
+        console.log('🤖 Ollama: Health check failed, Ollama not responding');
+        return false;
+      }
+      
+      console.log('🤖 Ollama: Health check passed, testing model...');
+      
       // Test with a simple prompt
-      const testPrompt = "Hello, are you working?";
+      const testPrompt = "Hello";
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
       const response = await fetch('http://localhost:11434/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -103,10 +120,13 @@ class LLMService {
           stream: false,
           options: {
             temperature: 0.1,
-            num_predict: 10
+            num_predict: 5
           }
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -114,10 +134,16 @@ class LLMService {
         return true;
       } else {
         console.error('🤖 Ollama: Test failed with status:', response.status);
+        const errorText = await response.text();
+        console.error('🤖 Ollama: Error response:', errorText);
         return false;
       }
     } catch (error) {
-      console.error('🤖 Ollama: Test failed:', error.message);
+      if (error.name === 'AbortError') {
+        console.error('🤖 Ollama: Test timed out after 5 seconds');
+      } else {
+        console.error('🤖 Ollama: Test failed:', error.message);
+      }
       return false;
     }
   }
@@ -332,10 +358,18 @@ class LLMService {
 
       // Try different LLM options based on availability
       if (this.llmType === 'ollama') {
-        const result = await this.generateWithOllama(transcriptContext, topics, sentiment);
-        generatedQuestion = result.question;
-        modelName = 'ollama-llama3.2';
-        confidence = 0.85;
+        try {
+          const result = await this.generateWithOllama(transcriptContext, topics, sentiment);
+          generatedQuestion = result.question;
+          modelName = 'ollama-llama3.2';
+          confidence = 0.85;
+        } catch (error) {
+          console.log('🤖 Ollama failed, falling back to rule-based:', error.message);
+          const result = this.generateWithRuleBased(topics, sentiment, transcriptContext);
+          generatedQuestion = result.question;
+          modelName = 'rule-based-fallback';
+          confidence = 0.6;
+        }
       } else {
         // Fallback to rule-based
         const result = this.generateWithRuleBased(topics, sentiment, transcriptContext);
