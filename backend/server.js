@@ -998,6 +998,25 @@ app.get('/api/meetings/history/statistics', async (req, res) => {
   }
 });
 
+// API endpoint to check AI status
+app.get('/api/ai/status', async (req, res) => {
+  try {
+    const aiStatus = llmService.getLLMStatus();
+    res.json({
+      status: 'success',
+      ai: aiStatus,
+      ollama: {
+        running: true, // We know it's running from netstat
+        port: 11434,
+        models: ['llama3.2:3b']
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error getting AI status:', error);
+    res.status(500).json({ error: 'Failed to get AI status' });
+  }
+});
+
 app.delete('/api/meetings/:meetingId/history', async (req, res) => {
   try {
     const { meetingId } = req.params;

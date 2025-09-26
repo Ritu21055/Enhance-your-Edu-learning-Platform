@@ -113,7 +113,9 @@ const MeetingRoom = () => {
     screenStream,
     remoteScreenStreams,
     handleScreenShareChange,
-    forceRender
+    forceRender,
+    // Audio debugging
+    fixAudioIssue
   } = useUltraSimplePeer(meetingId, finalUserName);
 
   const {
@@ -697,6 +699,25 @@ const MeetingRoom = () => {
               <ListItemText 
                 primary="Run Device Compatibility Test"
                 secondary="Check device capabilities"
+              />
+            </MenuItem>
+            
+            <MenuItem 
+              onClick={() => {
+                if (fixAudioIssue) {
+                  fixAudioIssue();
+                } else {
+                  alert('Audio fix function not available');
+                }
+                setDebugMenuAnchor(null);
+              }}
+            >
+              <ListItemIcon>
+                🎤
+              </ListItemIcon>
+              <ListItemText 
+                primary="Fix Audio Issues"
+                secondary="Fix microphone and audio transmission"
               />
             </MenuItem>
             
