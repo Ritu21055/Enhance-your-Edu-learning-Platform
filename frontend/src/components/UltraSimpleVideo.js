@@ -387,6 +387,14 @@ const UltraSimpleVideo = ({
           el.autoplay = true;
           el.playsInline = true;
           
+          // Force unmute after a short delay to bypass autoplay restrictions
+          setTimeout(() => {
+            if (el.muted) {
+              el.muted = false;
+              console.log(`🔊 UltraSimpleVideo: Force unmuted audio element for ${participantId}`);
+            }
+          }, 100);
+          
           // Force audio tracks to be enabled
           const audioTracks = stream.getAudioTracks();
           console.log(`🔊 UltraSimpleVideo: Audio tracks for ${participantId}:`, audioTracks.length);
@@ -402,7 +410,19 @@ const UltraSimpleVideo = ({
           });
           
           el.srcObject = stream;
-          el.play().catch(err => {
+          
+          // Add immediate debugging
+          console.log(`🔊 UltraSimpleVideo: Audio stream assigned for ${participantId}:`, {
+            hasStream: !!el.srcObject,
+            audioTracks: stream.getAudioTracks().length,
+            elementMuted: el.muted,
+            elementVolume: el.volume,
+            elementAutoplay: el.autoplay
+          });
+          
+          el.play().then(() => {
+            console.log(`✅ UltraSimpleVideo: Audio play successful for ${participantId}`);
+          }).catch(err => {
             console.log(`❌ UltraSimpleVideo: Audio play failed for ${participantId}:`, err);
             // Retry play after a short delay
             setTimeout(() => {
@@ -440,6 +460,15 @@ const UltraSimpleVideo = ({
               });
               
               el.srcObject = stream;
+              
+              // Add debugging for force assignment
+              console.log(`🔊 UltraSimpleVideo: Force audio stream assigned for ${participantId}:`, {
+                hasStream: !!el.srcObject,
+                audioTracks: stream.getAudioTracks().length,
+                elementMuted: el.muted,
+                elementVolume: el.volume
+              });
+              
               el.play().then(() => {
                 console.log(`✅ UltraSimpleVideo: Force audio play successful for ${participantId}`);
               }).catch(err => {
