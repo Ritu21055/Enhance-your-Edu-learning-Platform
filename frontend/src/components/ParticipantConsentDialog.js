@@ -102,37 +102,11 @@ const ParticipantConsentDialog = ({
     console.log('✅ ParticipantConsentDialog: Approving request');
 
     try {
-      // Request camera/mic access with conflict handling
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: requestData.requestType === 'camera' || requestData.requestType === 'both',
-          audio: requestData.requestType === 'mic' || requestData.requestType === 'both'
-        });
-      } catch (error) {
-        // Handle camera conflict specifically
-        if (error.name === 'NotAllowedError' || error.name === 'NotReadableError') {
-          console.log('📹 CAMERA CONFLICT: Camera is in use by another application');
-          console.log('📹 CAMERA CONFLICT: Attempting to resolve by waiting and retrying...');
-          
-          // Wait and try again
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: requestData.requestType === 'camera' || requestData.requestType === 'both',
-              audio: requestData.requestType === 'mic' || requestData.requestType === 'both'
-            });
-            console.log('📹 CAMERA CONFLICT: Successfully resolved after retry');
-          } catch (retryError) {
-            console.error('❌ CAMERA CONFLICT: Could not resolve camera conflict:', retryError);
-            alert('Camera is being used by another application. Please close other applications using the camera and try again.');
-            return;
-          }
-        } else {
-          throw error;
-        }
-      }
+      // Request camera/mic access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: requestData.requestType === 'camera' || requestData.requestType === 'both',
+        audio: requestData.requestType === 'mic' || requestData.requestType === 'both'
+      });
 
       // Notify backend of approval
       socket.emit('camera-mic-request-approved', {

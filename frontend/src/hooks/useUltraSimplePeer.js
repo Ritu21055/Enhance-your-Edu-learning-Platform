@@ -628,99 +628,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
     };
   }, [meetingId, userName]);
 
-  // Release camera access completely
-  const releaseCameraAccess = useCallback(() => {
-    console.log('📹 RELEASE: Releasing camera access completely...');
-    
-    // Clean up local stream
-    if (localStream) {
-      console.log('📹 RELEASE: Stopping local stream tracks...');
-      localStream.getTracks().forEach(track => {
-        track.stop();
-        console.log(`📹 RELEASE: Stopped ${track.kind} track: ${track.label}`);
-      });
-      setLocalStream(null);
-    }
-    
-    // Clean up remote streams
-    Object.keys(remoteStreams).forEach(participantId => {
-      const stream = remoteStreams[participantId];
-      if (stream) {
-        console.log(`📹 RELEASE: Stopping remote stream tracks for ${participantId}...`);
-        stream.getTracks().forEach(track => {
-          track.stop();
-          console.log(`📹 RELEASE: Stopped remote ${track.kind} track: ${track.label}`);
-        });
-      }
-    });
-    
-    // Clean up peer connections
-    Object.keys(peersRef.current).forEach(participantId => {
-      const peer = peersRef.current[participantId];
-      if (peer) {
-        console.log(`📹 RELEASE: Destroying peer connection for ${participantId}...`);
-        peer.destroy();
-        delete peersRef.current[participantId];
-      }
-    });
-    
-    // Clear remote streams state
-    setRemoteStreams({});
-    
-    console.log('📹 RELEASE: Camera access released completely');
-  }, [localStream, remoteStreams]);
-
-  // Clean up existing streams to prevent camera conflicts
-  const cleanupExistingStreams = useCallback(() => {
-    console.log('🧹 CLEANUP: Cleaning up existing streams to prevent camera conflicts...');
-    
-    // Clean up local stream
-    if (localStream) {
-      console.log('🧹 CLEANUP: Stopping local stream tracks...');
-      localStream.getTracks().forEach(track => {
-        track.stop();
-        console.log(`🧹 CLEANUP: Stopped ${track.kind} track: ${track.label}`);
-      });
-      setLocalStream(null);
-    }
-    
-    // Clean up remote streams
-    Object.keys(remoteStreams).forEach(participantId => {
-      const stream = remoteStreams[participantId];
-      if (stream) {
-        console.log(`🧹 CLEANUP: Stopping remote stream tracks for ${participantId}...`);
-        stream.getTracks().forEach(track => {
-          track.stop();
-          console.log(`🧹 CLEANUP: Stopped remote ${track.kind} track: ${track.label}`);
-        });
-      }
-    });
-    
-    // Clean up peer connections
-    Object.keys(peersRef.current).forEach(participantId => {
-      const peer = peersRef.current[participantId];
-      if (peer) {
-        console.log(`🧹 CLEANUP: Destroying peer connection for ${participantId}...`);
-        peer.destroy();
-        delete peersRef.current[participantId];
-      }
-    });
-    
-    console.log('🧹 CLEANUP: Stream cleanup completed');
-  }, [localStream, remoteStreams]);
-
-  // Initialize media with conflict resolution
+  // Initialize media
   const initializeMedia = useCallback(async () => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('MediaDevices API not supported. Please use a modern browser with HTTPS.');
       }
-      
-      // Clean up existing streams first to prevent conflicts
-      cleanupExistingStreams();
-      
-      // Wait a bit for cleanup to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
       
       const isMobileHotspot = window.location.hostname.includes('192.168.43') || 
                              window.location.hostname.includes('10.') ||
@@ -761,34 +674,10 @@ const useUltraSimplePeer = (meetingId, userName) => {
           });
         } catch (basicError) {
           console.log('âš ï¸ Basic audio failed, trying minimal constraints...');
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-          });
-        } catch (minimalError) {
-          // Handle camera conflict specifically
-          if (minimalError.name === 'NotAllowedError' || minimalError.name === 'NotReadableError') {
-            console.log('📹 CAMERA CONFLICT: Camera is in use by another application');
-            console.log('📹 CAMERA CONFLICT: Attempting to resolve by waiting and retrying...');
-            
-            // Wait longer and try again
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            try {
-              stream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true
-              });
-              console.log('📹 CAMERA CONFLICT: Successfully resolved after retry');
-            } catch (retryError) {
-              console.error('❌ CAMERA CONFLICT: Could not resolve camera conflict:', retryError);
-              throw new Error('Camera is being used by another application. Please close other applications using the camera and try again.');
-            }
-          } else {
-            throw minimalError;
-          }
-        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
+        });
         }
       }
       
@@ -2017,13 +1906,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     };
   }, [updateLocalStream, localStream]);
 
-  // Cleanup on component unmount
-  useEffect(() => {
-    return () => {
-      console.log('🧹 UNMOUNT: Cleaning up on component unmount...');
-      releaseCameraAccess();
-    };
-  }, [releaseCameraAccess]);
+
 
   // Force re-share host stream to all participants
   const forceReshareHostStream = useCallback(async () => {
@@ -2421,8 +2304,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     forceAudioReinit,
     fixAudioEcho,
     fixAudioIssue,
-    forceReshareHostStream,
-    releaseCameraAccess
+    forceReshareHostStream
   };
 };
 

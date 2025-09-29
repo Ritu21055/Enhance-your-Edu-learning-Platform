@@ -414,6 +414,14 @@ const UltraSimpleVideo = ({
           video.srcObject = localStream;
           video.load();
           video.play().catch(err => console.log('🔧 Local video play failed:', err));
+          
+          // Force video to be visible
+          video.style.display = 'block';
+          video.style.visibility = 'visible';
+          video.style.opacity = '1';
+          video.style.width = '100%';
+          video.style.height = '100%';
+          video.style.objectFit = 'cover';
         }
       }
       
@@ -1258,6 +1266,7 @@ const UltraSimpleVideo = ({
             >
               🔍 Debug Connection Status
             </button>
+            
             
             
             {/* Individual Remove Buttons for Testing */}
