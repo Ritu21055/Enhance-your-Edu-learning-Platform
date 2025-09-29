@@ -825,6 +825,8 @@ const UltraSimpleVideo = ({
                   ref={createVideoElement(participant.id)}
                   autoPlay
                   playsInline
+                  muted={false}
+                  volume={1.0}
                   className="video-element"
                   data-participant-id={participant.id}
                   data-video-enabled={participant.videoEnabled}
@@ -842,7 +844,17 @@ const UltraSimpleVideo = ({
                   ref={createAudioElement(participant.id)}
                   autoPlay
                   playsInline
-                  style={{ display: 'none' }} // Hide the audio element
+                  muted={false}
+                  volume={1.0}
+                  style={{ 
+                    position: 'absolute',
+                    top: '-9999px',
+                    left: '-9999px',
+                    width: '1px',
+                    height: '1px',
+                    opacity: '0',
+                    pointerEvents: 'none'
+                  }} // Hide but keep functional
                 />
                 
                 {/* Debug info for camera state */}

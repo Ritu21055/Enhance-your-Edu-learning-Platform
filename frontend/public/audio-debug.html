@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebNexus Audio Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+        }
+        
+        .debug-button {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            margin: 10px auto;
+        }
+        
+        .debug-results {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: monospace;
+            min-height: 200px;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        
+        .status.passed { background: #2ecc71; }
+        .status.failed { background: #e74c3c; }
+        .status.running { background: #f39c12; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 WebNexus Audio Debug Tool</h1>
+        
+        <div class="debug-results" id="results">
+            <h3>Audio Transmission Debug Tool</h3>
+            <p>This tool will help diagnose why you can't hear each other's voices.</p>
+        </div>
+        
+        <button class="debug-button" onclick="debugAudioElements()">Debug Audio Elements</button>
+        <button class="debug-button" onclick="debugWebRTCStreams()">Debug WebRTC Streams</button>
+        <button class="debug-button" onclick="debugAudioPlayback()">Debug Audio Playback</button>
+        <button class="debug-button" onclick="fixAudioIssues()">Fix Audio Issues</button>
+        <button class="debug-button" onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <script>
+        function log(message) {
+            const results = document.getElementById('results');
+            results.innerHTML += '<div>' + message + '</div>';
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '<h3>Results cleared...</h3>';
+        }
+        
+        function debugAudioElements() {
+            log('<div class="status running">Debugging Audio Elements...</div>');
+            
+            // Check for hidden audio elements
+            const audioElements = document.querySelectorAll('audio');
+            log('Found ' + audioElements.length + ' audio elements');
+            
+            audioElements.forEach((audio, index) => {
+                const style = window.getComputedStyle(audio);
+                log('Audio Element ' + (index + 1) + ':');
+                log('  Display: ' + style.display);
+                log('  Visibility: ' + style.visibility);
+                log('  Opacity: ' + style.opacity);
+                log('  Muted: ' + audio.muted);
+                log('  Volume: ' + audio.volume);
+                log('  Autoplay: ' + audio.autoplay);
+                log('  Paused: ' + audio.paused);
+                log('  Has srcObject: ' + !!audio.srcObject);
+                
+                if (style.display === 'none') {
+                    log('  ⚠️ ISSUE: Audio element is hidden!');
+                }
+                if (audio.muted) {
+                    log('  ⚠️ ISSUE: Audio element is muted!');
+                }
+                if (audio.paused) {
+                    log('  ⚠️ ISSUE: Audio element is paused!');
+                }
+                if (!audio.srcObject) {
+                    log('  ⚠️ ISSUE: No audio stream assigned!');
+                }
+            });
+        }
+        
+        function debugWebRTCStreams() {
+            log('<div class="status running">Debugging WebRTC Streams...</div>');
+            
+            // Check for video elements with audio
+            const videoElements = document.querySelectorAll('video');
+            log('Found ' + videoElements.length + ' video elements');
+            
+            videoElements.forEach((video, index) => {
+                log('Video Element ' + (index + 1) + ':');
+                log('  Muted: ' + video.muted);
+                log('  Volume: ' + video.volume);
+                log('  Autoplay: ' + video.autoplay);
+                log('  Paused: ' + video.paused);
+                log('  Has srcObject: ' + !!video.srcObject);
+                
+                if (video.srcObject) {
+                    const stream = video.srcObject;
+                    const audioTracks = stream.getAudioTracks();
+                    log('  Audio tracks: ' + audioTracks.length);
+                    
+                    audioTracks.forEach((track, trackIndex) => {
+                        log('    Track ' + trackIndex + ':');
+                        log('      Enabled: ' + track.enabled);
+                        log('      Muted: ' + track.muted);
+                        log('      Ready state: ' + track.readyState);
+                        log('      Label: ' + track.label);
+                    });
+                }
+                
+                if (video.muted) {
+                    log('  ⚠️ ISSUE: Video element is muted!');
+                }
+                if (video.paused) {
+                    log('  ⚠️ ISSUE: Video element is paused!');
+                }
+            });
+        }
+        
+        function debugAudioPlayback() {
+            log('<div class="status running">Debugging Audio Playback...</div>');
+            
+            // Test audio context
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log('Audio Context State: ' + audioContext.state);
+                
+                if (audioContext.state === 'suspended') {
+                    log('⚠️ ISSUE: Audio context is suspended!');
+                    log('Try clicking on the page to resume audio context.');
+                }
+                
+                audioContext.close();
+            } catch (error) {
+                log('❌ Audio Context Error: ' + error.message);
+            }
+            
+            // Check browser audio policy
+            log('Browser Audio Policy:');
+            log('  Autoplay allowed: ' + (document.querySelector('video')?.autoplay !== false));
+            log('  User interaction: ' + (document.hasFocus()));
+        }
+        
+        function fixAudioIssues() {
+            log('<div class="status running">Fixing Audio Issues...</div>');
+            
+            // Fix hidden audio elements
+            const audioElements = document.querySelectorAll('audio');
+            audioElements.forEach((audio, index) => {
+                const style = window.getComputedStyle(audio);
+                if (style.display === 'none') {
+                    audio.style.display = 'block';
+                    audio.style.visibility = 'visible';
+                    audio.style.opacity = '1';
+                    log('Fixed hidden audio element ' + (index + 1));
+                }
+                
+                // Unmute and enable audio
+                audio.muted = false;
+                audio.volume = 1.0;
+                audio.autoplay = true;
+                audio.playsInline = true;
+                
+                // Try to play
+                audio.play().catch(err => {
+                    log('Play failed for audio ' + (index + 1) + ': ' + err.message);
+                });
+            });
+            
+            // Fix video elements with audio
+            const videoElements = document.querySelectorAll('video');
+            videoElements.forEach((video, index) => {
+                // Unmute video elements that should have audio
+                if (video.srcObject) {
+                    const stream = video.srcObject;
+                    const audioTracks = stream.getAudioTracks();
+                    if (audioTracks.length > 0) {
+                        video.muted = false;
+                        video.volume = 1.0;
+                        log('Unmuted video element ' + (index + 1) + ' with audio');
+                    }
+                }
+            });
+            
+            log('<div class="status passed">Audio fixes applied!</div>');
+        }
+    </script>
+</body>
+</html>
