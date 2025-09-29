@@ -116,7 +116,8 @@ const MeetingRoom = () => {
     forceRender,
     // Audio debugging
     fixAudioIssue,
-    forceReshareHostStream
+    forceReshareHostStream,
+    forceReinitializeAudio
   } = useUltraSimplePeer(meetingId, finalUserName);
 
   const {
@@ -719,6 +720,26 @@ const MeetingRoom = () => {
               <ListItemText 
                 primary="Fix Audio Issues"
                 secondary="Fix microphone and audio transmission"
+              />
+            </MenuItem>
+            
+            <MenuItem 
+              onClick={() => {
+                if (forceReinitializeAudio) {
+                  forceReinitializeAudio();
+                  alert('Audio re-initialization attempted. Check if audio is now working.');
+                } else {
+                  alert('Audio re-initialization function not available');
+                }
+                setDebugMenuAnchor(null);
+              }}
+            >
+              <ListItemIcon>
+                🔄
+              </ListItemIcon>
+              <ListItemText 
+                primary="Re-initialize Audio"
+                secondary="Force re-initialize audio for all participants"
               />
             </MenuItem>
             

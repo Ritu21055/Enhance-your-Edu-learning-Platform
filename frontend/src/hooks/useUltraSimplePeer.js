@@ -1966,6 +1966,46 @@ const useUltraSimplePeer = (meetingId, userName) => {
     console.log('🔧 RESHARE: Host stream re-sharing completed');
   }, [localStream]);
 
+  // Force re-initialize audio for all participants
+  const forceReinitializeAudio = useCallback(async () => {
+    console.log('🔧 AUDIO REINIT: Force re-initializing audio for all participants...');
+    
+    if (!localStream) {
+      console.log('🔧 AUDIO REINIT: No local stream available');
+      return;
+    }
+    
+    // Force re-add stream to all existing peer connections
+    Object.keys(peersRef.current).forEach(participantId => {
+      const peer = peersRef.current[participantId];
+      if (peer && peer._pc) {
+        try {
+          console.log(`🔧 AUDIO REINIT: Re-adding stream to peer ${participantId}`);
+          peer.addStream(localStream);
+          
+          // Ensure all audio tracks are enabled
+          const audioTracks = localStream.getAudioTracks();
+          audioTracks.forEach((track, index) => {
+            if (!track.enabled) {
+              track.enabled = true;
+              console.log(`🔧 AUDIO REINIT: Enabled audio track ${index} for ${participantId}`);
+            }
+            if (track.muted) {
+              track.muted = false;
+              console.log(`🔧 AUDIO REINIT: Unmuted audio track ${index} for ${participantId}`);
+            }
+          });
+          
+          console.log(`🔧 AUDIO REINIT: Successfully re-initialized audio for ${participantId}`);
+        } catch (error) {
+          console.log(`⚠️ AUDIO REINIT: Could not re-initialize audio for ${participantId}:`, error.message);
+        }
+      }
+    });
+    
+    console.log('🔧 AUDIO REINIT: Audio re-initialization completed');
+  }, [localStream]);
+
   // Comprehensive audio debugging and fixing function
   const fixAudioIssue = useCallback(async () => {
     console.log('ðŸ”§ AUDIO FIX: Starting comprehensive audio fix...');
@@ -2304,7 +2344,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
     forceAudioReinit,
     fixAudioEcho,
     fixAudioIssue,
-    forceReshareHostStream
+    forceReshareHostStream,
+    forceReinitializeAudio
   };
 };
 

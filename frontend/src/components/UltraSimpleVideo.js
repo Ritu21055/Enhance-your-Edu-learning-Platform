@@ -75,6 +75,7 @@ const UltraSimpleVideo = ({
   debugConnectionStatus
 }) => {
   const remoteVideoRefs = useRef({});
+  const remoteAudioRefs = useRef({});
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [forceRender, setForceRender] = useState(0);
   const [layoutKey, setLayoutKey] = useState(0);
@@ -266,6 +267,27 @@ const UltraSimpleVideo = ({
           // Validate stream before assignment
           if (stream && stream.active && stream.getTracks().length > 0) {
             console.log(`✅ UltraSimpleVideo: Valid stream for ${participantId}, assigning...`);
+            
+            // CRITICAL: Configure video element for audio playback
+            el.muted = false; // Allow audio to play
+            el.volume = 1.0; // Set volume to maximum
+            el.autoplay = true;
+            el.playsInline = true;
+            
+            // Force audio tracks to be enabled
+            const audioTracks = stream.getAudioTracks();
+            console.log(`🔊 UltraSimpleVideo: Audio tracks for ${participantId}:`, audioTracks.length);
+            audioTracks.forEach((track, index) => {
+              if (!track.enabled) {
+                track.enabled = true;
+                console.log(`🔊 UltraSimpleVideo: Enabled audio track ${index} for ${participantId}`);
+              }
+              if (track.muted) {
+                track.muted = false;
+                console.log(`🔊 UltraSimpleVideo: Unmuted audio track ${index} for ${participantId}`);
+              }
+            });
+            
             el.srcObject = stream;
             el.play().catch(err => {
               console.log(`❌ UltraSimpleVideo: Video play failed for ${participantId}:`, err);
@@ -293,6 +315,27 @@ const UltraSimpleVideo = ({
             // Validate stream before force assignment
             if (stream && stream.active && stream.getTracks().length > 0) {
               console.log(`🔄 UltraSimpleVideo: Force assigning valid stream after delay for ${participantId}`);
+              
+              // CRITICAL: Configure video element for audio playback
+              el.muted = false; // Allow audio to play
+              el.volume = 1.0; // Set volume to maximum
+              el.autoplay = true;
+              el.playsInline = true;
+              
+              // Force audio tracks to be enabled
+              const audioTracks = stream.getAudioTracks();
+              console.log(`🔊 UltraSimpleVideo: Force audio tracks for ${participantId}:`, audioTracks.length);
+              audioTracks.forEach((track, index) => {
+                if (!track.enabled) {
+                  track.enabled = true;
+                  console.log(`🔊 UltraSimpleVideo: Force enabled audio track ${index} for ${participantId}`);
+                }
+                if (track.muted) {
+                  track.muted = false;
+                  console.log(`🔊 UltraSimpleVideo: Force unmuted audio track ${index} for ${participantId}`);
+                }
+              });
+              
               el.srcObject = stream;
               el.play().then(() => {
                 console.log(`✅ UltraSimpleVideo: Force video play successful for ${participantId}`);
@@ -316,6 +359,95 @@ const UltraSimpleVideo = ({
             console.log(`✅ UltraSimpleVideo: Stream already assigned for ${participantId}, skipping force assignment`);
           }
         }, 300); // Increased delay for better stream assignment
+      }
+    };
+  }, [remoteStreams]);
+
+  // Stable audio element creation callback for better audio handling
+  const createAudioElement = useCallback((participantId) => {
+    console.log(`🔊 UltraSimpleVideo: Creating stable audio element for ${participantId}`);
+    return (el) => {
+      if (el && participantId) {
+        // Check if this is a new element or the same one
+        const existingElement = remoteAudioRefs.current[participantId];
+        if (existingElement && existingElement === el) {
+          console.log(`🔊 UltraSimpleVideo: Audio element already exists for ${participantId}, skipping recreation`);
+          return;
+        }
+        
+        remoteAudioRefs.current[participantId] = el;
+        
+        if (remoteStreams[participantId]) {
+          const stream = remoteStreams[participantId];
+          console.log(`🔊 UltraSimpleVideo: Setting up audio element for ${participantId}`);
+          
+          // CRITICAL: Configure audio element for optimal playback
+          el.muted = false; // Allow audio to play
+          el.volume = 1.0; // Set volume to maximum
+          el.autoplay = true;
+          el.playsInline = true;
+          
+          // Force audio tracks to be enabled
+          const audioTracks = stream.getAudioTracks();
+          console.log(`🔊 UltraSimpleVideo: Audio tracks for ${participantId}:`, audioTracks.length);
+          audioTracks.forEach((track, index) => {
+            if (!track.enabled) {
+              track.enabled = true;
+              console.log(`🔊 UltraSimpleVideo: Enabled audio track ${index} for ${participantId}`);
+            }
+            if (track.muted) {
+              track.muted = false;
+              console.log(`🔊 UltraSimpleVideo: Unmuted audio track ${index} for ${participantId}`);
+            }
+          });
+          
+          el.srcObject = stream;
+          el.play().catch(err => {
+            console.log(`❌ UltraSimpleVideo: Audio play failed for ${participantId}:`, err);
+            // Retry play after a short delay
+            setTimeout(() => {
+              el.play().catch(retryErr => {
+                console.log(`❌ UltraSimpleVideo: Audio play retry failed for ${participantId}:`, retryErr);
+              });
+            }, 500);
+          });
+        }
+        
+        // Force audio assignment after a short delay
+        setTimeout(() => {
+          if (remoteStreams[participantId] && el.srcObject !== remoteStreams[participantId]) {
+            const stream = remoteStreams[participantId];
+            if (stream && stream.active && stream.getTracks().length > 0) {
+              console.log(`🔄 UltraSimpleVideo: Force assigning audio stream for ${participantId}`);
+              
+              // CRITICAL: Configure audio element for optimal playback
+              el.muted = false;
+              el.volume = 1.0;
+              el.autoplay = true;
+              el.playsInline = true;
+              
+              // Force audio tracks to be enabled
+              const audioTracks = stream.getAudioTracks();
+              audioTracks.forEach((track, index) => {
+                if (!track.enabled) {
+                  track.enabled = true;
+                  console.log(`🔊 UltraSimpleVideo: Force enabled audio track ${index} for ${participantId}`);
+                }
+                if (track.muted) {
+                  track.muted = false;
+                  console.log(`🔊 UltraSimpleVideo: Force unmuted audio track ${index} for ${participantId}`);
+                }
+              });
+              
+              el.srcObject = stream;
+              el.play().then(() => {
+                console.log(`✅ UltraSimpleVideo: Force audio play successful for ${participantId}`);
+              }).catch(err => {
+                console.log(`❌ UltraSimpleVideo: Force audio play failed for ${participantId}:`, err);
+              });
+            }
+          }
+        }, 300);
       }
     };
   }, [remoteStreams]);
@@ -703,6 +835,14 @@ const UltraSimpleVideo = ({
                     opacity: participant.videoEnabled ? 1 : 0,
                     pointerEvents: participant.videoEnabled ? 'auto' : 'none'
                   }}
+                />
+                
+                {/* Separate audio element for better audio handling */}
+                <audio
+                  ref={createAudioElement(participant.id)}
+                  autoPlay
+                  playsInline
+                  style={{ display: 'none' }} // Hide the audio element
                 />
                 
                 {/* Debug info for camera state */}
@@ -1267,7 +1407,144 @@ const UltraSimpleVideo = ({
               🔍 Debug Connection Status
             </button>
             
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🔊 AUDIO DEBUG: Checking audio status...');
+                console.log('🔊 AUDIO DEBUG: Local stream:', localStream);
+                console.log('🔊 AUDIO DEBUG: Remote streams:', Object.keys(remoteStreams));
+                
+                // Check local audio
+                if (localStream) {
+                  const audioTracks = localStream.getAudioTracks();
+                  console.log('🔊 AUDIO DEBUG: Local audio tracks:', audioTracks.length);
+                  audioTracks.forEach((track, index) => {
+                    console.log(`🔊 AUDIO DEBUG: Local audio track ${index}:`, {
+                      enabled: track.enabled,
+                      muted: track.muted,
+                      readyState: track.readyState,
+                      label: track.label
+                    });
+                  });
+                }
+                
+                // Check remote audio
+                Object.keys(remoteStreams).forEach(participantId => {
+                  const stream = remoteStreams[participantId];
+                  if (stream) {
+                    const audioTracks = stream.getAudioTracks();
+                    console.log(`🔊 AUDIO DEBUG: Remote audio tracks for ${participantId}:`, audioTracks.length);
+                    audioTracks.forEach((track, index) => {
+                      console.log(`🔊 AUDIO DEBUG: Remote audio track ${index} for ${participantId}:`, {
+                        enabled: track.enabled,
+                        muted: track.muted,
+                        readyState: track.readyState,
+                        label: track.label
+                      });
+                    });
+                  }
+                });
+                
+                // Check audio elements
+                console.log('🔊 AUDIO DEBUG: Audio elements:');
+                Object.keys(remoteAudioRefs.current).forEach(participantId => {
+                  const audioEl = remoteAudioRefs.current[participantId];
+                  if (audioEl) {
+                    console.log(`🔊 AUDIO DEBUG: Audio element for ${participantId}:`, {
+                      muted: audioEl.muted,
+                      volume: audioEl.volume,
+                      autoplay: audioEl.autoplay,
+                      playsInline: audioEl.playsInline,
+                      srcObject: !!audioEl.srcObject,
+                      paused: audioEl.paused,
+                      currentTime: audioEl.currentTime
+                    });
+                  }
+                });
+                
+                // Check video elements audio
+                console.log('🔊 AUDIO DEBUG: Video elements audio:');
+                Object.keys(remoteVideoRefs.current).forEach(participantId => {
+                  const videoEl = remoteVideoRefs.current[participantId];
+                  if (videoEl) {
+                    console.log(`🔊 AUDIO DEBUG: Video element for ${participantId}:`, {
+                      muted: videoEl.muted,
+                      volume: videoEl.volume,
+                      autoplay: videoEl.autoplay,
+                      playsInline: videoEl.playsInline,
+                      srcObject: !!videoEl.srcObject,
+                      paused: videoEl.paused,
+                      currentTime: videoEl.currentTime
+                    });
+                  }
+                });
+              }}
+            >
+              🔊 Debug Audio Status
+            </button>
             
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🔊 FIX AUDIO: Force enabling audio for all participants...');
+                
+                // Force enable audio for all video elements
+                Object.keys(remoteVideoRefs.current).forEach(participantId => {
+                  const videoEl = remoteVideoRefs.current[participantId];
+                  if (videoEl) {
+                    console.log(`🔊 FIX AUDIO: Fixing video element for ${participantId}`);
+                    videoEl.muted = false;
+                    videoEl.volume = 1.0;
+                    videoEl.autoplay = true;
+                    videoEl.playsInline = true;
+                    
+                    // Force play
+                    videoEl.play().catch(err => {
+                      console.log(`🔊 FIX AUDIO: Video play failed for ${participantId}:`, err);
+                    });
+                  }
+                });
+                
+                // Force enable audio for all audio elements
+                Object.keys(remoteAudioRefs.current).forEach(participantId => {
+                  const audioEl = remoteAudioRefs.current[participantId];
+                  if (audioEl) {
+                    console.log(`🔊 FIX AUDIO: Fixing audio element for ${participantId}`);
+                    audioEl.muted = false;
+                    audioEl.volume = 1.0;
+                    audioEl.autoplay = true;
+                    audioEl.playsInline = true;
+                    
+                    // Force play
+                    audioEl.play().catch(err => {
+                      console.log(`🔊 FIX AUDIO: Audio play failed for ${participantId}:`, err);
+                    });
+                  }
+                });
+                
+                // Force enable audio tracks in streams
+                Object.keys(remoteStreams).forEach(participantId => {
+                  const stream = remoteStreams[participantId];
+                  if (stream) {
+                    const audioTracks = stream.getAudioTracks();
+                    audioTracks.forEach((track, index) => {
+                      if (!track.enabled) {
+                        track.enabled = true;
+                        console.log(`🔊 FIX AUDIO: Enabled audio track ${index} for ${participantId}`);
+                      }
+                      if (track.muted) {
+                        track.muted = false;
+                        console.log(`🔊 FIX AUDIO: Unmuted audio track ${index} for ${participantId}`);
+                      }
+                    });
+                  }
+                });
+                
+                console.log('🔊 FIX AUDIO: Audio fix completed');
+              }}
+            >
+              🔊 Fix Audio Issues
+            </button>
             
             {/* Individual Remove Buttons for Testing */}
             {otherParticipants.map(participant => (
