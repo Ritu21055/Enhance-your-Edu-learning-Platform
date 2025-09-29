@@ -112,6 +112,49 @@ const UltraSimpleVideo = ({
     })));
   }, [participants]);
 
+  // CRITICAL: Monitor remote streams and assign to audio elements
+  useEffect(() => {
+    console.log('🔊 UltraSimpleVideo: Remote streams updated:', Object.keys(remoteStreams));
+    
+    Object.keys(remoteStreams).forEach(participantId => {
+      const stream = remoteStreams[participantId];
+      const audioElement = remoteAudioRefs.current[participantId];
+      
+      if (stream && audioElement) {
+        console.log(`🔊 UltraSimpleVideo: Assigning stream to audio element for ${participantId}`);
+        
+        // Force audio element configuration
+        audioElement.muted = false;
+        audioElement.volume = 1.0;
+        audioElement.autoplay = true;
+        audioElement.playsInline = true;
+        
+        // Assign the stream
+        audioElement.srcObject = stream;
+        
+        // Force play
+        audioElement.play().then(() => {
+          console.log(`✅ UltraSimpleVideo: Audio play successful for ${participantId}`);
+        }).catch(err => {
+          console.log(`❌ UltraSimpleVideo: Audio play failed for ${participantId}:`, err);
+        });
+        
+        // Force enable audio tracks
+        const audioTracks = stream.getAudioTracks();
+        audioTracks.forEach((track, index) => {
+          if (!track.enabled) {
+            track.enabled = true;
+            console.log(`🔊 UltraSimpleVideo: Force enabled audio track ${index} for ${participantId}`);
+          }
+          if (track.muted) {
+            track.muted = false;
+            console.log(`🔊 UltraSimpleVideo: Force unmuted audio track ${index} for ${participantId}`);
+          }
+        });
+      }
+    });
+  }, [remoteStreams]);
+
   // ROBUST Media State Monitoring & Video Mirroring
   useEffect(() => {
     const fixVideoMirroringAndMediaStates = () => {
