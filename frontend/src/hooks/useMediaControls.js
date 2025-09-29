@@ -51,27 +51,8 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
           const audioConstraints = {
             echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: isMobileHotspot ? 16000 : 48000, // Increased quality
-            channelCount: 1,
-            latency: 0.01, // Low latency for real-time communication
-            volume: 0.8, // Reduced volume to prevent echo
-            googEchoCancellation: true,
-            googAutoGainControl: true,
-            googNoiseSuppression: true,
-            googHighpassFilter: true,
-            googTypingNoiseDetection: true,
-            googAudioMirroring: false, // Prevent audio feedback
-            googDAEchoCancellation: true, // Advanced echo cancellation
-            googNoiseReduction: true, // Advanced noise reduction
-            googEchoCancellation2: true, // Additional echo cancellation
-            googAutoGainControl2: true, // Additional AGC
-            googNoiseSuppression2: true, // Additional noise suppression
-            googHighpassFilter2: true, // Additional high-pass filter
-            googTypingNoiseDetection2: true, // Additional typing noise detection
-            googAudioMirroring2: false, // Additional audio mirroring prevention
-            googDAEchoCancellation2: true, // Additional advanced echo cancellation
-            googNoiseReduction2: true // Additional advanced noise reduction
+            autoGainControl: true
+            // Simplified constraints to avoid OverconstrainedError
           };
           
           try {
@@ -153,27 +134,8 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
           const audioConstraints = {
             echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: isMobileHotspot ? 16000 : 48000, // Increased quality
-            channelCount: 1,
-            latency: 0.01, // Low latency for real-time communication
-            volume: 0.8, // Reduced volume to prevent echo
-            googEchoCancellation: true,
-            googAutoGainControl: true,
-            googNoiseSuppression: true,
-            googHighpassFilter: true,
-            googTypingNoiseDetection: true,
-            googAudioMirroring: false, // Prevent audio feedback
-            googDAEchoCancellation: true, // Advanced echo cancellation
-            googNoiseReduction: true, // Advanced noise reduction
-            googEchoCancellation2: true, // Additional echo cancellation
-            googAutoGainControl2: true, // Additional AGC
-            googNoiseSuppression2: true, // Additional noise suppression
-            googHighpassFilter2: true, // Additional high-pass filter
-            googTypingNoiseDetection2: true, // Additional typing noise detection
-            googAudioMirroring2: false, // Additional audio mirroring prevention
-            googDAEchoCancellation2: true, // Additional advanced echo cancellation
-            googNoiseReduction2: true // Additional advanced noise reduction
+            autoGainControl: true
+            // Simplified constraints to avoid OverconstrainedError
           };
           
           try {
