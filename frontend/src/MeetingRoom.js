@@ -116,7 +116,8 @@ const MeetingRoom = () => {
     forceRender,
     // Audio debugging
     fixAudioIssue,
-    forceReshareHostStream
+    forceReshareHostStream,
+    releaseCameraAccess
   } = useUltraSimplePeer(meetingId, finalUserName);
 
   const {
@@ -742,6 +743,26 @@ const MeetingRoom = () => {
                 />
               </MenuItem>
             )}
+            
+            <MenuItem 
+              onClick={() => {
+                if (releaseCameraAccess) {
+                  releaseCameraAccess();
+                  alert('Camera access released. You can now use the camera in other applications.');
+                } else {
+                  alert('Release camera function not available');
+                }
+                setDebugMenuAnchor(null);
+              }}
+            >
+              <ListItemIcon>
+                📹
+              </ListItemIcon>
+              <ListItemText 
+                primary="Release Camera Access"
+                secondary="Release camera for use in other applications"
+              />
+            </MenuItem>
             
             {isHost && (
               <MenuItem 
