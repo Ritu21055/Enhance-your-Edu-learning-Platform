@@ -655,16 +655,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
       const audioConstraints = {
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true,
-        googEchoCancellation: true,
-        googNoiseSuppression: true,
-        googAutoGainControl: true,
-        googHighpassFilter: true,
-        googTypingNoiseDetection: true,
-        googAudioMirroring: false
-        // Remove strict sample rate and channel count to avoid conflicts
-        // sampleRate: isMobileHotspot || isSlowConnection ? 16000 : 48000,
-        // channelCount: 1
+        autoGainControl: true
+        // Simplified constraints to avoid conflicts
       };
       
       let stream;
@@ -843,21 +835,13 @@ const useUltraSimplePeer = (meetingId, userName) => {
       
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
-        // Remove strict audio constraints that might cause transmission issues
-    const audioConstraints = {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      googEchoCancellation: true,
-      googNoiseSuppression: true,
-      googAutoGainControl: true,
-      googHighpassFilter: true,
-      googTypingNoiseDetection: true,
-      googAudioMirroring: false
-    };
-        
+        // Apply basic audio constraints to ensure transmission
         try {
-          await audioTrack.applyConstraints(audioConstraints);
+          await audioTrack.applyConstraints({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          });
           console.log(`🎤 CREATE-PEER: Applied audio constraints for ${participantId}`);
           
         // Ensure audio track is properly enabled
@@ -1300,33 +1284,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
               console.log('🎤 UltraSimplePeer: Configuring audio track in handleSignal');
               
               // Apply enhanced audio constraints to prevent echo
-              const audioConstraints = {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                googEchoCancellation: true,
-                googNoiseSuppression: true,
-                googAutoGainControl: true,
-                googHighpassFilter: true,
-                googTypingNoiseDetection: true,
-                googAudioMirroring: false
-                // Remove strict constraints that might cause audio detection issues
-                // sampleRate: 48000,
-                // channelCount: 1,
-                // latency: 0.01,
-                // volume: 1.0,
-                // googEchoCancellation: true,
-                // googAutoGainControl: true,
-                // googNoiseSuppression: true,
-                // googHighpassFilter: true,
-                // googTypingNoiseDetection: true,
-                // googAudioMirroring: false,
-                // googDAEchoCancellation: true,
-                // googNoiseReduction: true
-              };
-              
               try {
-                track.applyConstraints(audioConstraints).then(() => {
+                track.applyConstraints({
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true
+                }).then(() => {
                   console.log('🎤 UltraSimplePeer: Enhanced audio constraints applied in handleSignal');
                   
                   // Test audio flow to ensure it's working

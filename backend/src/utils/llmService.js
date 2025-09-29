@@ -143,7 +143,7 @@ class LLMService {
       if (error.name === 'AbortError') {
         console.error('🤖 Ollama: Test timed out after 10 seconds');
       } else {
-        console.error('🤖 Ollama: Test failed:', error.message);
+      console.error('🤖 Ollama: Test failed:', error.message);
       }
       // Don't fail completely, allow retry during actual use
       console.log('🤖 Ollama: Will retry during actual question generation');
@@ -362,10 +362,10 @@ class LLMService {
       // Try different LLM options based on availability
       if (this.llmType === 'ollama') {
         try {
-          const result = await this.generateWithOllama(transcriptContext, topics, sentiment);
-          generatedQuestion = result.question;
-          modelName = 'ollama-llama3.2';
-          confidence = 0.85;
+        const result = await this.generateWithOllama(transcriptContext, topics, sentiment);
+        generatedQuestion = result.question;
+        modelName = 'ollama-llama3.2';
+        confidence = 0.85;
         } catch (error) {
           console.log('🤖 Ollama failed, falling back to rule-based:', error.message);
           const result = this.generateWithRuleBased(topics, sentiment, transcriptContext);

@@ -168,8 +168,8 @@ const UltraSimpleVideo = ({
     // Fix immediately
     fixVideoMirroringAndMediaStates();
 
-    // Set up interval to continuously monitor and fix (more frequent for robustness)
-    const interval = setInterval(fixVideoMirroringAndMediaStates, 50);
+    // Set up interval to continuously monitor and fix (reduced frequency for performance)
+    const interval = setInterval(fixVideoMirroringAndMediaStates, 2000);
 
     return () => clearInterval(interval);
   }, [forceRender, otherParticipants]);
