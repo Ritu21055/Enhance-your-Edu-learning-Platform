@@ -898,6 +898,19 @@ const useUltraSimplePeer = (meetingId, userName) => {
         try {
           peer.addStream(stream);
           console.log(`ðŸ”— CREATE-PEER: Successfully added stream with audio to peer for ${participantId}`);
+
+          
+         // CRITICAL: Ensure host audio transmission
+          if (isHostRef.current) {
+            setTimeout(() => {
+              try {
+                peer.addStream(stream);
+                console.log(`🔊 CREATE-PEER: Force re-added host stream to ${participantId}`);
+              } catch (reAddError) {
+                console.log(`🔊 CREATE-PEER: Host stream already added to ${participantId}:`, reAddError.message);
+              }
+            }, 100);
+          }
           
           // Double-check that audio track is enabled
           const audioTracks = stream.getAudioTracks();
@@ -927,6 +940,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
             totalTracks: stream.getTracks().length,
             streamActive: stream.active
           });
+          
         } catch (error) {
           console.log(`âš ï¸ CREATE-PEER: Stream already added to peer for ${participantId}:`, error.message);
         }
