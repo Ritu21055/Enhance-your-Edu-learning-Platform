@@ -115,7 +115,8 @@ const MeetingRoom = () => {
     handleScreenShareChange,
     forceRender,
     // Audio debugging
-    fixAudioIssue
+    fixAudioIssue,
+    forceReshareHostStream
   } = useUltraSimplePeer(meetingId, finalUserName);
 
   const {
@@ -720,6 +721,27 @@ const MeetingRoom = () => {
                 secondary="Fix microphone and audio transmission"
               />
             </MenuItem>
+            
+            {isHost && (
+              <MenuItem 
+                onClick={() => {
+                  if (forceReshareHostStream) {
+                    forceReshareHostStream();
+                  } else {
+                    alert('Force re-share function not available');
+                  }
+                  setDebugMenuAnchor(null);
+                }}
+              >
+                <ListItemIcon>
+                  📹
+                </ListItemIcon>
+                <ListItemText 
+                  primary="Force Re-share Host Video"
+                  secondary="Re-share host video stream to all participants"
+                />
+              </MenuItem>
+            )}
             
             {isHost && (
               <MenuItem 

@@ -893,8 +893,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
     peer.on('connect', () => {
       console.log(`ðŸ”— CREATE-PEER: Connected to ${participantId}, ensuring audio track is added`);
       
-      // Force add the stream to ensure audio is transmitted
-      if (stream && stream.getAudioTracks().length > 0) {
+      // Force add the stream to ensure both video and audio are transmitted
+      if (stream && stream.getTracks().length > 0) {
         try {
           peer.addStream(stream);
           console.log(`ðŸ”— CREATE-PEER: Successfully added stream with audio to peer for ${participantId}`);
@@ -910,6 +910,22 @@ const useUltraSimplePeer = (meetingId, userName) => {
               track.muted = false;
               console.log(`ðŸ”§ CREATE-PEER: Force unmuted audio track ${index} for ${participantId}`);
             }
+          });
+          
+          // Also ensure video tracks are enabled
+          const videoTracks = stream.getVideoTracks();
+          videoTracks.forEach((track, index) => {
+            if (!track.enabled) {
+              track.enabled = true;
+              console.log(`🔧 CREATE-PEER: Force enabled video track ${index} for ${participantId}`);
+            }
+          });
+          
+          console.log(`🔗 CREATE-PEER: Stream details for ${participantId}:`, {
+            videoTracks: videoTracks.length,
+            audioTracks: audioTracks.length,
+            totalTracks: stream.getTracks().length,
+            streamActive: stream.active
           });
         } catch (error) {
           console.log(`âš ï¸ CREATE-PEER: Stream already added to peer for ${participantId}:`, error.message);
@@ -1890,6 +1906,64 @@ const useUltraSimplePeer = (meetingId, userName) => {
     };
   }, [updateLocalStream, localStream]);
 
+  // Force re-share host stream to all participants
+  const forceReshareHostStream = useCallback(async () => {
+    console.log('🔧 RESHARE: Force re-sharing host stream to all participants...');
+    
+    if (!localStream || !localStream.active) {
+      console.log('🔧 RESHARE: No local stream available');
+      return;
+    }
+    
+    const currentStream = localStream;
+    console.log('🔧 RESHARE: Current stream details:', {
+      streamId: currentStream.id,
+      streamActive: currentStream.active,
+      videoTracks: currentStream.getVideoTracks().length,
+      audioTracks: currentStream.getAudioTracks().length,
+      totalTracks: currentStream.getTracks().length
+    });
+    
+    // Force re-add stream to all existing peer connections
+    Object.keys(peersRef.current).forEach(participantId => {
+      const peer = peersRef.current[participantId];
+      if (peer && peer._pc) {
+        try {
+          console.log(`🔧 RESHARE: Re-adding stream to peer ${participantId}`);
+          peer.addStream(currentStream);
+          
+          // Ensure all tracks are enabled
+          const videoTracks = currentStream.getVideoTracks();
+          const audioTracks = currentStream.getAudioTracks();
+          
+          videoTracks.forEach((track, index) => {
+            if (!track.enabled) {
+              track.enabled = true;
+              console.log(`🔧 RESHARE: Enabled video track ${index} for ${participantId}`);
+            }
+          });
+          
+          audioTracks.forEach((track, index) => {
+            if (!track.enabled) {
+              track.enabled = true;
+              console.log(`🔧 RESHARE: Enabled audio track ${index} for ${participantId}`);
+            }
+            if (track.muted) {
+              track.muted = false;
+              console.log(`🔧 RESHARE: Unmuted audio track ${index} for ${participantId}`);
+            }
+          });
+          
+          console.log(`🔧 RESHARE: Successfully re-shared stream to ${participantId}`);
+        } catch (error) {
+          console.log(`⚠️ RESHARE: Could not re-share stream to ${participantId}:`, error.message);
+        }
+      }
+    });
+    
+    console.log('🔧 RESHARE: Host stream re-sharing completed');
+  }, [localStream]);
+
   // Comprehensive audio debugging and fixing function
   const fixAudioIssue = useCallback(async () => {
     console.log('ðŸ”§ AUDIO FIX: Starting comprehensive audio fix...');
@@ -2227,7 +2301,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
     testMicrophone,
     forceAudioReinit,
     fixAudioEcho,
-    fixAudioIssue
+    fixAudioIssue,
+    forceReshareHostStream
   };
 };
 
