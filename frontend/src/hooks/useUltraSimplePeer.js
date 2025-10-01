@@ -665,8 +665,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
       const audioConstraints = {
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true
-        // Simplified constraints to avoid conflicts
+        autoGainControl: true,
+        // Prefer microphone array over stereo mix
+        deviceId: { ideal: 'default' }
       };
       
       let stream;
