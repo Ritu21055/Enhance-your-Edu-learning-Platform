@@ -479,38 +479,6 @@ export const applyAudioConstraints = async (stream, participantId) => {
   });
 };
 
-// Handle stream reception and audio debugging
-export const handleStreamReception = (stream, participantId, participants) => {
-  console.log(`🔊 AUDIO-UTILS: Handling stream reception from ${participantId}`);
-  
-  if (!stream) {
-    console.log('❌ AUDIO-UTILS: No stream provided for reception');
-    return;
-  }
-
-  console.log(`🎥 AUDIO-UTILS: Stream details:`, {
-    streamId: stream.id,
-    trackCount: stream.getTracks().length,
-    videoTracks: stream.getVideoTracks().length,
-    audioTracks: stream.getAudioTracks().length,
-    streamActive: stream.active,
-    streamEnded: stream.ended
-  });
-
-  // Force stream to be active if it's not
-  if (!stream.active) {
-    console.log('🔧 AUDIO-UTILS: Stream not active, attempting to reactivate...');
-    stream.getTracks().forEach(track => {
-      if (track.readyState === 'live') {
-        track.enabled = true;
-        console.log(`🔧 AUDIO-UTILS: Reactivated ${track.kind} track`);
-      }
-    });
-  }
-
-  // Call the existing debug function
-  debugHostAudioReception(stream, participantId, participants);
-};
 
 // Fix audio echo issues
 export const fixAudioEcho = async (localStream) => {
@@ -603,6 +571,53 @@ export const forceReinitializeAudio = async (localStream, peersRef) => {
 };
 
 // Comprehensive audio debugging and fixing function
+export const handleStreamReception = (stream, participantId, participants) => {
+  console.log(`🔊 AUDIO-UTILS: handleStreamReception called for ${participantId}`);
+  console.log(`🔊 AUDIO-UTILS: Stream details:`, {
+    streamActive: stream.active,
+    audioTracksCount: stream.getAudioTracks().length,
+    videoTracksCount: stream.getVideoTracks().length,
+    streamId: stream.id
+  });
+  
+  // Force enable all audio tracks for incoming stream
+  const audioTracks = stream.getAudioTracks();
+  audioTracks.forEach((track, index) => {
+    console.log(`🔊 AUDIO-UTILS: Incoming audio track ${index} before fix:`, {
+      enabled: track.enabled,
+      muted: track.muted,
+      readyState: track.readyState,
+      label: track.label
+    });
+    
+    if (!track.enabled) {
+      track.enabled = true;
+      console.log(`🔊 AUDIO-UTILS: Force enabled incoming audio track ${index} for ${participantId}`);
+    }
+    if (track.muted) {
+      track.muted = false;
+      console.log(`🔊 AUDIO-UTILS: Force unmuted incoming audio track ${index} for ${participantId}`);
+    }
+  });
+  
+  // Force enable all video tracks for incoming stream
+  const videoTracks = stream.getVideoTracks();
+  videoTracks.forEach((track, index) => {
+    console.log(`🎥 AUDIO-UTILS: Incoming video track ${index} before fix:`, {
+      enabled: track.enabled,
+      readyState: track.readyState,
+      label: track.label
+    });
+    
+    if (!track.enabled) {
+      track.enabled = true;
+      console.log(`🎥 AUDIO-UTILS: Force enabled incoming video track ${index} for ${participantId}`);
+    }
+  });
+  
+  console.log(`🔊 AUDIO-UTILS: Stream reception handling completed for ${participantId}`);
+};
+
 export const fixAudioIssue = async (localStream, peersRef) => {
   console.log('🔧 AUDIO-UTILS: Starting comprehensive audio fix...');
   
