@@ -1170,10 +1170,10 @@ const useUltraSimplePeer = (meetingId, userName) => {
       }, 30000); // Increased to 30 seconds for stability in long meetings
     };
 
-    // Start health check when we have participants
-    if (participantsRef.current.length > 1) {
-      startHealthCheck();
-    }
+    // DISABLED: Health check to prevent duplicate connections and disconnections
+    // if (participantsRef.current.length > 1) {
+    //   startHealthCheck();
+    // }
 
     return () => {
       if (connectionHealthCheckRef.current) {
@@ -1941,15 +1941,16 @@ const useUltraSimplePeer = (meetingId, userName) => {
     });
   }, [localStream, createPeerConnection]);
 
-  // STABILITY: Periodic stability check for long meetings
+  // DISABLED: Periodic stability check to prevent duplicate connections and disconnections
+  // The stability system was causing duplicate remote videos and automatic disconnections
+  // This has been disabled to maintain stable connections
   useEffect(() => {
-    const stabilityInterval = setInterval(() => {
-      console.log('🛡️ UltraSimplePeer: Running periodic stability check...');
-      ensureConnectionStability();
-    }, 300000); // Run every 5 minutes for stability
+    console.log('🛡️ UltraSimplePeer: Stability check disabled to prevent connection issues');
     
-    return () => clearInterval(stabilityInterval);
-  }, [ensureConnectionStability]);
+    return () => {
+      // No cleanup needed since we're not running any intervals
+    };
+  }, []);
 
   // Make the hook globally accessible for consent dialog integration and audio testing
   useEffect(() => {
