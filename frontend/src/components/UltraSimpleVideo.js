@@ -407,64 +407,9 @@ const UltraSimpleVideo = ({
     });
   }, [remoteStreams]);
 
-  // ULTRA-AGGRESSIVE PROTECTION: Multiple layers of protection for host video
-  useEffect(() => {
-    const ultraProtectVideos = () => {
-      console.log('🛡️ UltraSimpleVideo: ULTRA-AGGRESSIVE PROTECTION running...');
-      
-      // Only protect videos for participants who are currently in the meeting
-      const currentParticipantIds = otherParticipants.map(p => p.id);
-      
-      currentParticipantIds.forEach(participantId => {
-        const videoElement = remoteVideoRefs.current[participantId];
-        const audioElement = remoteAudioRefs.current[participantId];
-        const stream = remoteStreams[participantId];
-        
-        if (stream && stream.active && stream.getTracks().length > 0) {
-          // ULTRA-AGGRESSIVE: Force video element to stay visible
-          if (videoElement) {
-            console.log(`🛡️ UltraSimpleVideo: ULTRA-PROTECTING video for ${participantId}`);
-            
-            // Always reassign stream (even if same)
-            videoElement.srcObject = stream;
-            
-            // Force all visibility properties
-            videoElement.style.display = 'block';
-            videoElement.style.visibility = 'visible';
-            videoElement.style.opacity = '1';
-            videoElement.style.position = 'relative';
-            videoElement.style.zIndex = '1';
-            
-            // Force play - REDUCED aggressive play attempts
-            videoElement.play().catch(() => {});
-            setTimeout(() => videoElement.play().catch(() => {}), 200);
-          }
-          
-          // ULTRA-AGGRESSIVE: Force audio element to stay active
-          if (audioElement) {
-            console.log(`🛡️ UltraSimpleVideo: ULTRA-PROTECTING audio for ${participantId}`);
-            audioElement.srcObject = stream;
-            audioElement.play().catch(() => {});
-            setTimeout(() => audioElement.play().catch(() => {}), 100);
-          }
-        }
-      });
-    };
-    
-    // Run immediately
-    ultraProtectVideos();
-    
-    // Run every 3 seconds - REDUCED frequency to prevent blinking
-    const interval1 = setInterval(ultraProtectVideos, 3000);
-    
-    // Run every 6 seconds as backup - MUCH less frequent
-    const interval2 = setInterval(ultraProtectVideos, 6000);
-    
-    return () => {
-      clearInterval(interval1);
-      clearInterval(interval2);
-    };
-  }, [remoteStreams, otherParticipants]);
+  // DISABLED: Ultra-aggressive protection completely removed to prevent interference
+  // The aggressive protection systems have been removed to prevent video blinking
+  // Use the "Fix Host Video Stream" button instead for manual fixes when needed
 
   // MINIMAL: Handle new participants joining - only when participant count changes
   useEffect(() => {
@@ -499,55 +444,9 @@ const UltraSimpleVideo = ({
     return () => clearTimeout(timeoutId);
   }, [otherParticipants.length]); // Only depend on participant count, not streams
 
-  // HOST VIDEO FORCE: Immediately force host video to be visible when participants change
-  useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Participants changed, FORCING host video visibility');
-    
-    // IMMEDIATE: Force local video to stay visible
-    if (localVideoRef.current && localStream) {
-      console.log('🎥 UltraSimpleVideo: FORCING local video to be visible');
-      localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.style.display = 'block';
-      localVideoRef.current.style.visibility = 'visible';
-      localVideoRef.current.style.opacity = '1';
-      localVideoRef.current.style.position = 'relative';
-      localVideoRef.current.style.zIndex = '1';
-      
-      // Force play - REDUCED aggressive play attempts
-      localVideoRef.current.play().catch(() => {});
-      setTimeout(() => localVideoRef.current.play().catch(() => {}), 200);
-    }
-    
-    // IMMEDIATE: Force remaining participant videos to stay visible
-    otherParticipants.forEach(participant => {
-      const videoElement = remoteVideoRefs.current[participant.id];
-      const audioElement = remoteAudioRefs.current[participant.id];
-      const stream = remoteStreams[participant.id];
-      
-      if (stream && stream.active && stream.getTracks().length > 0) {
-        if (videoElement) {
-          console.log(`🎥 UltraSimpleVideo: FORCING participant video to be visible for ${participant.id}`);
-          videoElement.srcObject = stream;
-          videoElement.style.display = 'block';
-          videoElement.style.visibility = 'visible';
-          videoElement.style.opacity = '1';
-          videoElement.style.position = 'relative';
-          videoElement.style.zIndex = '1';
-          
-          // Force play - REDUCED aggressive play attempts
-          videoElement.play().catch(() => {});
-          setTimeout(() => videoElement.play().catch(() => {}), 200);
-        }
-        
-        if (audioElement) {
-          console.log(`🔊 UltraSimpleVideo: FORCING participant audio to be active for ${participant.id}`);
-          audioElement.srcObject = stream;
-          audioElement.play().catch(() => {});
-          setTimeout(() => audioElement.play().catch(() => {}), 100);
-        }
-      }
-    });
-  }, [otherParticipants.length, localStream, remoteStreams]);
+  // DISABLED: Host video force completely removed to prevent interference
+  // The aggressive protection systems have been removed to prevent video blinking
+  // Use the "Fix Host Video Stream" button instead for manual fixes when needed
 
   // EMERGENCY: Global function to force host video visibility
   useEffect(() => {
@@ -605,48 +504,9 @@ const UltraSimpleVideo = ({
     };
   }, [remoteStreams]);
 
-  // MINIMAL NUCLEAR OPTION: Only run when needed, not continuously
-  useEffect(() => {
-    const minimalNuclearOption = () => {
-      console.log('☢️ MINIMAL: Checking video elements...');
-      
-      // Find ALL video elements in the DOM
-      const allVideos = document.querySelectorAll('video');
-      let needsFix = false;
-      
-      allVideos.forEach((video, index) => {
-        // Only fix if video has a stream but is not visible or not playing
-        if (video.srcObject && (video.style.display === 'none' || video.paused || video.style.opacity === '0')) {
-          console.log(`☢️ MINIMAL: Video ${index} needs fixing - has stream but not visible/playing`);
-          needsFix = true;
-          
-          // Only fix what's actually broken
-          if (video.style.display === 'none') {
-            video.style.display = 'block';
-          }
-          if (video.style.opacity === '0') {
-            video.style.opacity = '1';
-          }
-          if (video.paused) {
-            video.play().catch(() => {});
-          }
-        }
-      });
-      
-      // Only log if something was actually fixed
-      if (needsFix) {
-        console.log('☢️ MINIMAL: Fixed video visibility issues');
-      }
-    };
-    
-    // Run immediately
-    minimalNuclearOption();
-    
-    // Run every 5 seconds - MUCH less frequent
-    const interval = setInterval(minimalNuclearOption, 5000);
-    
-    return () => clearInterval(interval);
-  }, []);
+  // DISABLED: Nuclear option completely removed to prevent interference
+  // The aggressive protection systems have been removed to prevent video blinking
+  // Use the "Fix Host Video Stream" button instead for manual fixes when needed
 
   // CLEANUP: Clean up video elements when component unmounts
   useEffect(() => {
@@ -1636,6 +1496,94 @@ const UltraSimpleVideo = ({
               }}
             >
               🔊 Fix Audio Issues
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🎥 FIX HOST VIDEO: Force making host video visible in participant browser...');
+                
+                // Find ALL video elements in the DOM
+                const allVideos = document.querySelectorAll('video');
+                console.log(`🎥 FIX HOST VIDEO: Found ${allVideos.length} total video elements`);
+                
+                allVideos.forEach((video, index) => {
+                  console.log(`🎥 FIX HOST VIDEO: Video ${index}:`, {
+                    hasSrcObject: !!video.srcObject,
+                    srcObjectId: video.srcObject?.id,
+                    display: video.style.display,
+                    visibility: video.style.visibility,
+                    opacity: video.style.opacity,
+                    paused: video.paused,
+                    videoWidth: video.videoWidth,
+                    videoHeight: video.videoHeight
+                  });
+                  
+                  // FORCE all video elements to be visible and playing
+                  video.style.display = 'block';
+                  video.style.visibility = 'visible';
+                  video.style.opacity = '1';
+                  video.style.position = 'relative';
+                  video.style.zIndex = '999';
+                  video.style.width = '100%';
+                  video.style.height = '100%';
+                  
+                  // Force play multiple times with delays
+                  video.play().catch(err => console.log(`🎥 FIX HOST VIDEO: Play failed for video ${index}:`, err));
+                  setTimeout(() => video.play().catch(() => {}), 100);
+                  setTimeout(() => video.play().catch(() => {}), 500);
+                  setTimeout(() => video.play().catch(() => {}), 1000);
+                  
+                  console.log(`🎥 FIX HOST VIDEO: Applied fixes to video ${index}`);
+                });
+                
+                // Also force through refs
+                Object.keys(remoteVideoRefs.current).forEach(participantId => {
+                  const videoElement = remoteVideoRefs.current[participantId];
+                  const stream = remoteStreams[participantId];
+                  
+                  if (videoElement && stream) {
+                    console.log(`🎥 FIX HOST VIDEO: Force fixing video for ${participantId}`);
+                    videoElement.srcObject = stream;
+                    videoElement.style.display = 'block';
+                    videoElement.style.visibility = 'visible';
+                    videoElement.style.opacity = '1';
+                    videoElement.style.position = 'relative';
+                    videoElement.style.zIndex = '999';
+                    videoElement.style.width = '100%';
+                    videoElement.style.height = '100%';
+                    
+                    // Force play multiple times
+                    videoElement.play().catch(() => {});
+                    setTimeout(() => videoElement.play().catch(() => {}), 100);
+                    setTimeout(() => videoElement.play().catch(() => {}), 500);
+                    setTimeout(() => videoElement.play().catch(() => {}), 1000);
+                  }
+                });
+                
+                // Force local video if it exists
+                if (localVideoRef.current && localStream) {
+                  console.log('🎥 FIX HOST VIDEO: Force fixing local video');
+                  localVideoRef.current.srcObject = localStream;
+                  localVideoRef.current.style.display = 'block';
+                  localVideoRef.current.style.visibility = 'visible';
+                  localVideoRef.current.style.opacity = '1';
+                  localVideoRef.current.style.position = 'relative';
+                  localVideoRef.current.style.zIndex = '999';
+                  localVideoRef.current.style.width = '100%';
+                  localVideoRef.current.style.height = '100%';
+                  
+                  // Force play multiple times
+                  localVideoRef.current.play().catch(() => {});
+                  setTimeout(() => localVideoRef.current.play().catch(() => {}), 100);
+                  setTimeout(() => localVideoRef.current.play().catch(() => {}), 500);
+                  setTimeout(() => localVideoRef.current.play().catch(() => {}), 1000);
+                }
+                
+                console.log('🎥 FIX HOST VIDEO: Host video fix completed!');
+              }}
+            >
+              🎥 Fix Host Video Stream
             </button>
             
             {/* Individual Remove Buttons for Testing */}
