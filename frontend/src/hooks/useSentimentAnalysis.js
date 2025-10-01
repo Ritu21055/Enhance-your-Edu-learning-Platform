@@ -76,15 +76,32 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
         return;
       }
 
-      // CRITICAL: Check if video has valid dimensions
+      // ENHANCED: Multiple validation checks to prevent canvas errors
       if (video.videoWidth === 0 || video.videoHeight === 0) {
         console.log('🧠 Video has zero dimensions, skipping analysis');
         return;
       }
 
-      // CRITICAL: Check if video is actually visible
       if (video.offsetWidth === 0 || video.offsetHeight === 0) {
         console.log('🧠 Video element has zero display dimensions, skipping analysis');
+        return;
+      }
+
+      // ENHANCED: Check if video is actually playing and has content
+      if (video.paused || video.ended) {
+        console.log('🧠 Video is paused or ended, skipping analysis');
+        return;
+      }
+
+      // ENHANCED: Check if video has been loaded enough
+      if (video.readyState < 2) {
+        console.log('🧠 Video not ready (readyState < 2), skipping analysis');
+        return;
+      }
+
+      // ENHANCED: Check if video has a valid source
+      if (!video.srcObject && !video.src) {
+        console.log('🧠 Video has no source, skipping analysis');
         return;
       }
 
@@ -101,17 +118,29 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
         canvasWidth = canvasHeight * aspectRatio;
       }
 
-      // CRITICAL: Ensure canvas dimensions are valid
+      // ENHANCED: Ensure canvas dimensions are valid
       if (canvasWidth <= 0 || canvasHeight <= 0) {
         console.log('🧠 Invalid canvas dimensions, skipping analysis');
         return;
       }
 
-      canvas.width = canvasWidth;
-      canvas.height = canvasHeight;
+      // ENHANCED: Additional validation before canvas operations
+      if (!ctx) {
+        console.log('🧠 Canvas context not available, skipping analysis');
+        return;
+      }
 
-      // Draw current video frame to canvas with optimized size
-      ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
+      // ENHANCED: Try-catch around canvas operations
+      try {
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        // Draw current video frame to canvas with optimized size
+        ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
+      } catch (canvasError) {
+        console.log('🧠 Canvas operation failed, skipping analysis:', canvasError.message);
+        return;
+      }
 
       // Use more sensitive face detection options for better detection
       const detectionOptions = new faceapi.TinyFaceDetectorOptions({
@@ -289,8 +318,12 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
       canvasRef.current = document.createElement('canvas');
     }
 
-    // Analyze every 2 seconds for more responsive updates
-    analysisIntervalRef.current = setInterval(analyzeSentiment, 2000);
+    // ENHANCED: Add delay to let video elements stabilize before starting analysis
+    setTimeout(() => {
+      console.log('🧠 Starting sentiment analysis after stabilization delay...');
+      // Analyze every 2 seconds for more responsive updates
+      analysisIntervalRef.current = setInterval(analyzeSentiment, 2000);
+    }, 3000); // 3 second delay to let videos stabilize
     
     // Also send an initial neutral sentiment to test the system
     setTimeout(() => {

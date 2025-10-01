@@ -611,32 +611,30 @@ const UltraSimpleVideo = ({
     };
   }, [remoteStreams]);
 
-  // NUCLEAR OPTION: Constant DOM manipulation every 500ms
+  // REDUCED NUCLEAR OPTION: Less aggressive DOM manipulation every 2 seconds
   useEffect(() => {
     const nuclearOption = () => {
-      console.log('☢️ NUCLEAR: Constant DOM manipulation for host video...');
+      console.log('☢️ NUCLEAR: DOM manipulation for host video...');
       
       // Find ALL video elements in the DOM and force them
       const allVideos = document.querySelectorAll('video');
       
       allVideos.forEach((video, index) => {
-        // Force visibility on ALL video elements
-        video.style.display = 'block';
-        video.style.visibility = 'visible';
-        video.style.opacity = '1';
-        video.style.position = 'relative';
-        video.style.zIndex = '999';
-        video.style.width = '100%';
-        video.style.height = '100%';
-        
-        // Force play
-        video.play().catch(() => {});
-        
-        // If it has a stream, make sure it's assigned
+        // Only force if video has a stream
         if (video.srcObject) {
           console.log(`☢️ NUCLEAR: Video ${index} has stream, ensuring it's visible`);
+          
+          // Force visibility on video elements with streams
+          video.style.display = 'block';
+          video.style.visibility = 'visible';
+          video.style.opacity = '1';
+          video.style.position = 'relative';
+          video.style.zIndex = '999';
+          
+          // Force play
+          video.play().catch(() => {});
         } else {
-          console.log(`☢️ NUCLEAR: Video ${index} has NO stream`);
+          console.log(`☢️ NUCLEAR: Video ${index} has NO stream - skipping`);
         }
       });
     };
@@ -644,8 +642,8 @@ const UltraSimpleVideo = ({
     // Run immediately
     nuclearOption();
     
-    // Run every 500ms - NUCLEAR OPTION
-    const interval = setInterval(nuclearOption, 500);
+    // Run every 2 seconds - REDUCED frequency
+    const interval = setInterval(nuclearOption, 2000);
     
     return () => clearInterval(interval);
   }, []);
