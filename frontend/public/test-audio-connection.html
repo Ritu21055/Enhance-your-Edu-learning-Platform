@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Audio Connection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔊 Test Audio Connection</h1>
+    
+    <div class="test-section">
+        <h3>🎯 Test Audio Utilities</h3>
+        <p>This page tests if the audio utilities are working properly.</p>
+        
+        <button onclick="testAudioUtils()">Test Audio Utils</button>
+        <button onclick="testHostAudio()">Test Host Audio</button>
+        <button onclick="testParticipantAudio()">Test Participant Audio</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Test Results</h3>
+        <div id="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>📝 Console Log</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        async function testAudioUtils() {
+            log('🎯 Testing Audio Utils...', 'info');
+            
+            try {
+                // Test if audio utilities are available
+                const response = await fetch('/src/utils/audioUtils.js');
+                if (response.ok) {
+                    log('✅ Audio utilities file is accessible', 'success');
+                } else {
+                    log('❌ Audio utilities file not found', 'error');
+                }
+                
+                // Test audio constraints
+                const constraints = {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 48000,
+                    channelCount: 1
+                };
+                
+                log(`✅ Audio constraints created: ${JSON.stringify(constraints)}`, 'success');
+                
+                // Test with real stream
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: constraints
+                });
+                
+                log(`✅ Stream created with ${stream.getAudioTracks().length} audio tracks`, 'success');
+                
+                // Test audio track enabling
+                const audioTracks = stream.getAudioTracks();
+                audioTracks.forEach((track, index) => {
+                    if (!track.enabled) {
+                        track.enabled = true;
+                        log(`✅ Force enabled audio track ${index}`, 'success');
+                    }
+                    if (track.muted) {
+                        track.muted = false;
+                        log(`✅ Force unmuted audio track ${index}`, 'success');
+                    }
+                });
+                
+                // Clean up
+                stream.getTracks().forEach(track => track.stop());
+                
+                log('🎯 Audio Utils test completed successfully!', 'success');
+                
+            } catch (error) {
+                log(`❌ Audio Utils test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testHostAudio() {
+            log('🎤 Testing Host Audio...', 'info');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                // Simulate peer connection
+                const mockPeer = {
+                    addStream: (stream) => {
+                        log(`🔊 Mock peer: Stream added with ${stream.getAudioTracks().length} audio tracks`);
+                    }
+                };
+                
+                // Test host audio transmission
+                log(`🔊 Testing host audio transmission...`);
+                
+                // Force enable all audio tracks for host transmission
+                const audioTracks = stream.getAudioTracks();
+                audioTracks.forEach((track, index) => {
+                    if (!track.enabled) {
+                        track.enabled = true;
+                        log(`🔊 Force enabled host audio track ${index}`);
+                    }
+                    if (track.muted) {
+                        track.muted = false;
+                        log(`🔊 Force unmuted host audio track ${index}`);
+                    }
+                });
+                
+                // Force re-add stream multiple times to ensure transmission
+                setTimeout(() => {
+                    try {
+                        mockPeer.addStream(stream);
+                        log(`🔊 Force re-added host stream (attempt 1)`);
+                    } catch (reAddError) {
+                        log(`🔊 Host stream already added (attempt 1):`, reAddError.message);
+                    }
+                }, 100);
+                
+                setTimeout(() => {
+                    try {
+                        mockPeer.addStream(stream);
+                        log(`🔊 Force re-added host stream (attempt 2)`);
+                    } catch (reAddError) {
+                        log(`🔊 Host stream already added (attempt 2):`, reAddError.message);
+                    }
+                }, 500);
+                
+                log(`✅ Host audio transmission test completed`, 'success');
+                
+                // Clean up
+                stream.getTracks().forEach(track => track.stop());
+                
+            } catch (error) {
+                log(`❌ Host audio test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testParticipantAudio() {
+            log('👥 Testing Participant Audio...', 'info');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                // Create audio element
+                const audioElement = document.createElement('audio');
+                document.body.appendChild(audioElement);
+                
+                // Test audio element configuration
+                audioElement.muted = false;
+                audioElement.volume = 1.0;
+                audioElement.autoplay = true;
+                audioElement.playsInline = true;
+                audioElement.srcObject = stream;
+                
+                // Force play
+                audioElement.play().then(() => {
+                    log('✅ Participant audio playback successful', 'success');
+                }).catch(err => {
+                    log(`❌ Participant audio playback failed: ${err.message}`, 'error');
+                });
+                
+                // Force enable audio tracks
+                const audioTracks = stream.getAudioTracks();
+                audioTracks.forEach((track, index) => {
+                    if (!track.enabled) {
+                        track.enabled = true;
+                        log(`✅ Force enabled audio track ${index}`);
+                    }
+                    if (track.muted) {
+                        track.muted = false;
+                        log(`✅ Force unmuted audio track ${index}`);
+                    }
+                });
+                
+                // Clean up
+                setTimeout(() => {
+                    stream.getTracks().forEach(track => track.stop());
+                    document.body.removeChild(audioElement);
+                }, 3000);
+                
+            } catch (error) {
+                log(`❌ Participant audio test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize
+        log('🚀 Audio Connection Test Ready', 'success');
+    </script>
+</body>
+</html>

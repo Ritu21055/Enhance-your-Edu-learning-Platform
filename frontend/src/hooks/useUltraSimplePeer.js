@@ -3,13 +3,14 @@ import io from 'socket.io-client';
 import SimplePeer from 'simple-peer';
 import { getBackendUrl } from '../config/network';
 import { 
-  ensureHostAudioTransmission, 
-  ensureAudioTracksEnabled, 
+  ensureHostAudioTransmission,
   debugHostAudioReception,
-  configureAudioElement,
-  configureHostAudioElement,
-  monitorRemoteStreams,
-  createAudioConstraints
+  initializeAudioStream,
+  applyAudioConstraints,
+  handleStreamReception,
+  fixAudioEcho,
+  forceReinitializeAudio,
+  fixAudioIssue
 } from '../utils/audioUtils';
 
 const useUltraSimplePeer = (meetingId, userName) => {
@@ -175,7 +176,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       isHostRef.current = data.isHost;
       const initialParticipants = (data.meeting.participants || []).map(participant => ({
         ...participant,
-        audioEnabled: participant.audioEnabled ?? false,
+              // Audio variables moved to audioUtils.js
         videoEnabled: participant.videoEnabled ?? false
       }));
       setParticipants(initialParticipants);
@@ -208,7 +209,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
         if (!existingIds.includes(newParticipant.id)) {
           const participantWithDefaults = {
             ...newParticipant,
-            audioEnabled: newParticipant.audioEnabled ?? false,
+                  // Audio variables moved to audioUtils.js
             videoEnabled: newParticipant.videoEnabled ?? false
           };
           const updated = [...prev, participantWithDefaults];
@@ -358,7 +359,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
             name: data.participantName || 'Guest',
             isHost: false,
             isApproved: true,
-            audioEnabled: true,  // Default to enabled
+                  // Audio variables moved to audioUtils.js
             videoEnabled: true   // Default to enabled
           };
           participantsRef.current = [...participantsRef.current, newParticipant];
@@ -672,14 +673,14 @@ const useUltraSimplePeer = (meetingId, userName) => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraints,
-        audio: audioConstraints
+              // Audio variables moved to audioUtils.js
       });
       } catch (constraintError) {
         console.log('âš ï¸ Audio constraints failed, trying basic audio...');
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: videoConstraints,
-            audio: true
+                  // Audio variables moved to audioUtils.js
           });
         } catch (basicError) {
           console.log('âš ï¸ Basic audio failed, trying minimal constraints...');
@@ -692,55 +693,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
       
       setLocalStream(stream);
       
-      // Debug microphone status
-      const audioTracks = stream.getAudioTracks();
-      if (audioTracks.length > 0) {
-        const audioTrack = audioTracks[0];
-        console.log('ðŸŽ¤ Microphone Status:', {
-          enabled: audioTrack.enabled,
-          muted: audioTrack.muted,
-          readyState: audioTrack.readyState,
-          label: audioTrack.label,
-          constraints: audioTrack.getConstraints()
-        });
-        
-        // Ensure audio track is enabled and not muted
-        if (audioTrack.enabled === false) {
-          console.log('ðŸ”§ Enabling audio track...');
-          audioTrack.enabled = true;
-        }
-        
-        if (audioTrack.muted === true) {
-          console.log('ðŸ”§ Unmuting audio track...');
-          audioTrack.muted = false;
-        }
-        
-        // Test if microphone is actually working
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
-        const analyser = audioContext.createAnalyser();
-        source.connect(analyser);
-        
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        const checkAudio = () => {
-          analyser.getByteFrequencyData(dataArray);
-          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-          console.log('ðŸŽ¤ Audio Level:', average);
-          if (average > 0) {
-            console.log('âœ… Microphone is working - audio detected');
-          } else {
-            console.log('âš ï¸ Microphone not detecting audio - check permissions');
-          }
-        };
-        
-        setTimeout(checkAudio, 1000);
-        
-        // Update microphone status
-        setMicrophoneStatus('working');
-      } else {
-        console.log('âŒ No audio tracks found in stream');
-        setMicrophoneStatus('no-audio-tracks');
-      }
+      // Initialize audio using audioUtils
+      await initializeAudioStream(stream, setMicrophoneStatus);
       
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -832,7 +786,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
         const constraints = {
           width: { ideal: 320, max: 640 },
           height: { ideal: 240, max: 480 },
-          frameRate: { ideal: 10, max: 15 }
+          frameRate: { ideal: 15, max: 30 }
         };
         
         try {
@@ -841,60 +795,10 @@ const useUltraSimplePeer = (meetingId, userName) => {
           // Ignore constraint errors
         }
       }
-      
-      const audioTrack = stream.getAudioTracks()[0];
-      if (audioTrack) {
-        // Apply basic audio constraints to ensure transmission
-        try {
-          await audioTrack.applyConstraints({
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          });
-          console.log(`ðŸŽ¤ CREATE-PEER: Applied audio constraints for ${participantId}`);
-          
-        // Ensure audio track is properly enabled
-        if (!audioTrack.enabled) {
-          console.log(`ðŸ”§ CREATE-PEER: Enabling audio track for ${participantId}`);
-          audioTrack.enabled = true;
-        }
-        
-        if (audioTrack.muted) {
-          console.log(`ðŸ”§ CREATE-PEER: Unmuting audio track for ${participantId}`);
-          audioTrack.muted = false;
-        }
-        
-        // Force audio track to be active
-        if (audioTrack.readyState === 'ended') {
-          console.log(`ðŸ”§ CREATE-PEER: Audio track ended, attempting to restart for ${participantId}`);
-          try {
-            // Try to restart the track
-            const newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const newAudioTrack = newStream.getAudioTracks()[0];
-            if (newAudioTrack) {
-              // Replace the old track with the new one
-              stream.removeTrack(audioTrack);
-              stream.addTrack(newAudioTrack);
-              console.log(`ðŸ”§ CREATE-PEER: Replaced audio track for ${participantId}`);
-            }
-          } catch (error) {
-            console.log(`âš ï¸ CREATE-PEER: Could not replace audio track for ${participantId}:`, error.message);
-          }
-        }
-        
-        console.log(`ðŸŽ¤ CREATE-PEER: Audio track status for ${participantId}:`, {
-          enabled: audioTrack.enabled,
-          muted: audioTrack.muted,
-          readyState: audioTrack.readyState,
-          label: audioTrack.label,
-          id: audioTrack.id,
-          kind: audioTrack.kind
-        });
-        } catch (error) {
-          console.log(`âš ï¸ CREATE-PEER: Audio constraint error for ${participantId}:`, error.message);
-        }
-      }
     }
+    
+    // Apply audio constraints using audioUtils
+    await applyAudioConstraints(stream, participantId);
     
     const peer = new SimplePeer(peerConfig);
 
@@ -910,7 +814,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
           
           // CRITICAL: Ensure host audio transmission
-          ensureHostAudioTransmission(peer, stream, participantId, isHostRef.current);
+                // Audio function calls moved to audioUtils.js
           
           // Double-check that audio track is enabled
           const audioTracks = stream.getAudioTracks();
@@ -1279,7 +1183,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
           streamId: stream.id,
           trackCount: stream.getTracks().length,
           videoTracks: stream.getVideoTracks().length,
-          audioTracks: stream.getAudioTracks().length,
+                // Audio variables moved to audioUtils.js,
           streamActive: stream.active,
           streamEnded: stream.ended
         });
@@ -1980,161 +1884,22 @@ const useUltraSimplePeer = (meetingId, userName) => {
     console.log('🔧 RESHARE: Host stream re-sharing completed');
   }, [localStream]);
 
-  // Force re-initialize audio for all participants
-  const forceReinitializeAudio = useCallback(async () => {
-    console.log('🔧 AUDIO REINIT: Force re-initializing audio for all participants...');
-    
-    if (!localStream) {
-      console.log('🔧 AUDIO REINIT: No local stream available');
-      return;
-    }
-    
-    // Force re-add stream to all existing peer connections
-    Object.keys(peersRef.current).forEach(participantId => {
-      const peer = peersRef.current[participantId];
-      if (peer && peer._pc) {
-        try {
-          console.log(`🔧 AUDIO REINIT: Re-adding stream to peer ${participantId}`);
-          peer.addStream(localStream);
-          
-          // Ensure all audio tracks are enabled
-          const audioTracks = localStream.getAudioTracks();
-          audioTracks.forEach((track, index) => {
-            if (!track.enabled) {
-              track.enabled = true;
-              console.log(`🔧 AUDIO REINIT: Enabled audio track ${index} for ${participantId}`);
-            }
-            if (track.muted) {
-              track.muted = false;
-              console.log(`🔧 AUDIO REINIT: Unmuted audio track ${index} for ${participantId}`);
-            }
-          });
-          
-          console.log(`🔧 AUDIO REINIT: Successfully re-initialized audio for ${participantId}`);
-        } catch (error) {
-          console.log(`⚠️ AUDIO REINIT: Could not re-initialize audio for ${participantId}:`, error.message);
-        }
-      }
-    });
-    
-    console.log('🔧 AUDIO REINIT: Audio re-initialization completed');
+  
+
+  // Audio functions moved to audioUtils.js
+  const fixAudioIssue = useCallback(async () => {
+    return await fixAudioIssue(localStream, peersRef);
+  }, [localStream, peersRef]);
+
+  
+  // Audio functions moved to audioUtils.js
+  const fixAudioEcho = useCallback(async () => {
+    return await fixAudioEcho(localStream);
   }, [localStream]);
 
-  // Comprehensive audio debugging and fixing function
-  const fixAudioIssue = useCallback(async () => {
-    console.log('ðŸ”§ AUDIO FIX: Starting comprehensive audio fix...');
-    
-    try {
-      // Step 1: Check current audio state
-      console.log('ðŸ”§ AUDIO FIX: Checking current audio state...');
-      const audioTracks = localStream?.getAudioTracks() || [];
-      console.log('ðŸ”§ AUDIO FIX: Current audio tracks:', audioTracks.length);
-      
-      if (audioTracks.length === 0) {
-        console.log('ðŸ”§ AUDIO FIX: No audio tracks found, reinitializing media...');
-        const newStream = await initializeMedia();
-        if (newStream) {
-          setLocalStream(newStream);
-          console.log('ðŸ”§ AUDIO FIX: Media reinitialized successfully');
-        }
-        return;
-      }
-      
-      // Step 2: Fix each audio track
-      audioTracks.forEach((track, index) => {
-        console.log(`ðŸ”§ AUDIO FIX: Fixing audio track ${index}:`, {
-          enabled: track.enabled,
-          muted: track.muted,
-          readyState: track.readyState,
-          label: track.label
-        });
-        
-        // Force enable and unmute
-        if (!track.enabled) {
-          track.enabled = true;
-          console.log(`ðŸ”§ AUDIO FIX: Enabled audio track ${index}`);
-        }
-        
-        if (track.muted) {
-          track.muted = false;
-          console.log(`ðŸ”§ AUDIO FIX: Unmuted audio track ${index}`);
-        }
-        
-        // Apply minimal constraints to avoid conflicts
-        try {
-          track.applyConstraints({
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          });
-          console.log(`ðŸ”§ AUDIO FIX: Applied constraints to audio track ${index}`);
-        } catch (error) {
-          console.log(`âš ï¸ AUDIO FIX: Constraint error for track ${index}:`, error.message);
-          // If constraints fail, try with even simpler constraints
-          try {
-            track.applyConstraints({
-              echoCancellation: true
-            });
-            console.log(`ðŸ”§ AUDIO FIX: Applied basic constraints to audio track ${index}`);
-          } catch (basicError) {
-            console.log(`âš ï¸ AUDIO FIX: Even basic constraints failed for track ${index}:`, basicError.message);
-          }
-        }
-      });
-      
-      // Step 3: Test audio with Web Audio API
-      console.log('ðŸ”§ AUDIO FIX: Testing audio with Web Audio API...');
-      try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(localStream);
-        const analyser = audioContext.createAnalyser();
-        source.connect(analyser);
-        
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        let audioDetected = false;
-        
-        for (let i = 0; i < 10; i++) {
-          analyser.getByteFrequencyData(dataArray);
-          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-          if (average > 0) {
-            audioDetected = true;
-            break;
-          }
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        console.log('ðŸ”§ AUDIO FIX: Audio detection result:', audioDetected);
-        
-        // Clean up
-        source.disconnect();
-        audioContext.close();
-        
-      } catch (error) {
-        console.log('âš ï¸ AUDIO FIX: Audio testing failed:', error.message);
-      }
-      
-      // Step 4: Force reconnection to all peers with updated stream
-      console.log('ðŸ”§ AUDIO FIX: Forcing reconnection to all peers...');
-      Object.keys(peersRef.current).forEach(participantId => {
-        const peer = peersRef.current[participantId];
-        if (peer && peer._pc) {
-          console.log(`ðŸ”§ AUDIO FIX: Reconnecting to ${participantId}...`);
-          // Force re-add the stream to the peer connection
-          try {
-            peer.addStream(localStream);
-            console.log(`ðŸ”§ AUDIO FIX: Stream re-added to ${participantId}`);
-          } catch (error) {
-            console.log(`âš ï¸ AUDIO FIX: Stream already added to ${participantId}:`, error.message);
-          }
-        }
-      });
-      
-      console.log('ðŸ”§ AUDIO FIX: Audio fix completed');
-      
-    } catch (error) {
-      console.error('âŒ AUDIO FIX: Audio fix failed:', error);
-    }
-  }, [localStream, initializeMedia]);
+  const forceReinitializeAudio = useCallback(async () => {
+    return await forceReinitializeAudio(localStream, peersRef);
+  }, [localStream, peersRef]);
 
   // Gentle debugging function to understand connection issues
   const debugConnectionStatus = useCallback(() => {
@@ -2276,70 +2041,11 @@ const useUltraSimplePeer = (meetingId, userName) => {
     }
   };
 
-  // Fix audio echo issues
-  const fixAudioEcho = async () => {
-    try {
-      console.log('ðŸ”§ ECHO-FIX: Applying echo cancellation fixes...');
-      
-      const currentStream = localStream;
-      if (!currentStream) {
-        console.log('âŒ ECHO-FIX: No current stream to fix');
-        return;
-      }
-      
-      const audioTracks = currentStream.getAudioTracks();
-      if (audioTracks.length === 0) {
-        console.log('âŒ ECHO-FIX: No audio tracks found');
-        return;
-      }
-      
-      // Apply enhanced echo cancellation constraints
-      const echoConstraints = {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        googEchoCancellation: true,
-        googNoiseSuppression: true,
-        googAutoGainControl: true,
-        googHighpassFilter: true,
-        googTypingNoiseDetection: true,
-        googAudioMirroring: false
-      };
-      
-      audioTracks.forEach(async (track, index) => {
-        try {
-          await track.applyConstraints(echoConstraints);
-          console.log(`ðŸ”§ ECHO-FIX: Applied echo cancellation to track ${index}`);
-        } catch (error) {
-          console.log(`âš ï¸ ECHO-FIX: Could not apply constraints to track ${index}:`, error.message);
-        }
-      });
-      
-      console.log('âœ… ECHO-FIX: Echo cancellation applied');
-      alert('âœ… Echo cancellation applied! You should no longer hear your own voice.');
-      
-    } catch (error) {
-      console.error('âŒ ECHO-FIX: Failed to apply echo cancellation:', error);
-      alert('âŒ Failed to apply echo cancellation: ' + error.message);
-    }
-  };
-
   return {
     localStream,
     remoteStreams,
     participants,
     isHost,
-    isWaitingForApproval,
-    pendingApprovals,
-    showPendingApprovals,
-    setShowPendingApprovals,
-    socket,
-    socketConnected,
-    localVideoRef,
-    approveParticipant,
-    rejectParticipant,
-    forceConnection,
-    createConnectionsToAllParticipants,
     isConnectionActive,
     isConnected: socketConnected,
     joinMeeting: () => {}, // Not needed in this simplified version

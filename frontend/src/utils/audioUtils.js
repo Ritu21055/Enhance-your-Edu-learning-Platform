@@ -9,7 +9,12 @@
  * @param {boolean} isHost - Whether the current user is the host
  */
 export const ensureHostAudioTransmission = (peer, stream, participantId, isHost) => {
-  if (!isHost) return;
+  console.log(`🔊 AUDIO-UTILS: ensureHostAudioTransmission called for ${participantId}, isHost: ${isHost}`);
+  
+  if (!isHost) {
+    console.log(`🔊 AUDIO-UTILS: Not host, skipping audio transmission for ${participantId}`);
+    return;
+  }
   
   console.log(`🔊 AUDIO-UTILS: Host detected, ensuring audio transmission to ${participantId}`);
   console.log(`🔊 AUDIO-UTILS: Host stream details:`, {
@@ -96,7 +101,11 @@ export const ensureAudioTracksEnabled = (stream, participantId) => {
  * @param {Array} participants - Array of participants
  */
 export const debugHostAudioReception = (stream, participantId, participants) => {
+  console.log(`🔊 AUDIO-UTILS: debugHostAudioReception called for ${participantId}`);
+  console.log(`🔊 AUDIO-UTILS: Participants:`, participants.map(p => ({ id: p.id, name: p.name, isHost: p.isHost })));
+  
   const isHost = participants.find(p => p.id === participantId)?.isHost;
+  console.log(`🔊 AUDIO-UTILS: Is host check for ${participantId}: ${isHost}`);
   
   if (isHost) {
     console.log(`🔊 AUDIO-UTILS: HOST STREAM RECEIVED from ${participantId}`);
@@ -338,6 +347,319 @@ export const testAudioFunctionality = async () => {
   }
 };
 
+// Comprehensive audio initialization and management
+export const initializeAudioStream = async (stream, setMicrophoneStatus) => {
+  console.log('🔊 AUDIO-UTILS: Initializing audio stream');
+  
+  if (!stream) {
+    console.log('❌ AUDIO-UTILS: No stream provided');
+    setMicrophoneStatus('no-stream');
+    return null;
+  }
+
+  const audioTracks = stream.getAudioTracks();
+  if (audioTracks.length === 0) {
+    console.log('❌ AUDIO-UTILS: No audio tracks found in stream');
+    setMicrophoneStatus('no-audio-tracks');
+    return null;
+  }
+
+  const audioTrack = audioTracks[0];
+  console.log('🎤 AUDIO-UTILS: Microphone Status:', {
+    enabled: audioTrack.enabled,
+    muted: audioTrack.muted,
+    readyState: audioTrack.readyState,
+    label: audioTrack.label,
+    constraints: audioTrack.getConstraints()
+  });
+
+  // Ensure audio track is enabled and not muted
+  if (audioTrack.enabled === false) {
+    console.log('🔧 AUDIO-UTILS: Enabling audio track...');
+    audioTrack.enabled = true;
+  }
+
+  if (audioTrack.muted === true) {
+    console.log('🔧 AUDIO-UTILS: Unmuting audio track...');
+    audioTrack.muted = false;
+  }
+
+  // Test if microphone is actually working
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const checkAudio = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+      console.log('🎤 AUDIO-UTILS: Audio Level:', average);
+      if (average > 0) {
+        console.log('✅ AUDIO-UTILS: Microphone is working - audio detected');
+        setMicrophoneStatus('working');
+      } else {
+        console.log('⚠️ AUDIO-UTILS: Microphone not detecting audio - check permissions');
+        setMicrophoneStatus('no-audio-detected');
+      }
+    };
+
+    setTimeout(checkAudio, 1000);
+  } catch (error) {
+    console.log('❌ AUDIO-UTILS: Audio context error:', error);
+    setMicrophoneStatus('audio-context-error');
+  }
+
+  return audioTrack;
+};
+
+// Handle audio constraints for peer connections
+export const applyAudioConstraints = async (stream, participantId) => {
+  console.log(`🔊 AUDIO-UTILS: Applying audio constraints for ${participantId}`);
+  
+  if (!stream) {
+    console.log('❌ AUDIO-UTILS: No stream provided for constraints');
+    return;
+  }
+
+  const audioTracks = stream.getAudioTracks();
+  if (audioTracks.length === 0) {
+    console.log('❌ AUDIO-UTILS: No audio tracks found for constraints');
+    return;
+  }
+
+  const audioTrack = audioTracks[0];
+  
+  try {
+    await audioTrack.applyConstraints({
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    });
+    console.log(`✅ AUDIO-UTILS: Applied audio constraints for ${participantId}`);
+  } catch (error) {
+    console.log(`❌ AUDIO-UTILS: Audio constraint error for ${participantId}:`, error.message);
+  }
+
+  // Ensure audio track is properly enabled
+  if (!audioTrack.enabled) {
+    console.log(`🔧 AUDIO-UTILS: Enabling audio track for ${participantId}`);
+    audioTrack.enabled = true;
+  }
+
+  if (audioTrack.muted) {
+    console.log(`🔧 AUDIO-UTILS: Unmuting audio track for ${participantId}`);
+    audioTrack.muted = false;
+  }
+
+  // Force audio track to be active
+  if (audioTrack.readyState === 'ended') {
+    console.log(`🔧 AUDIO-UTILS: Audio track ended, attempting to restart for ${participantId}`);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const newAudioTrack = newStream.getAudioTracks()[0];
+      if (newAudioTrack) {
+        stream.removeTrack(audioTrack);
+        stream.addTrack(newAudioTrack);
+        console.log(`✅ AUDIO-UTILS: Replaced audio track for ${participantId}`);
+      }
+    } catch (error) {
+      console.log(`❌ AUDIO-UTILS: Could not replace audio track for ${participantId}:`, error.message);
+    }
+  }
+
+  console.log(`🎤 AUDIO-UTILS: Audio track status for ${participantId}:`, {
+    enabled: audioTrack.enabled,
+    muted: audioTrack.muted,
+    readyState: audioTrack.readyState,
+    label: audioTrack.label,
+    id: audioTrack.id,
+    kind: audioTrack.kind
+  });
+};
+
+// Handle stream reception and audio debugging
+export const handleStreamReception = (stream, participantId, participants) => {
+  console.log(`🔊 AUDIO-UTILS: Handling stream reception from ${participantId}`);
+  
+  if (!stream) {
+    console.log('❌ AUDIO-UTILS: No stream provided for reception');
+    return;
+  }
+
+  console.log(`🎥 AUDIO-UTILS: Stream details:`, {
+    streamId: stream.id,
+    trackCount: stream.getTracks().length,
+    videoTracks: stream.getVideoTracks().length,
+    audioTracks: stream.getAudioTracks().length,
+    streamActive: stream.active,
+    streamEnded: stream.ended
+  });
+
+  // Force stream to be active if it's not
+  if (!stream.active) {
+    console.log('🔧 AUDIO-UTILS: Stream not active, attempting to reactivate...');
+    stream.getTracks().forEach(track => {
+      if (track.readyState === 'live') {
+        track.enabled = true;
+        console.log(`🔧 AUDIO-UTILS: Reactivated ${track.kind} track`);
+      }
+    });
+  }
+
+  // Call the existing debug function
+  debugHostAudioReception(stream, participantId, participants);
+};
+
+// Fix audio echo issues
+export const fixAudioEcho = async (localStream) => {
+  try {
+    console.log('🔧 AUDIO-UTILS: Applying echo cancellation fixes...');
+    
+    if (!localStream) {
+      console.log('❌ AUDIO-UTILS: No current stream to fix');
+      return;
+    }
+    
+    const audioTracks = localStream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      console.log('❌ AUDIO-UTILS: No audio tracks found');
+      return;
+    }
+    
+    // Apply enhanced echo cancellation constraints
+    const echoConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      googEchoCancellation: true,
+      googNoiseSuppression: true,
+      googAutoGainControl: true,
+      googHighpassFilter: true,
+      googTypingNoiseDetection: true,
+      googAudioMirroring: false
+    };
+    
+    audioTracks.forEach(async (track, index) => {
+      try {
+        await track.applyConstraints(echoConstraints);
+        console.log(`🔧 AUDIO-UTILS: Applied echo cancellation to track ${index}`);
+      } catch (error) {
+        console.log(`⚠️ AUDIO-UTILS: Could not apply constraints to track ${index}:`, error.message);
+      }
+    });
+    
+    console.log('✅ AUDIO-UTILS: Echo cancellation applied');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ AUDIO-UTILS: Failed to apply echo cancellation:', error);
+    return false;
+  }
+};
+
+// Force re-initialize audio for all participants
+export const forceReinitializeAudio = async (localStream, peersRef) => {
+  console.log('🔧 AUDIO-UTILS: Force re-initializing audio for all participants...');
+  
+  if (!localStream) {
+    console.log('❌ AUDIO-UTILS: No local stream available');
+    return;
+  }
+
+  const audioTracks = localStream.getAudioTracks();
+  if (audioTracks.length === 0) {
+    console.log('❌ AUDIO-UTILS: No audio tracks found in local stream');
+    return;
+  }
+
+  // Force enable and unmute all audio tracks
+  audioTracks.forEach((track, index) => {
+    if (!track.enabled) {
+      track.enabled = true;
+      console.log(`🔧 AUDIO-UTILS: Force enabled audio track ${index}`);
+    }
+    if (track.muted) {
+      track.muted = false;
+      console.log(`🔧 AUDIO-UTILS: Force unmuted audio track ${index}`);
+    }
+  });
+
+  // Re-add stream to all existing peer connections
+  Object.keys(peersRef.current).forEach(participantId => {
+    const peer = peersRef.current[participantId];
+    if (peer && peer.addStream) {
+      try {
+        peer.addStream(localStream);
+        console.log(`🔧 AUDIO-UTILS: Re-added stream to peer ${participantId}`);
+      } catch (error) {
+        console.log(`⚠️ AUDIO-UTILS: Could not re-add stream to peer ${participantId}:`, error.message);
+      }
+    }
+  });
+  
+  console.log('✅ AUDIO-UTILS: Audio re-initialization completed');
+};
+
+// Comprehensive audio debugging and fixing function
+export const fixAudioIssue = async (localStream, peersRef) => {
+  console.log('🔧 AUDIO-UTILS: Starting comprehensive audio fix...');
+  
+  try {
+    // Step 1: Check current audio state
+    console.log('🔧 AUDIO-UTILS: Checking current audio state...');
+    
+    if (!localStream) {
+      console.log('❌ AUDIO-UTILS: No local stream available');
+      return false;
+    }
+
+    const audioTracks = localStream.getAudioTracks();
+    console.log(`🔧 AUDIO-UTILS: Found ${audioTracks.length} audio tracks`);
+    
+    // Step 2: Force enable all audio tracks
+    audioTracks.forEach((track, index) => {
+      console.log(`🔧 AUDIO-UTILS: Audio track ${index} status:`, {
+        enabled: track.enabled,
+        muted: track.muted,
+        readyState: track.readyState,
+        label: track.label
+      });
+      
+      if (!track.enabled) {
+        track.enabled = true;
+        console.log(`🔧 AUDIO-UTILS: Force enabled audio track ${index}`);
+      }
+      
+      if (track.muted) {
+        track.muted = false;
+        console.log(`🔧 AUDIO-UTILS: Force unmuted audio track ${index}`);
+      }
+    });
+
+    // Step 3: Re-add stream to all peers
+    Object.keys(peersRef.current).forEach(participantId => {
+      const peer = peersRef.current[participantId];
+      if (peer && peer.addStream) {
+        try {
+          peer.addStream(localStream);
+          console.log(`🔧 AUDIO-UTILS: Re-added stream to peer ${participantId}`);
+        } catch (error) {
+          console.log(`⚠️ AUDIO-UTILS: Could not re-add stream to peer ${participantId}:`, error.message);
+        }
+      }
+    });
+
+    console.log('✅ AUDIO-UTILS: Comprehensive audio fix completed');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ AUDIO-UTILS: Failed to fix audio issue:', error);
+    return false;
+  }
+};
+
 export default {
   ensureHostAudioTransmission,
   ensureAudioTracksEnabled,
@@ -346,5 +668,11 @@ export default {
   configureHostAudioElement,
   monitorRemoteStreams,
   createAudioConstraints,
-  testAudioFunctionality
+  testAudioFunctionality,
+  initializeAudioStream,
+  applyAudioConstraints,
+  handleStreamReception,
+  fixAudioEcho,
+  forceReinitializeAudio,
+  fixAudioIssue
 };
