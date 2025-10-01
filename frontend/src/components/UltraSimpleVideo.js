@@ -362,6 +362,31 @@ const UltraSimpleVideo = ({
     }
   }, [localStream]);
 
+  // MINIMAL: Handle remote stream updates - ESSENTIAL for participant videos
+  useEffect(() => {
+    Object.keys(remoteStreams).forEach(participantId => {
+      const videoElement = remoteVideoRefs.current[participantId];
+      const audioElement = remoteAudioRefs.current[participantId];
+      const stream = remoteStreams[participantId];
+      
+      if (stream && stream.active && stream.getTracks().length > 0) {
+        // Update video element
+        if (videoElement) {
+          console.log(`🎥 UltraSimpleVideo: Updating video element for ${participantId}`);
+          videoElement.srcObject = stream;
+          videoElement.play().catch(() => {}); // Silent fail
+        }
+        
+        // Update audio element
+        if (audioElement) {
+          console.log(`🔊 UltraSimpleVideo: Updating audio element for ${participantId}`);
+          audioElement.srcObject = stream;
+          audioElement.play().catch(() => {}); // Silent fail
+        }
+      }
+    });
+  }, [remoteStreams]);
+
 
   // DISABLED: Memoize participants - causing excessive re-renders
   // const memoizedParticipants = useMemo(() => {
