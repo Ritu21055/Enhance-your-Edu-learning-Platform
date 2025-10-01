@@ -318,15 +318,17 @@ const UltraSimpleVideo = ({
   // }, [otherParticipants]);
 
   // Stable video element creation callback to prevent recreation
-  // MINIMAL: Simple video element creation - NO CLEANUP, NO MANIPULATION
+  // ULTRA-SIMPLE: Video element creation - NO INTERVALS, NO COMPLEXITY
   const createVideoElement = useCallback((participantId) => {
     return (el) => {
       if (el && participantId) {
         remoteVideoRefs.current[participantId] = el;
         
+        // Only assign stream if it's available and different
         if (remoteStreams[participantId]) {
           const stream = remoteStreams[participantId];
-          if (stream && stream.active && stream.getTracks().length > 0) {
+          if (stream && stream.active && stream.getTracks().length > 0 && el.srcObject !== stream) {
+            console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
             el.srcObject = stream;
             el.play().catch(() => {}); // Silent fail
           }
@@ -362,30 +364,38 @@ const UltraSimpleVideo = ({
     }
   }, [localStream]);
 
-  // MINIMAL: Handle remote stream updates - ESSENTIAL for participant videos
+  // MINIMAL: Handle new participants joining - only when participant count changes
   useEffect(() => {
-    Object.keys(remoteStreams).forEach(participantId => {
-      const videoElement = remoteVideoRefs.current[participantId];
-      const audioElement = remoteAudioRefs.current[participantId];
-      const stream = remoteStreams[participantId];
-      
-      if (stream && stream.active && stream.getTracks().length > 0) {
-        // Update video element
-        if (videoElement) {
-          console.log(`🎥 UltraSimpleVideo: Updating video element for ${participantId}`);
-          videoElement.srcObject = stream;
-          videoElement.play().catch(() => {}); // Silent fail
-        }
+    // Only run when participants are added/removed, not on every stream update
+    const participantIds = otherParticipants.map(p => p.id).sort().join(',');
+    
+    // Use a timeout to avoid immediate re-processing
+    const timeoutId = setTimeout(() => {
+      otherParticipants.forEach(participant => {
+        const videoElement = remoteVideoRefs.current[participant.id];
+        const audioElement = remoteAudioRefs.current[participant.id];
+        const stream = remoteStreams[participant.id];
         
-        // Update audio element
-        if (audioElement) {
-          console.log(`🔊 UltraSimpleVideo: Updating audio element for ${participantId}`);
-          audioElement.srcObject = stream;
-          audioElement.play().catch(() => {}); // Silent fail
+        if (stream && stream.active && stream.getTracks().length > 0) {
+          // Update video element only if not already assigned
+          if (videoElement && videoElement.srcObject !== stream) {
+            console.log(`🎥 UltraSimpleVideo: Delayed stream assignment for ${participant.id}`);
+            videoElement.srcObject = stream;
+            videoElement.play().catch(() => {});
+          }
+          
+          // Update audio element only if not already assigned
+          if (audioElement && audioElement.srcObject !== stream) {
+            console.log(`🔊 UltraSimpleVideo: Delayed audio assignment for ${participant.id}`);
+            audioElement.srcObject = stream;
+            audioElement.play().catch(() => {});
+          }
         }
-      }
-    });
-  }, [remoteStreams]);
+      });
+    }, 1000); // 1 second delay to avoid immediate re-processing
+    
+    return () => clearTimeout(timeoutId);
+  }, [otherParticipants.length]); // Only depend on participant count, not streams
 
 
   // DISABLED: Memoize participants - causing excessive re-renders
