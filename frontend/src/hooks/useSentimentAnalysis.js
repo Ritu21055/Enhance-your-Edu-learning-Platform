@@ -76,6 +76,18 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
         return;
       }
 
+      // CRITICAL: Check if video has valid dimensions
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        console.log('🧠 Video has zero dimensions, skipping analysis');
+        return;
+      }
+
+      // CRITICAL: Check if video is actually visible
+      if (video.offsetWidth === 0 || video.offsetHeight === 0) {
+        console.log('🧠 Video element has zero display dimensions, skipping analysis');
+        return;
+      }
+
       // Optimize canvas size for faster processing
       const maxSize = 320; // Limit canvas size for better performance
       const aspectRatio = video.videoWidth / video.videoHeight;
@@ -87,6 +99,12 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
       } else {
         canvasHeight = Math.min(maxSize, video.videoHeight);
         canvasWidth = canvasHeight * aspectRatio;
+      }
+
+      // CRITICAL: Ensure canvas dimensions are valid
+      if (canvasWidth <= 0 || canvasHeight <= 0) {
+        console.log('🧠 Invalid canvas dimensions, skipping analysis');
+        return;
       }
 
       canvas.width = canvasWidth;
@@ -103,11 +121,19 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
 
       console.log('🧠 Analyzing video frame for sentiment...');
       
-      // Detect faces and expressions with optimized options
-      const detections = await faceapi
-        .detectAllFaces(canvas, detectionOptions)
-        .withFaceLandmarks()
-        .withFaceExpressions();
+      // CRITICAL: Wrap face-api.js processing in try-catch to prevent canvas errors
+      let detections = [];
+      try {
+        // Detect faces and expressions with optimized options
+        detections = await faceapi
+          .detectAllFaces(canvas, detectionOptions)
+          .withFaceLandmarks()
+          .withFaceExpressions();
+      } catch (faceApiError) {
+        console.log('🧠 Face-api.js error (likely canvas dimension issue):', faceApiError.message);
+        console.log('🧠 Skipping sentiment analysis for this frame');
+        return; // Skip this analysis cycle
+      }
 
       console.log('🧠 Face detections found:', detections.length);
       console.log('🧠 Video dimensions:', { width: video.videoWidth, height: video.videoHeight });
@@ -237,6 +263,23 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
   // Start sentiment analysis
   const startAnalysis = useCallback(() => {
     if (isAnalyzing || !modelsLoaded) return;
+
+    // CRITICAL: Check if video is available and has valid dimensions
+    if (!videoRef?.current) {
+      console.log('🧠 Cannot start sentiment analysis: No video reference');
+      return;
+    }
+
+    const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.log('🧠 Cannot start sentiment analysis: Video has zero dimensions');
+      return;
+    }
+
+    if (video.offsetWidth === 0 || video.offsetHeight === 0) {
+      console.log('🧠 Cannot start sentiment analysis: Video element has zero display dimensions');
+      return;
+    }
 
     console.log('🎬 Starting sentiment analysis...');
     setIsAnalyzing(true);
