@@ -149,8 +149,7 @@ const MeetingRoom = () => {
     fatigueHistory,
     isAnalyzing: isFatigueAnalyzing,
     triggerImmediateAnalysis,
-    triggerInteractiveSuggestion,
-    triggerParticipantJoinedAlert
+    triggerInteractiveSuggestion
   } = useFatigueDetection(sentimentData, isHost, socket);
 
   // Debug fatigue detection
@@ -163,25 +162,20 @@ const MeetingRoom = () => {
     fatigueHistory: fatigueHistory?.length || 0
   });
 
-  // ENHANCED: Trigger immediate alert when participants join (host only)
+  // ENHANCED: Trigger fatigue analysis when participants join (host only)
   useEffect(() => {
-    if (isHost && participants.length > 1 && triggerParticipantJoinedAlert) {
-      console.log('🧠 Fatigue Detection: Participants joined, showing immediate alert', {
+    if (isHost && participants.length > 1 && triggerImmediateAnalysis) {
+      console.log('🧠 Fatigue Detection: Participants joined, triggering analysis', {
         participantCount: participants.length,
         isHost
       });
       
-      // Show immediate alert when participants join
-      triggerParticipantJoinedAlert();
-      
-      // Also trigger analysis after a short delay to allow sentiment data to accumulate
+      // Trigger analysis after a short delay to allow sentiment data to accumulate
       setTimeout(() => {
-        if (triggerImmediateAnalysis) {
-          triggerImmediateAnalysis();
-        }
+        triggerImmediateAnalysis();
       }, 5000); // 5 seconds delay to allow sentiment data to be collected
     }
-  }, [isHost, participants.length, triggerParticipantJoinedAlert, triggerImmediateAnalysis]);
+  }, [isHost, participants.length, triggerImmediateAnalysis]);
 
   // TEST: Add manual fatigue alert trigger for testing (host only)
   useEffect(() => {
@@ -209,18 +203,6 @@ const MeetingRoom = () => {
     }
   }, [isHost, triggerInteractiveSuggestion]);
 
-  // TEST: Add manual participant joined alert trigger for testing (host only)
-  useEffect(() => {
-    if (isHost && triggerParticipantJoinedAlert) {
-      // Add a global function for testing participant joined alerts
-      window.testParticipantJoinedAlert = () => {
-        console.log('👥 TEST: Manually triggering participant joined alert...');
-        triggerParticipantJoinedAlert();
-      };
-      
-      console.log('👥 TEST: Participant joined alert test function available at window.testParticipantJoinedAlert()');
-    }
-  }, [isHost, triggerParticipantJoinedAlert]);
 
   // Listen for sentiment dashboard updates (host only)
   useEffect(() => {

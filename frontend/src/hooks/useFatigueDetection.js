@@ -442,34 +442,6 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     };
   }, [isHost, generateInteractiveSuggestions, INTERACTIVE_SUGGESTION_INTERVAL_MIN, INTERACTIVE_SUGGESTION_INTERVAL_MAX]);
 
-  // NEW: Immediate alert when participants join (host only)
-  const triggerParticipantJoinedAlert = useCallback(() => {
-    if (!isHost) {
-      console.log('🧠 Fatigue Detection: Cannot trigger participant alert - not host');
-      return;
-    }
-    
-    console.log('🧠 Fatigue Detection: Participant joined - showing immediate interactive suggestion');
-    const participantJoinedSuggestion = {
-      type: 'participant_joined',
-      title: '👥 New Participant Joined!',
-      message: 'A new participant has joined the meeting. Here are some ideas to make them feel welcome and engaged:',
-      suggestions: [
-        'Welcome the new participant by name',
-        'Ask them to introduce themselves briefly',
-        'Ask if they have any questions about the current topic',
-        'Encourage them to turn on their camera if comfortable',
-        'Ask them to share their thoughts on the discussion',
-        'Include them in the current conversation',
-        'Ask if they need any clarification on what\'s been discussed',
-        'Encourage them to use the chat feature',
-        'Ask them about their experience with similar topics',
-        'Make sure they can hear and see everyone clearly'
-      ]
-    };
-    
-    setFatigueAlert(participantJoinedSuggestion);
-  }, [isHost]);
 
   // ENHANCED: Listen for participant sentiment data (host only)
   useEffect(() => {
@@ -545,8 +517,7 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     fatigueHistory,
     isAnalyzing: !!analysisIntervalRef.current,
     triggerImmediateAnalysis,
-    triggerInteractiveSuggestion,
-    triggerParticipantJoinedAlert
+    triggerInteractiveSuggestion
   };
 };
 
