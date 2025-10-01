@@ -797,12 +797,12 @@ const UltraSimpleVideo = ({
                   }} // Hide but keep functional
                 />
                 
-                {/* Debug info for camera state */}
-                {console.log(`🎥 UltraSimpleVideo: Participant ${participant.name} camera state:`, {
+                {/* Debug info for camera state - REDUCED LOGGING */}
+                {/* {console.log(`🎥 UltraSimpleVideo: Participant ${participant.name} camera state:`, {
                   videoEnabled: participant.videoEnabled,
                   shouldShowVideo: participant.videoEnabled,
                   shouldShowOverlay: !participant.videoEnabled
-                })}
+                })} */}
                 
                 {/* Camera Off Overlay - Simplified Design */}
                 {!participant.videoEnabled && (
@@ -839,13 +839,13 @@ const UltraSimpleVideo = ({
                     {participant.name || 'Participant'}
                   </Typography>
                     
-                    {/* Debug info for remove button */}
-                    {console.log(`🗑️ DEBUG: Remove button conditions for ${participant.name}:`, {
+                    {/* Debug info for remove button - REDUCED LOGGING */}
+                    {/* {console.log(`🗑️ DEBUG: Remove button conditions for ${participant.name}:`, {
                       isHost,
                       hasOnRemoveParticipant: !!onRemoveParticipant,
                       participantId: participant.id,
                       participantName: participant.name
-                    })}
+                    })} */}
                     
                     {/* Remove participant button - only show for host */}
                     {isHost && onRemoveParticipant && (
@@ -1518,6 +1518,32 @@ const UltraSimpleVideo = ({
               }}
             >
               🏠 Test Solo Meeting
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
+                console.log('🔍 DEBUG: Checking connection status...');
+                console.log('🔍 DEBUG: Remote streams:', Object.keys(remoteStreams));
+                console.log('🔍 DEBUG: Other participants:', otherParticipants.map(p => ({ id: p.id, name: p.name })));
+                console.log('🔍 DEBUG: Local stream:', !!localStream);
+                console.log('🔍 DEBUG: Local stream active:', localStream?.active);
+                console.log('🔍 DEBUG: Local stream tracks:', localStream?.getTracks()?.length);
+                
+                // Check if we have any remote streams
+                Object.keys(remoteStreams).forEach(participantId => {
+                  const stream = remoteStreams[participantId];
+                  console.log(`🔍 DEBUG: Remote stream for ${participantId}:`, {
+                    hasStream: !!stream,
+                    streamActive: stream?.active,
+                    trackCount: stream?.getTracks()?.length,
+                    videoTracks: stream?.getVideoTracks()?.length,
+                    audioTracks: stream?.getAudioTracks()?.length
+                  });
+                });
+              }}
+            >
+              🔍 Debug Connection Status
             </button>
             
             <button 
