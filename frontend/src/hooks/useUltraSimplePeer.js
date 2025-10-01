@@ -673,15 +673,15 @@ const useUltraSimplePeer = (meetingId, userName) => {
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-              // Audio variables moved to audioUtils.js
-      });
+          video: videoConstraints,
+          audio: audioConstraints
+        });
       } catch (constraintError) {
         console.log('âš ï¸ Audio constraints failed, trying basic audio...');
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: videoConstraints,
-                  // Audio variables moved to audioUtils.js
+            audio: true
           });
         } catch (basicError) {
           console.log('âš ï¸ Basic audio failed, trying minimal constraints...');
