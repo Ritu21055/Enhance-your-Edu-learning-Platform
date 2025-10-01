@@ -1847,6 +1847,50 @@ const useUltraSimplePeer = (meetingId, userName) => {
     }
   }, [updateLocalStream]);
 
+  // Function to update all peer connections with new stream state
+  const updateAllPeerConnections = useCallback((stream) => {
+    console.log('🔄 UltraSimplePeer: Updating all peer connections with new stream state...');
+    
+    Object.keys(peersRef.current).forEach(participantId => {
+      const peer = peersRef.current[participantId];
+      if (peer && peer._pc) {
+        try {
+          // Get audio and video tracks from the stream
+          const audioTrack = stream.getAudioTracks()[0];
+          const videoTrack = stream.getVideoTracks()[0];
+          
+          // Update audio track if available
+          if (audioTrack) {
+            const senders = peer._pc.getSenders();
+            const audioSender = senders.find(sender => 
+              sender.track && sender.track.kind === 'audio'
+            );
+            
+            if (audioSender) {
+              audioSender.replaceTrack(audioTrack);
+              console.log(`🔄 UltraSimplePeer: Updated audio track for ${participantId}: ${audioTrack.enabled ? 'enabled' : 'disabled'}`);
+            }
+          }
+          
+          // Update video track if available
+          if (videoTrack) {
+            const senders = peer._pc.getSenders();
+            const videoSender = senders.find(sender => 
+              sender.track && sender.track.kind === 'video'
+            );
+            
+            if (videoSender) {
+              videoSender.replaceTrack(videoTrack);
+              console.log(`🔄 UltraSimplePeer: Updated video track for ${participantId}: ${videoTrack.enabled ? 'enabled' : 'disabled'}`);
+            }
+          }
+        } catch (error) {
+          console.log(`⚠️ UltraSimplePeer: Could not update peer connection for ${participantId}:`, error.message);
+        }
+      }
+    });
+  }, []);
+
   // Make the hook globally accessible for consent dialog integration and audio testing
   useEffect(() => {
     window.ultraSimplePeerRef = {
@@ -1860,7 +1904,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
         remoteStreams,
         isHost,
         socket,
-        socketConnected
+        socketConnected,
+        updateAllPeerConnections
       }
     };
     

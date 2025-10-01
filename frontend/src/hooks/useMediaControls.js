@@ -136,23 +136,11 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
         emitMediaStateChange(newState, isVideoEnabled);
         
         // CRITICAL: Update all peer connections with the new stream state
-        if (window.ultraSimplePeerRef && window.ultraSimplePeerRef.peersRef) {
+        if (window.ultraSimplePeerRef && window.ultraSimplePeerRef.current && window.ultraSimplePeerRef.current.updateAllPeerConnections) {
           console.log('🎤 Updating all peer connections with new audio state...');
-          Object.keys(window.ultraSimplePeerRef.peersRef.current).forEach(participantId => {
-            const peer = window.ultraSimplePeerRef.peersRef.current[participantId];
-            if (peer && peer._pc) {
-              try {
-                // Remove the old stream and add the updated stream
-                if (peer.removeStream) {
-                  peer.removeStream(localStream);
-                }
-                peer.addStream(localStream);
-                console.log(`🎤 Updated peer connection for ${participantId} with new audio state`);
-              } catch (error) {
-                console.log(`⚠️ Could not update peer connection for ${participantId}:`, error.message);
-              }
-            }
-          });
+          window.ultraSimplePeerRef.current.updateAllPeerConnections(localStream);
+        } else {
+          console.log('⚠️ UltraSimplePeer update function not available');
         }
         
         // Apply enhanced audio constraints when enabling to ensure smooth audio
@@ -238,23 +226,11 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
         emitMediaStateChange(isAudioEnabled, newState);
         
         // CRITICAL: Update all peer connections with the new stream state
-        if (window.ultraSimplePeerRef && window.ultraSimplePeerRef.peersRef) {
+        if (window.ultraSimplePeerRef && window.ultraSimplePeerRef.current && window.ultraSimplePeerRef.current.updateAllPeerConnections) {
           console.log('📹 Updating all peer connections with new video state...');
-          Object.keys(window.ultraSimplePeerRef.peersRef.current).forEach(participantId => {
-            const peer = window.ultraSimplePeerRef.peersRef.current[participantId];
-            if (peer && peer._pc) {
-              try {
-                // Remove the old stream and add the updated stream
-                if (peer.removeStream) {
-                  peer.removeStream(localStream);
-                }
-                peer.addStream(localStream);
-                console.log(`📹 Updated peer connection for ${participantId} with new video state`);
-              } catch (error) {
-                console.log(`⚠️ Could not update peer connection for ${participantId}:`, error.message);
-              }
-            }
-          });
+          window.ultraSimplePeerRef.current.updateAllPeerConnections(localStream);
+        } else {
+          console.log('⚠️ UltraSimplePeer update function not available');
         }
       }
     } else {
