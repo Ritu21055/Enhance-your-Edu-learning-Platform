@@ -136,7 +136,7 @@ const UltraSimpleVideo = ({
       
       // Clean up orphaned video elements
       allVideoElements.forEach(video => {
-        if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local-video')) {
+        if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local')) {
           console.log(`🧹 UltraSimpleVideo: Removing orphaned video element...`);
           if (video.srcObject) {
             video.srcObject.getTracks().forEach(track => track.stop());
@@ -346,7 +346,7 @@ const UltraSimpleVideo = ({
         // ADDITIONAL: Check for any orphaned video elements without proper data attributes
         const allVideoElements = document.querySelectorAll('video');
         allVideoElements.forEach(video => {
-          if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local-video')) {
+          if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local')) {
             console.log(`🧹 UltraSimpleVideo: Found orphaned video element, removing...`);
             if (video.srcObject) {
               video.srcObject.getTracks().forEach(track => track.stop());
@@ -741,6 +741,42 @@ const UltraSimpleVideo = ({
     setTimeout(forceLocalVideo, 500);
   }, [participants.length, localStream]);
 
+  // CRITICAL: Protect local video from being removed by cleanup
+  useEffect(() => {
+    const protectLocalVideo = () => {
+      const localVideo = document.querySelector('video[data-local="true"]');
+      if (localVideo && localStream) {
+        console.log('🛡️ UltraSimpleVideo: PROTECTING local video from removal');
+        
+        // Ensure it has the stream
+        if (localVideo.srcObject !== localStream) {
+          localVideo.srcObject = localStream;
+        }
+        
+        // Ensure it's visible
+        localVideo.style.display = 'block';
+        localVideo.style.visibility = 'visible';
+        localVideo.style.opacity = '1';
+        localVideo.style.width = '100%';
+        localVideo.style.height = '100%';
+        localVideo.style.objectFit = 'cover';
+        localVideo.style.zIndex = '1';
+        
+        // Ensure it's playing
+        localVideo.load();
+        localVideo.play().catch(err => {
+          console.log('🛡️ UltraSimpleVideo: PROTECT - Local video play failed:', err);
+        });
+      }
+    };
+    
+    // Run protection immediately and periodically
+    protectLocalVideo();
+    setTimeout(protectLocalVideo, 100);
+    setTimeout(protectLocalVideo, 500);
+    setTimeout(protectLocalVideo, 1000);
+  }, [participants.length, localStream]);
+
   // Memoize participants to prevent unnecessary re-renders
   const memoizedParticipants = useMemo(() => {
     console.log('🔄 UltraSimpleVideo: Memoizing participants');
@@ -810,10 +846,18 @@ const UltraSimpleVideo = ({
       }
     });
     
-    // Clean up any duplicate video elements in the DOM
+    // Clean up any duplicate video elements in the DOM - BUT PROTECT LOCAL VIDEO
     const allVideoElements = document.querySelectorAll('video[data-participant-id]');
     allVideoElements.forEach(videoEl => {
       const participantId = videoEl.getAttribute('data-participant-id');
+      const isLocal = videoEl.getAttribute('data-local') === 'true';
+      
+      // NEVER remove local video elements
+      if (isLocal) {
+        console.log(`🧹 UltraSimpleVideo: PROTECTING local video element from cleanup`);
+        return;
+      }
+      
       if (participantId && !currentParticipantIds.includes(participantId)) {
         console.log(`🧹 UltraSimpleVideo: Removing orphaned video element for participant: ${participantId}`);
         if (videoEl.srcObject) {
@@ -952,6 +996,7 @@ const UltraSimpleVideo = ({
             playsInline
             muted
             data-local="true"
+            data-local-video="true"
             className="video-element"
             style={{
               position: 'relative',
