@@ -1901,6 +1901,25 @@ const useUltraSimplePeer = (meetingId, userName) => {
     return await forceReinitializeAudio(localStream, peersRef);
   }, [localStream, peersRef]);
 
+  // Audio reinitialization function
+  const forceAudioReinit = useCallback(async () => {
+    try {
+      console.log('🔄 FORCE-AUDIO-REINIT: Starting audio reinitialization...');
+      const newStream = await initializeMedia();
+      if (newStream) {
+        setLocalStream(newStream);
+        console.log('✅ FORCE-AUDIO-REINIT: Audio reinitialized successfully');
+        return true;
+      } else {
+        console.log('❌ FORCE-AUDIO-REINIT: Failed to reinitialize audio');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ FORCE-AUDIO-REINIT: Audio reinitialization failed:', error);
+      return false;
+    }
+  }, [initializeMedia]);
+
   // Gentle debugging function to understand connection issues
   const debugConnectionStatus = useCallback(() => {
     console.log('ðŸ” GENTLE DEBUG: Connection status analysis...');
@@ -1985,61 +2004,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     }
   };
 
-  // Force audio track re-initialization
-  const forceAudioReinit = async () => {
-    try {
-      console.log('ðŸ”§ FORCE-AUDIO: Reinitializing audio track...');
-      
-      // Get current stream
-      const currentStream = localStream;
-      if (!currentStream) {
-        console.log('âŒ FORCE-AUDIO: No current stream to reinitialize');
-        return;
-      }
-      
-      // Get audio tracks
-      const audioTracks = currentStream.getAudioTracks();
-      if (audioTracks.length === 0) {
-        console.log('âŒ FORCE-AUDIO: No audio tracks found');
-        return;
-      }
-      
-      // Force enable and unmute all audio tracks
-      audioTracks.forEach((track, index) => {
-        console.log(`ðŸ”§ FORCE-AUDIO: Processing audio track ${index}:`, {
-          enabled: track.enabled,
-          muted: track.muted,
-          readyState: track.readyState
-        });
-        
-        if (!track.enabled) {
-          track.enabled = true;
-          console.log(`ðŸ”§ FORCE-AUDIO: Enabled audio track ${index}`);
-        }
-        
-        if (track.muted) {
-          track.muted = false;
-          console.log(`ðŸ”§ FORCE-AUDIO: Unmuted audio track ${index}`);
-        }
-      });
-      
-      // Update all peer connections with the fixed stream
-      Object.keys(peersRef.current).forEach(participantId => {
-        const peer = peersRef.current[participantId];
-        if (peer && peer._pc) {
-          console.log(`ðŸ”§ FORCE-AUDIO: Updating peer connection for ${participantId}`);
-          // The stream is already passed to SimplePeer constructor, so it should automatically update
-        }
-      });
-      
-      console.log('âœ… FORCE-AUDIO: Audio track reinitialization complete');
-      alert('âœ… Audio track reinitialized! Others should now be able to hear you.');
-      
-    } catch (error) {
-      console.error('âŒ FORCE-AUDIO: Failed to reinitialize audio:', error);
-      alert('âŒ Failed to reinitialize audio: ' + error.message);
-    }
-  };
+  
 
   return {
     localStream,
@@ -2053,6 +2018,16 @@ const useUltraSimplePeer = (meetingId, userName) => {
     updateLocalStream, // Expose the method
     fixAudioIssue, // Expose the audio fix function
     debugConnectionStatus, // Expose the debug function
+    // Participant management
+    pendingApprovals,
+    showPendingApprovals,
+    setShowPendingApprovals,
+    isWaitingForApproval,
+    approveParticipant,
+    rejectParticipant,
+    // Connection management
+    socket,
+    forceConnection,
     // Screen sharing functionality
     screenStream,
     remoteScreenStreams,
@@ -2065,7 +2040,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
     fixAudioEcho,
     fixAudioIssue,
     forceReshareHostStream,
-    forceReinitializeAudio
+    forceReinitializeAudio,
+    // Video ref for components
+    localVideoRef
   };
 };
 
