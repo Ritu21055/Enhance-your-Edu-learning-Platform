@@ -16,6 +16,10 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
   const ANALYSIS_INTERVAL = 15 * 1000; // Analyze every 15 seconds (more frequent)
   const HISTORY_DURATION = 10 * 60 * 1000; // Keep 10 minutes of history
   const MAX_HISTORY_ENTRIES = 20; // Limit memory usage
+  
+  // NEW: Interactive meeting suggestions every 2-2.5 minutes (randomized)
+  const INTERACTIVE_SUGGESTION_INTERVAL_MIN = 2 * 60 * 1000; // 2 minutes in milliseconds
+  const INTERACTIVE_SUGGESTION_INTERVAL_MAX = 2.5 * 60 * 1000; // 2.5 minutes in milliseconds
 
   /**
    * Calculate fatigue percentage from sentiment data
@@ -107,17 +111,95 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
   }, []);
 
   /**
+   * Generate interactive meeting suggestions (regardless of fatigue detection)
+   */
+  const generateInteractiveSuggestions = useCallback(() => {
+    const suggestions = [
+      {
+        type: 'engagement',
+        title: '💡 Interactive Meeting Suggestion',
+        message: 'Keep your meeting engaging! Here are some ideas to boost participation:',
+        suggestions: [
+          'Ask participants to share their current mood or energy level',
+          'Include a quick icebreaker question',
+          'Use the chat feature for real-time feedback',
+          'Ask participants to turn on their cameras if comfortable',
+          'Share a relevant story or example',
+          'Include a quick poll or survey',
+          'Ask for questions or concerns',
+          'Switch to a different presentation style',
+          'Take a 1-minute stretch break',
+          'Encourage participants to share their thoughts'
+        ]
+      },
+      {
+        type: 'energy',
+        title: '⚡ Energy Boost Suggestion',
+        message: 'Boost meeting energy with these activities:',
+        suggestions: [
+          'Ask everyone to stand up and stretch',
+          'Share a quick success story',
+          'Ask participants what they\'re most excited about',
+          'Include a fun fact related to your topic',
+          'Ask participants to share one word describing their day',
+          'Use breakout rooms for small group discussion',
+          'Ask for a show of hands on a topic',
+          'Share a motivational quote',
+          'Ask participants to share their favorite part of the meeting so far',
+          'Include a quick team building activity'
+        ]
+      },
+      {
+        type: 'participation',
+        title: '🎯 Participation Enhancement',
+        message: 'Enhance participation with these strategies:',
+        suggestions: [
+          'Ask open-ended questions that require thought',
+          'Use the "think-pair-share" technique',
+          'Ask participants to summarize key points',
+          'Encourage questions throughout the meeting',
+          'Use visual aids or screen sharing',
+          'Ask for examples from participants\' experience',
+          'Include interactive polls or surveys',
+          'Ask participants to rate their understanding',
+          'Use breakout rooms for discussion',
+          'Ask for feedback on the meeting format'
+        ]
+      }
+    ];
+
+    // Randomly select a suggestion type
+    const randomIndex = Math.floor(Math.random() * suggestions.length);
+    return suggestions[randomIndex];
+  }, []);
+
+  /**
    * Analyze fatigue trends over time
    */
   const analyzeFatigueTrends = useCallback(() => {
-    if (!isHost || fatigueHistory.length < 2) return;
+    if (!isHost || fatigueHistory.length < 2) {
+      console.log('🧠 Fatigue Detection: Not analyzing - not host or insufficient history', {
+        isHost,
+        historyLength: fatigueHistory.length
+      });
+      return;
+    }
 
     const now = Date.now();
     const recentHistory = fatigueHistory.filter(
       entry => now - entry.timestamp <= SUSTAINED_DURATION
     );
 
-    if (recentHistory.length < 2) return;
+    console.log('🧠 Fatigue Detection: Analyzing trends', {
+      totalHistory: fatigueHistory.length,
+      recentHistory: recentHistory.length,
+      timeWindow: SUSTAINED_DURATION / 1000
+    });
+
+    if (recentHistory.length < 2) {
+      console.log('🧠 Fatigue Detection: Insufficient recent history for analysis');
+      return;
+    }
 
     // Calculate average fatigue percentage over the sustained period
     const avgFatigue = recentHistory.reduce((sum, entry) => sum + entry.fatiguePercentage, 0) / recentHistory.length;
@@ -125,7 +207,7 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     // Check if fatigue has been sustained above threshold
     const sustainedFatigue = recentHistory.every(entry => entry.fatiguePercentage >= FATIGUE_THRESHOLD);
     
-    // Special check for sustained neutral emotions (participants showing no engagement)
+    // Enhanced check for sustained neutral emotions (participants showing no engagement)
     const sustainedNeutral = recentHistory.every(entry => {
       const sentimentData = entry.sentimentData;
       if (!sentimentData || !sentimentData.sentimentCounts) return false;
@@ -137,21 +219,37 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
       return neutralPercentage >= 50; // 50% or more participants showing neutral for 2+ minutes
     });
     
+    console.log('🧠 Fatigue Detection: Analysis results', {
+      avgFatigue: Math.round(avgFatigue),
+      threshold: FATIGUE_THRESHOLD,
+      sustainedFatigue,
+      sustainedNeutral,
+      recentHistoryCount: recentHistory.length
+    });
+    
     if ((sustainedFatigue && avgFatigue >= FATIGUE_THRESHOLD) || sustainedNeutral) {
       const duration = now - recentHistory[0].timestamp;
       const alertMessage = generateFatigueMessage(avgFatigue, duration, sustainedNeutral);
       
       setFatigueAlert(alertMessage);
       
-      // Log fatigue detection for debugging
-      console.log('🧠 Fatigue Detection:', {
+      // Enhanced logging for fatigue detection
+      console.log('🚨 FATIGUE ALERT TRIGGERED:', {
         avgFatigue: Math.round(avgFatigue),
         duration: Math.round(duration / 1000),
         threshold: FATIGUE_THRESHOLD,
         historyLength: recentHistory.length,
         alertType: alertMessage.type,
         sustainedNeutral: sustainedNeutral,
-        detectionReason: sustainedNeutral ? 'sustained_neutral_emotions' : 'sustained_fatigue'
+        detectionReason: sustainedNeutral ? 'sustained_neutral_emotions' : 'sustained_fatigue',
+        alertMessage: alertMessage.message
+      });
+    } else {
+      console.log('🧠 Fatigue Detection: No fatigue detected', {
+        avgFatigue: Math.round(avgFatigue),
+        threshold: FATIGUE_THRESHOLD,
+        sustainedFatigue,
+        sustainedNeutral
       });
     }
   }, [isHost, fatigueHistory, FATIGUE_THRESHOLD, SUSTAINED_DURATION, generateFatigueMessage]);
@@ -296,8 +394,10 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
   // Effect to start/stop analysis based on host status
   useEffect(() => {
     if (isHost) {
+      console.log('🧠 Fatigue Detection: Starting analysis for host');
       startFatigueAnalysis();
     } else {
+      console.log('🧠 Fatigue Detection: Stopping analysis for non-host');
       stopFatigueAnalysis();
       setFatigueAlert(null); // Clear any existing alerts for non-hosts
     }
@@ -307,6 +407,108 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     };
   }, [isHost, startFatigueAnalysis, stopFatigueAnalysis]);
 
+  // NEW: Periodic interactive suggestions every 2-2.5 minutes (host only)
+  useEffect(() => {
+    if (!isHost) return;
+
+    console.log('🧠 Fatigue Detection: Starting periodic interactive suggestions every 2-2.5 minutes');
+
+    let suggestionTimeout;
+
+    const scheduleNextSuggestion = () => {
+      // Randomize the interval between 2 and 2.5 minutes
+      const randomInterval = Math.random() * (INTERACTIVE_SUGGESTION_INTERVAL_MAX - INTERACTIVE_SUGGESTION_INTERVAL_MIN) + INTERACTIVE_SUGGESTION_INTERVAL_MIN;
+      
+      console.log(`💡 Next interactive suggestion scheduled in ${Math.round(randomInterval / 1000)} seconds`);
+      
+      suggestionTimeout = setTimeout(() => {
+        console.log('💡 Showing interactive meeting suggestion to host');
+        const interactiveSuggestion = generateInteractiveSuggestions();
+        setFatigueAlert(interactiveSuggestion);
+        
+        // Schedule the next suggestion
+        scheduleNextSuggestion();
+      }, randomInterval);
+    };
+
+    // Start the first suggestion
+    scheduleNextSuggestion();
+
+    return () => {
+      console.log('🧠 Fatigue Detection: Stopping periodic interactive suggestions');
+      if (suggestionTimeout) {
+        clearTimeout(suggestionTimeout);
+      }
+    };
+  }, [isHost, generateInteractiveSuggestions, INTERACTIVE_SUGGESTION_INTERVAL_MIN, INTERACTIVE_SUGGESTION_INTERVAL_MAX]);
+
+  // NEW: Immediate alert when participants join (host only)
+  const triggerParticipantJoinedAlert = useCallback(() => {
+    if (!isHost) {
+      console.log('🧠 Fatigue Detection: Cannot trigger participant alert - not host');
+      return;
+    }
+    
+    console.log('🧠 Fatigue Detection: Participant joined - showing immediate interactive suggestion');
+    const participantJoinedSuggestion = {
+      type: 'participant_joined',
+      title: '👥 New Participant Joined!',
+      message: 'A new participant has joined the meeting. Here are some ideas to make them feel welcome and engaged:',
+      suggestions: [
+        'Welcome the new participant by name',
+        'Ask them to introduce themselves briefly',
+        'Ask if they have any questions about the current topic',
+        'Encourage them to turn on their camera if comfortable',
+        'Ask them to share their thoughts on the discussion',
+        'Include them in the current conversation',
+        'Ask if they need any clarification on what\'s been discussed',
+        'Encourage them to use the chat feature',
+        'Ask them about their experience with similar topics',
+        'Make sure they can hear and see everyone clearly'
+      ]
+    };
+    
+    setFatigueAlert(participantJoinedSuggestion);
+  }, [isHost]);
+
+  // ENHANCED: Listen for participant sentiment data (host only)
+  useEffect(() => {
+    if (!socket || !isHost) {
+      console.log('🧠 Fatigue Detection: Not setting up sentiment listener (not host or no socket)');
+      return;
+    }
+
+    console.log('🧠 Fatigue Detection: Setting up sentiment data listener for host');
+
+    const handleParticipantSentiment = (data) => {
+      console.log('🧠 Fatigue Detection: Received participant sentiment data:', {
+        participantId: data.participantId,
+        emotion: data.sentimentData?.emotion,
+        sentiment: data.sentimentData?.sentiment,
+        confidence: data.sentimentData?.confidence,
+        timestamp: data.sentimentData?.timestamp
+      });
+      
+      // Update fatigue history with participant sentiment data
+      if (data.sentimentData) {
+        updateFatigueHistory(data.sentimentData);
+        
+        // Trigger immediate analysis when new participant data arrives
+        console.log('🧠 Fatigue Detection: New participant data received, triggering analysis');
+        setTimeout(() => {
+          analyzeFatigueTrends();
+        }, 1000); // Small delay to allow data processing
+      }
+    };
+
+    socket.on('sentiment_update', handleParticipantSentiment);
+
+    return () => {
+      console.log('🧠 Fatigue Detection: Cleaning up sentiment listener');
+      socket.off('sentiment_update', handleParticipantSentiment);
+    };
+  }, [socket, isHost, updateFatigueHistory, analyzeFatigueTrends]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -314,11 +516,37 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     };
   }, [stopFatigueAnalysis]);
 
+  // ENHANCED: Function to trigger immediate fatigue analysis (for testing and participant joining)
+  const triggerImmediateAnalysis = useCallback(() => {
+    if (!isHost) {
+      console.log('🧠 Fatigue Detection: Cannot trigger analysis - not host');
+      return;
+    }
+    
+    console.log('🧠 Fatigue Detection: Triggering immediate analysis');
+    analyzeFatigueTrends();
+  }, [isHost, analyzeFatigueTrends]);
+
+  // NEW: Function to trigger immediate interactive suggestions (for testing)
+  const triggerInteractiveSuggestion = useCallback(() => {
+    if (!isHost) {
+      console.log('🧠 Fatigue Detection: Cannot trigger suggestions - not host');
+      return;
+    }
+    
+    console.log('🧠 Fatigue Detection: Triggering immediate interactive suggestion');
+    const interactiveSuggestion = generateInteractiveSuggestions();
+    setFatigueAlert(interactiveSuggestion);
+  }, [isHost, generateInteractiveSuggestions]);
+
   return {
     fatigueAlert,
     dismissFatigueAlert,
     fatigueHistory,
-    isAnalyzing: !!analysisIntervalRef.current
+    isAnalyzing: !!analysisIntervalRef.current,
+    triggerImmediateAnalysis,
+    triggerInteractiveSuggestion,
+    triggerParticipantJoinedAlert
   };
 };
 
