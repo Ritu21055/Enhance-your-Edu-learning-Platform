@@ -1123,7 +1123,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
               // Check cooldown period (30 seconds between reconnection attempts)
               const now = Date.now();
               const lastAttempt = lastReconnectionAttempt.current[participant.id] || 0;
-              const cooldownPeriod = 30000; // 30 seconds
+              const cooldownPeriod = 120000; // 2 minutes for stability
               
               if (now - lastAttempt > cooldownPeriod) {
                 console.log(`ðŸ” HEALTH CHECK: Connection to ${participant.name} is truly dead, attempting reconnection`);
@@ -1167,7 +1167,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
             }
           }
         });
-      }, 15000); // Increased to 15 seconds to reduce aggressive reconnections
+      }, 30000); // Increased to 30 seconds for stability in long meetings
     };
 
     // Start health check when we have participants
@@ -1894,6 +1894,63 @@ const useUltraSimplePeer = (meetingId, userName) => {
     });
   }, []);
 
+  // STABILITY: Function to ensure connection stability for long meetings
+  const ensureConnectionStability = useCallback(() => {
+    console.log('🛡️ UltraSimplePeer: Ensuring connection stability...');
+    
+    Object.keys(peersRef.current).forEach(participantId => {
+      const peer = peersRef.current[participantId];
+      if (peer && peer._pc) {
+        const connectionState = peer._pc.connectionState;
+        const iceConnectionState = peer._pc.iceConnectionState;
+        
+        // If connection is in a problematic state, try to recover
+        if (connectionState === 'failed' || connectionState === 'disconnected' || 
+            iceConnectionState === 'failed' || iceConnectionState === 'disconnected') {
+          console.log(`🛡️ UltraSimplePeer: Connection to ${participantId} is in problematic state: ${connectionState}/${iceConnectionState}`);
+          
+          // Only attempt recovery if we haven't tried recently
+          const now = Date.now();
+          const lastAttempt = lastReconnectionAttempt.current[participantId] || 0;
+          const cooldownPeriod = 300000; // 5 minutes for stability
+          
+          if (now - lastAttempt > cooldownPeriod) {
+            console.log(`🛡️ UltraSimplePeer: Attempting to recover connection to ${participantId}`);
+            lastReconnectionAttempt.current[participantId] = now;
+            
+            // Destroy the problematic connection
+            try {
+              peer.destroy();
+            } catch (error) {
+              console.log(`🛡️ UltraSimplePeer: Error destroying problematic peer:`, error.message);
+            }
+            delete peersRef.current[participantId];
+            
+            // Recreate the connection
+            setTimeout(async () => {
+              try {
+                await createPeerConnection(participantId, localStream);
+                console.log(`🛡️ UltraSimplePeer: Successfully recovered connection to ${participantId}`);
+              } catch (error) {
+                console.log(`🛡️ UltraSimplePeer: Failed to recover connection to ${participantId}:`, error);
+              }
+            }, 2000);
+          }
+        }
+      }
+    });
+  }, [localStream, createPeerConnection]);
+
+  // STABILITY: Periodic stability check for long meetings
+  useEffect(() => {
+    const stabilityInterval = setInterval(() => {
+      console.log('🛡️ UltraSimplePeer: Running periodic stability check...');
+      ensureConnectionStability();
+    }, 300000); // Run every 5 minutes for stability
+    
+    return () => clearInterval(stabilityInterval);
+  }, [ensureConnectionStability]);
+
   // Make the hook globally accessible for consent dialog integration and audio testing
   useEffect(() => {
     window.ultraSimplePeerRef = {
@@ -1908,7 +1965,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
         isHost,
         socket,
         socketConnected,
-        updateAllPeerConnections
+        updateAllPeerConnections,
+        ensureConnectionStability
       }
     };
     

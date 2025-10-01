@@ -102,6 +102,54 @@ const UltraSimpleVideo = ({
     };
   }, []);
 
+  // STABILITY: Periodic cleanup to prevent duplicate video elements in long meetings
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      console.log('🧹 UltraSimpleVideo: Running periodic cleanup for stability...');
+      
+      // Clean up duplicate video elements
+      const allVideoElements = document.querySelectorAll('video');
+      const participantVideoCounts = {};
+      
+      allVideoElements.forEach(video => {
+        const participantId = video.getAttribute('data-participant-id');
+        if (participantId) {
+          participantVideoCounts[participantId] = (participantVideoCounts[participantId] || 0) + 1;
+        }
+      });
+      
+      // Remove duplicates for each participant
+      Object.keys(participantVideoCounts).forEach(participantId => {
+        if (participantVideoCounts[participantId] > 1) {
+          console.log(`🧹 UltraSimpleVideo: Found ${participantVideoCounts[participantId]} video elements for ${participantId}, cleaning up...`);
+          const elements = document.querySelectorAll(`video[data-participant-id="${participantId}"]`);
+          for (let i = 1; i < elements.length; i++) {
+            const duplicateEl = elements[i];
+            if (duplicateEl.srcObject) {
+              duplicateEl.srcObject.getTracks().forEach(track => track.stop());
+            }
+            duplicateEl.srcObject = null;
+            duplicateEl.remove();
+          }
+        }
+      });
+      
+      // Clean up orphaned video elements
+      allVideoElements.forEach(video => {
+        if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local-video')) {
+          console.log(`🧹 UltraSimpleVideo: Removing orphaned video element...`);
+          if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+          }
+          video.srcObject = null;
+          video.remove();
+        }
+      });
+    }, 60000); // Run cleanup every minute for stability
+    
+    return () => clearInterval(cleanupInterval);
+  }, []);
+
   // Monitor participants data changes for debugging
   useEffect(() => {
     console.log('🎥 UltraSimpleVideo: Participants data changed:', participants.map(p => ({
@@ -280,7 +328,7 @@ const UltraSimpleVideo = ({
           return;
         }
         
-        // Check if there are duplicate video elements in the DOM
+        // ROBUST: Check if there are duplicate video elements in the DOM
         const existingVideoElements = document.querySelectorAll(`video[data-participant-id="${participantId}"]`);
         if (existingVideoElements.length > 1) {
           console.log(`🧹 UltraSimpleVideo: Found ${existingVideoElements.length} duplicate video elements for ${participantId}, cleaning up...`);
@@ -294,6 +342,19 @@ const UltraSimpleVideo = ({
             duplicateEl.remove();
           }
         }
+        
+        // ADDITIONAL: Check for any orphaned video elements without proper data attributes
+        const allVideoElements = document.querySelectorAll('video');
+        allVideoElements.forEach(video => {
+          if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local-video')) {
+            console.log(`🧹 UltraSimpleVideo: Found orphaned video element, removing...`);
+            if (video.srcObject) {
+              video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            video.srcObject = null;
+            video.remove();
+          }
+        });
         
         remoteVideoRefs.current[participantId] = el;
         
