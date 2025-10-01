@@ -17,9 +17,6 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
   const HISTORY_DURATION = 10 * 60 * 1000; // Keep 10 minutes of history
   const MAX_HISTORY_ENTRIES = 20; // Limit memory usage
   
-  // NEW: Interactive meeting suggestions every 2-2.5 minutes (randomized)
-  const INTERACTIVE_SUGGESTION_INTERVAL_MIN = 2 * 60 * 1000; // 2 minutes in milliseconds
-  const INTERACTIVE_SUGGESTION_INTERVAL_MAX = 2.5 * 60 * 1000; // 2.5 minutes in milliseconds
 
   /**
    * Calculate fatigue percentage from sentiment data
@@ -110,68 +107,6 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     }
   }, []);
 
-  /**
-   * Generate interactive meeting suggestions (regardless of fatigue detection)
-   */
-  const generateInteractiveSuggestions = useCallback(() => {
-    const suggestions = [
-      {
-        type: 'engagement',
-        title: '💡 Interactive Meeting Suggestion',
-        message: 'Keep your meeting engaging! Here are some ideas to boost participation:',
-        suggestions: [
-          'Ask participants to share their current mood or energy level',
-          'Include a quick icebreaker question',
-          'Use the chat feature for real-time feedback',
-          'Ask participants to turn on their cameras if comfortable',
-          'Share a relevant story or example',
-          'Include a quick poll or survey',
-          'Ask for questions or concerns',
-          'Switch to a different presentation style',
-          'Take a 1-minute stretch break',
-          'Encourage participants to share their thoughts'
-        ]
-      },
-      {
-        type: 'energy',
-        title: '⚡ Energy Boost Suggestion',
-        message: 'Boost meeting energy with these activities:',
-        suggestions: [
-          'Ask everyone to stand up and stretch',
-          'Share a quick success story',
-          'Ask participants what they\'re most excited about',
-          'Include a fun fact related to your topic',
-          'Ask participants to share one word describing their day',
-          'Use breakout rooms for small group discussion',
-          'Ask for a show of hands on a topic',
-          'Share a motivational quote',
-          'Ask participants to share their favorite part of the meeting so far',
-          'Include a quick team building activity'
-        ]
-      },
-      {
-        type: 'participation',
-        title: '🎯 Participation Enhancement',
-        message: 'Enhance participation with these strategies:',
-        suggestions: [
-          'Ask open-ended questions that require thought',
-          'Use the "think-pair-share" technique',
-          'Ask participants to summarize key points',
-          'Encourage questions throughout the meeting',
-          'Use visual aids or screen sharing',
-          'Ask for examples from participants\' experience',
-          'Include interactive polls or surveys',
-          'Ask participants to rate their understanding',
-          'Use breakout rooms for discussion',
-          'Ask for feedback on the meeting format'
-        ]
-      }
-    ];
-
-    // Randomly select a suggestion type
-    const randomIndex = Math.floor(Math.random() * suggestions.length);
-    return suggestions[randomIndex];
-  }, []);
 
   /**
    * Analyze fatigue trends over time
@@ -407,40 +342,6 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     };
   }, [isHost, startFatigueAnalysis, stopFatigueAnalysis]);
 
-  // NEW: Periodic interactive suggestions every 2-2.5 minutes (host only)
-  useEffect(() => {
-    if (!isHost) return;
-
-    console.log('🧠 Fatigue Detection: Starting periodic interactive suggestions every 2-2.5 minutes');
-
-    let suggestionTimeout;
-
-    const scheduleNextSuggestion = () => {
-      // Randomize the interval between 2 and 2.5 minutes
-      const randomInterval = Math.random() * (INTERACTIVE_SUGGESTION_INTERVAL_MAX - INTERACTIVE_SUGGESTION_INTERVAL_MIN) + INTERACTIVE_SUGGESTION_INTERVAL_MIN;
-      
-      console.log(`💡 Next interactive suggestion scheduled in ${Math.round(randomInterval / 1000)} seconds`);
-      
-      suggestionTimeout = setTimeout(() => {
-        console.log('💡 Showing interactive meeting suggestion to host');
-        const interactiveSuggestion = generateInteractiveSuggestions();
-        setFatigueAlert(interactiveSuggestion);
-        
-        // Schedule the next suggestion
-        scheduleNextSuggestion();
-      }, randomInterval);
-    };
-
-    // Start the first suggestion
-    scheduleNextSuggestion();
-
-    return () => {
-      console.log('🧠 Fatigue Detection: Stopping periodic interactive suggestions');
-      if (suggestionTimeout) {
-        clearTimeout(suggestionTimeout);
-      }
-    };
-  }, [isHost, generateInteractiveSuggestions, INTERACTIVE_SUGGESTION_INTERVAL_MIN, INTERACTIVE_SUGGESTION_INTERVAL_MAX]);
 
 
   // ENHANCED: Listen for participant sentiment data (host only)
@@ -499,25 +400,13 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     analyzeFatigueTrends();
   }, [isHost, analyzeFatigueTrends]);
 
-  // NEW: Function to trigger immediate interactive suggestions (for testing)
-  const triggerInteractiveSuggestion = useCallback(() => {
-    if (!isHost) {
-      console.log('🧠 Fatigue Detection: Cannot trigger suggestions - not host');
-      return;
-    }
-    
-    console.log('🧠 Fatigue Detection: Triggering immediate interactive suggestion');
-    const interactiveSuggestion = generateInteractiveSuggestions();
-    setFatigueAlert(interactiveSuggestion);
-  }, [isHost, generateInteractiveSuggestions]);
 
   return {
     fatigueAlert,
     dismissFatigueAlert,
     fatigueHistory,
     isAnalyzing: !!analysisIntervalRef.current,
-    triggerImmediateAnalysis,
-    triggerInteractiveSuggestion
+    triggerImmediateAnalysis
   };
 };
 

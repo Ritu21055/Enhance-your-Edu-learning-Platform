@@ -148,8 +148,7 @@ const MeetingRoom = () => {
     dismissFatigueAlert,
     fatigueHistory,
     isAnalyzing: isFatigueAnalyzing,
-    triggerImmediateAnalysis,
-    triggerInteractiveSuggestion
+    triggerImmediateAnalysis
   } = useFatigueDetection(sentimentData, isHost, socket);
 
   // Debug fatigue detection
@@ -190,18 +189,6 @@ const MeetingRoom = () => {
     }
   }, [isHost, triggerImmediateAnalysis]);
 
-  // TEST: Add manual interactive suggestion trigger for testing (host only)
-  useEffect(() => {
-    if (isHost && triggerInteractiveSuggestion) {
-      // Add a global function for testing interactive suggestions
-      window.testInteractiveSuggestion = () => {
-        console.log('💡 TEST: Manually triggering interactive suggestion...');
-        triggerInteractiveSuggestion();
-      };
-      
-      console.log('💡 TEST: Interactive suggestion test function available at window.testInteractiveSuggestion()');
-    }
-  }, [isHost, triggerInteractiveSuggestion]);
 
 
   // Listen for sentiment dashboard updates (host only)
