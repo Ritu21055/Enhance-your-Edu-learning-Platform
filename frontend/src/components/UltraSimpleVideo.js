@@ -150,15 +150,15 @@ const UltraSimpleVideo = ({
   //   return () => clearInterval(cleanupInterval);
   // }, []);
 
-  // Monitor participants data changes for debugging
-  useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Participants data changed:', participants.map(p => ({
-      id: p.id,
-      name: p.name,
-      audioEnabled: p.audioEnabled,
-      videoEnabled: p.videoEnabled
-    })));
-  }, [participants]);
+  // DISABLED: Monitor participants data changes - causing video issues
+  // useEffect(() => {
+  //   console.log('🎥 UltraSimpleVideo: Participants data changed:', participants.map(p => ({
+  //     id: p.id,
+  //     name: p.name,
+  //     audioEnabled: p.audioEnabled,
+  //     videoEnabled: p.videoEnabled
+  //   })));
+  // }, [participants]);
 
   // CRITICAL: Monitor remote streams and assign to audio elements
   useEffect(() => {
@@ -592,6 +592,17 @@ const UltraSimpleVideo = ({
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
+
+  // PROTECTION: Ensure local video stays visible when participants change
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      console.log('🛡️ UltraSimpleVideo: Protecting local video from participant changes');
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.style.display = 'block';
+      localVideoRef.current.style.visibility = 'visible';
+      localVideoRef.current.style.opacity = '1';
+    }
+  }, [participants.length, localStream]);
 
 
   // Memoize participants to prevent unnecessary re-renders
