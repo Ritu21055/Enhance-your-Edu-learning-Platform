@@ -391,11 +391,9 @@ const UltraSimpleVideo = ({
           videoElement.style.position = 'relative';
           videoElement.style.zIndex = '1';
           
-          // Force play immediately and with delays
+          // Force play immediately - REDUCED aggressive play attempts
           videoElement.play().catch(() => {});
-          setTimeout(() => videoElement.play().catch(() => {}), 50);
-          setTimeout(() => videoElement.play().catch(() => {}), 200);
-          setTimeout(() => videoElement.play().catch(() => {}), 1000);
+          setTimeout(() => videoElement.play().catch(() => {}), 100);
         }
         
         // IMMEDIATE: Force audio element assignment
@@ -437,10 +435,9 @@ const UltraSimpleVideo = ({
             videoElement.style.position = 'relative';
             videoElement.style.zIndex = '1';
             
-            // Force play multiple times
+            // Force play - REDUCED aggressive play attempts
             videoElement.play().catch(() => {});
-            setTimeout(() => videoElement.play().catch(() => {}), 100);
-            setTimeout(() => videoElement.play().catch(() => {}), 500);
+            setTimeout(() => videoElement.play().catch(() => {}), 200);
           }
           
           // ULTRA-AGGRESSIVE: Force audio element to stay active
@@ -453,15 +450,15 @@ const UltraSimpleVideo = ({
         }
       });
     };
-
+    
     // Run immediately
     ultraProtectVideos();
     
-    // Run every 1 second for ultra-aggressive protection
-    const interval1 = setInterval(ultraProtectVideos, 1000);
+    // Run every 3 seconds - REDUCED frequency to prevent blinking
+    const interval1 = setInterval(ultraProtectVideos, 3000);
     
-    // Run every 2 seconds as backup
-    const interval2 = setInterval(ultraProtectVideos, 2000);
+    // Run every 6 seconds as backup - MUCH less frequent
+    const interval2 = setInterval(ultraProtectVideos, 6000);
     
     return () => {
       clearInterval(interval1);
@@ -516,11 +513,9 @@ const UltraSimpleVideo = ({
       localVideoRef.current.style.position = 'relative';
       localVideoRef.current.style.zIndex = '1';
       
-      // Force play multiple times
+      // Force play - REDUCED aggressive play attempts
       localVideoRef.current.play().catch(() => {});
-      setTimeout(() => localVideoRef.current.play().catch(() => {}), 100);
-      setTimeout(() => localVideoRef.current.play().catch(() => {}), 500);
-      setTimeout(() => localVideoRef.current.play().catch(() => {}), 1000);
+      setTimeout(() => localVideoRef.current.play().catch(() => {}), 200);
     }
     
     // IMMEDIATE: Force remaining participant videos to stay visible
@@ -539,10 +534,9 @@ const UltraSimpleVideo = ({
           videoElement.style.position = 'relative';
           videoElement.style.zIndex = '1';
           
-          // Force play multiple times
+          // Force play - REDUCED aggressive play attempts
           videoElement.play().catch(() => {});
-          setTimeout(() => videoElement.play().catch(() => {}), 100);
-          setTimeout(() => videoElement.play().catch(() => {}), 500);
+          setTimeout(() => videoElement.play().catch(() => {}), 200);
         }
         
         if (audioElement) {
@@ -587,7 +581,7 @@ const UltraSimpleVideo = ({
       });
       
       // Also force through refs
-      Object.keys(remoteVideoRefs.current).forEach(participantId => {
+    Object.keys(remoteVideoRefs.current).forEach(participantId => {
         const videoElement = remoteVideoRefs.current[participantId];
         const stream = remoteStreams[participantId];
         
@@ -611,39 +605,45 @@ const UltraSimpleVideo = ({
     };
   }, [remoteStreams]);
 
-  // REDUCED NUCLEAR OPTION: Less aggressive DOM manipulation every 2 seconds
+  // MINIMAL NUCLEAR OPTION: Only run when needed, not continuously
   useEffect(() => {
-    const nuclearOption = () => {
-      console.log('☢️ NUCLEAR: DOM manipulation for host video...');
+    const minimalNuclearOption = () => {
+      console.log('☢️ MINIMAL: Checking video elements...');
       
-      // Find ALL video elements in the DOM and force them
+      // Find ALL video elements in the DOM
       const allVideos = document.querySelectorAll('video');
+      let needsFix = false;
       
       allVideos.forEach((video, index) => {
-        // Only force if video has a stream
-        if (video.srcObject) {
-          console.log(`☢️ NUCLEAR: Video ${index} has stream, ensuring it's visible`);
+        // Only fix if video has a stream but is not visible or not playing
+        if (video.srcObject && (video.style.display === 'none' || video.paused || video.style.opacity === '0')) {
+          console.log(`☢️ MINIMAL: Video ${index} needs fixing - has stream but not visible/playing`);
+          needsFix = true;
           
-          // Force visibility on video elements with streams
-          video.style.display = 'block';
-          video.style.visibility = 'visible';
-          video.style.opacity = '1';
-          video.style.position = 'relative';
-          video.style.zIndex = '999';
-          
-          // Force play
-          video.play().catch(() => {});
-        } else {
-          console.log(`☢️ NUCLEAR: Video ${index} has NO stream - skipping`);
+          // Only fix what's actually broken
+          if (video.style.display === 'none') {
+            video.style.display = 'block';
+          }
+          if (video.style.opacity === '0') {
+            video.style.opacity = '1';
+          }
+          if (video.paused) {
+            video.play().catch(() => {});
+          }
         }
       });
+      
+      // Only log if something was actually fixed
+      if (needsFix) {
+        console.log('☢️ MINIMAL: Fixed video visibility issues');
+      }
     };
     
     // Run immediately
-    nuclearOption();
+    minimalNuclearOption();
     
-    // Run every 2 seconds - REDUCED frequency
-    const interval = setInterval(nuclearOption, 2000);
+    // Run every 5 seconds - MUCH less frequent
+    const interval = setInterval(minimalNuclearOption, 5000);
     
     return () => clearInterval(interval);
   }, []);
