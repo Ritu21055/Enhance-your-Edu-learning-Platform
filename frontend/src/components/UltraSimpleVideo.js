@@ -1501,6 +1501,28 @@ const UltraSimpleVideo = ({
             <button 
               className="debug-button"
               onClick={() => {
+                console.log('🏠 TEST: Testing participant removal scenario...');
+                console.log('🏠 TEST: Current participants:', otherParticipants.map(p => ({ id: p.id, name: p.name })));
+                console.log('🏠 TEST: Total videos:', totalVideos);
+                console.log('🏠 TEST: Local video should be visible when no other participants');
+                
+                // Force local video to be visible
+                if (localVideoRef.current && localStream) {
+                  console.log('🏠 TEST: Ensuring local video is visible');
+                  localVideoRef.current.srcObject = localStream;
+                  localVideoRef.current.style.display = 'block';
+                  localVideoRef.current.style.visibility = 'visible';
+                  localVideoRef.current.style.opacity = '1';
+                  localVideoRef.current.play().catch(() => {});
+                }
+              }}
+            >
+              🏠 Test Solo Meeting
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={() => {
                 console.log('🎥 FIX HOST VIDEO: Force making host video visible in participant browser...');
                 
                 // Find ALL video elements in the DOM
