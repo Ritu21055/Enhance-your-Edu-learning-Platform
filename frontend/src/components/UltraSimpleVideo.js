@@ -364,6 +364,33 @@ const UltraSimpleVideo = ({
     }
   }, [localStream]);
 
+  // ESSENTIAL: Handle remote stream updates - needed for participant videos
+  useEffect(() => {
+    console.log('🎥 UltraSimpleVideo: Remote streams updated:', Object.keys(remoteStreams));
+    
+    Object.keys(remoteStreams).forEach(participantId => {
+      const videoElement = remoteVideoRefs.current[participantId];
+      const audioElement = remoteAudioRefs.current[participantId];
+      const stream = remoteStreams[participantId];
+      
+      if (stream && stream.active && stream.getTracks().length > 0) {
+        // Update video element - only if not already assigned
+        if (videoElement && videoElement.srcObject !== stream) {
+          console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
+          videoElement.srcObject = stream;
+          videoElement.play().catch(() => {}); // Silent fail
+        }
+        
+        // Update audio element - only if not already assigned
+        if (audioElement && audioElement.srcObject !== stream) {
+          console.log(`🔊 UltraSimpleVideo: Assigning stream to audio element for ${participantId}`);
+          audioElement.srcObject = stream;
+          audioElement.play().catch(() => {}); // Silent fail
+        }
+      }
+    });
+  }, [remoteStreams]);
+
   // MINIMAL: Handle new participants joining - only when participant count changes
   useEffect(() => {
     // Only run when participants are added/removed, not on every stream update
