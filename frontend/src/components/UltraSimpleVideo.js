@@ -102,53 +102,53 @@ const UltraSimpleVideo = ({
     };
   }, []);
 
-  // STABILITY: Periodic cleanup to prevent duplicate video elements in long meetings
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      console.log('🧹 UltraSimpleVideo: Running periodic cleanup for stability...');
-      
-      // Clean up duplicate video elements
-      const allVideoElements = document.querySelectorAll('video');
-      const participantVideoCounts = {};
-      
-      allVideoElements.forEach(video => {
-        const participantId = video.getAttribute('data-participant-id');
-        if (participantId) {
-          participantVideoCounts[participantId] = (participantVideoCounts[participantId] || 0) + 1;
-        }
-      });
-      
-      // Remove duplicates for each participant
-      Object.keys(participantVideoCounts).forEach(participantId => {
-        if (participantVideoCounts[participantId] > 1) {
-          console.log(`🧹 UltraSimpleVideo: Found ${participantVideoCounts[participantId]} video elements for ${participantId}, cleaning up...`);
-          const elements = document.querySelectorAll(`video[data-participant-id="${participantId}"]`);
-          for (let i = 1; i < elements.length; i++) {
-            const duplicateEl = elements[i];
-            if (duplicateEl.srcObject) {
-              duplicateEl.srcObject.getTracks().forEach(track => track.stop());
-            }
-            duplicateEl.srcObject = null;
-            duplicateEl.remove();
-          }
-        }
-      });
-      
-      // Clean up orphaned video elements
-      allVideoElements.forEach(video => {
-        if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local-video')) {
-          console.log(`🧹 UltraSimpleVideo: Removing orphaned video element...`);
-          if (video.srcObject) {
-            video.srcObject.getTracks().forEach(track => track.stop());
-          }
-          video.srcObject = null;
-          video.remove();
-        }
-      });
-    }, 60000); // Run cleanup every minute for stability
-    
-    return () => clearInterval(cleanupInterval);
-  }, []);
+  // DISABLED: STABILITY: Periodic cleanup - causing flickering
+  // useEffect(() => {
+  //   const cleanupInterval = setInterval(() => {
+  //     console.log('🧹 UltraSimpleVideo: Running periodic cleanup for stability...');
+  //     
+  //     // Clean up duplicate video elements
+  //     const allVideoElements = document.querySelectorAll('video');
+  //     const participantVideoCounts = {};
+  //     
+  //     allVideoElements.forEach(video => {
+  //       const participantId = video.getAttribute('data-participant-id');
+  //       if (participantId) {
+  //         participantVideoCounts[participantId] = (participantVideoCounts[participantId] || 0) + 1;
+  //       }
+  //     });
+  //     
+  //     // Remove duplicates for each participant
+  //     Object.keys(participantVideoCounts).forEach(participantId => {
+  //       if (participantVideoCounts[participantId] > 1) {
+  //         console.log(`🧹 UltraSimpleVideo: Found ${participantVideoCounts[participantId]} video elements for ${participantId}, cleaning up...`);
+  //         const elements = document.querySelectorAll(`video[data-participant-id="${participantId}"]`);
+  //         for (let i = 1; i < elements.length; i++) {
+  //           const duplicateEl = elements[i];
+  //           if (duplicateEl.srcObject) {
+  //             duplicateEl.srcObject.getTracks().forEach(track => track.stop());
+  //           }
+  //           duplicateEl.srcObject = null;
+  //           duplicateEl.remove();
+  //         }
+  //       }
+  //     });
+  //     
+  //     // Clean up orphaned video elements
+  //     allVideoElements.forEach(video => {
+  //       if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local-video')) {
+  //         console.log(`🧹 UltraSimpleVideo: Removing orphaned video element...`);
+  //         if (video.srcObject) {
+  //           video.srcObject.getTracks().forEach(track => track.stop());
+  //         }
+  //         video.srcObject = null;
+  //         video.remove();
+  //       }
+  //     });
+  //   }, 60000); // Run cleanup every minute for stability
+  //   
+  //   return () => clearInterval(cleanupInterval);
+  // }, []);
 
   // Monitor participants data changes for debugging
   useEffect(() => {
@@ -203,118 +203,118 @@ const UltraSimpleVideo = ({
     });
   }, [remoteStreams]);
 
-  // ROBUST Media State Monitoring & Video Mirroring
-  useEffect(() => {
-    const fixVideoMirroringAndMediaStates = () => {
-      // Find ALL video elements
-      const allVideos = document.querySelectorAll('video');
+  // DISABLED: Media State Monitoring - causing flickering
+  // useEffect(() => {
+  //   const fixVideoMirroringAndMediaStates = () => {
+  //     // Find ALL video elements
+  //     const allVideos = document.querySelectorAll('video');
+  //     
+  //     console.log(`📹 UltraSimpleVideo: Found ${allVideos.length} total videos`);
+  //     
+  //     // Fix camera videos - should be mirrored like a mirror
+  //     allVideos.forEach((video, index) => {
+  //       console.log(`📹 UltraSimpleVideo: Fixing camera video ${index + 1}`);
+  //       
+  //       // CAMERA: Mirror like a mirror (scaleX(-1))
+  //       video.style.setProperty('transform', 'scaleX(-1)', 'important');
+  //       video.style.setProperty('-webkit-transform', 'scaleX(-1)', 'important');
+  //       video.style.setProperty('-moz-transform', 'scaleX(-1)', 'important');
+  //       video.style.setProperty('-ms-transform', 'scaleX(-1)', 'important');
+  //       video.style.setProperty('-o-transform', 'scaleX(-1)', 'important');
+  //       
+  //       // CAMERA: Force proper sizing
+  //       video.style.setProperty('object-fit', 'cover', 'important');
+  //       video.style.setProperty('background', 'transparent', 'important');
+  //       video.style.setProperty('width', '100%', 'important');
+  //       video.style.setProperty('height', '100%', 'important');
+  //       video.style.setProperty('display', 'block', 'important');
+  //       video.style.setProperty('border-radius', '0', 'important');
+  //       
+  //       console.log(`📹 UltraSimpleVideo: Applied camera mirroring to video ${index + 1}`);
+  //     });
       
-      console.log(`📹 UltraSimpleVideo: Found ${allVideos.length} total videos`);
-      
-      // Fix camera videos - should be mirrored like a mirror
-      allVideos.forEach((video, index) => {
-        console.log(`📹 UltraSimpleVideo: Fixing camera video ${index + 1}`);
-        
-        // CAMERA: Mirror like a mirror (scaleX(-1))
-        video.style.setProperty('transform', 'scaleX(-1)', 'important');
-        video.style.setProperty('-webkit-transform', 'scaleX(-1)', 'important');
-        video.style.setProperty('-moz-transform', 'scaleX(-1)', 'important');
-        video.style.setProperty('-ms-transform', 'scaleX(-1)', 'important');
-        video.style.setProperty('-o-transform', 'scaleX(-1)', 'important');
-        
-        // CAMERA: Force proper sizing
-        video.style.setProperty('object-fit', 'cover', 'important');
-        video.style.setProperty('background', 'transparent', 'important');
-        video.style.setProperty('width', '100%', 'important');
-        video.style.setProperty('height', '100%', 'important');
-        video.style.setProperty('display', 'block', 'important');
-        video.style.setProperty('border-radius', '0', 'important');
-        
-        console.log(`📹 UltraSimpleVideo: Applied camera mirroring to video ${index + 1}`);
-      });
-      
-      // ROBUST: Continuously monitor and fix media states
-      otherParticipants.forEach(participant => {
-        const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
-        if (videoElement) {
-          // Force apply media state changes
-          if (!participant.videoEnabled) {
-            console.log(`🔒 UltraSimpleVideo: FORCE HIDING video for ${participant.name} (camera off)`);
-            videoElement.style.setProperty('display', 'none', 'important');
-            videoElement.style.setProperty('visibility', 'hidden', 'important');
-            videoElement.style.setProperty('opacity', '0', 'important');
-            videoElement.style.setProperty('pointer-events', 'none', 'important');
-            videoElement.style.setProperty('z-index', '-1', 'important');
-          } else {
-            console.log(`🔓 UltraSimpleVideo: FORCE SHOWING video for ${participant.name} (camera on)`);
-            videoElement.style.setProperty('display', 'block', 'important');
-            videoElement.style.setProperty('visibility', 'visible', 'important');
-            videoElement.style.setProperty('opacity', '1', 'important');
-            videoElement.style.setProperty('pointer-events', 'auto', 'important');
-            videoElement.style.setProperty('z-index', '1', 'important');
-          }
-        }
-      });
-    };
+  //       // ROBUST: Continuously monitor and fix media states
+  //       otherParticipants.forEach(participant => {
+  //         const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
+  //         if (videoElement) {
+  //           // Force apply media state changes
+  //           if (!participant.videoEnabled) {
+  //             console.log(`🔒 UltraSimpleVideo: FORCE HIDING video for ${participant.name} (camera off)`);
+  //             videoElement.style.setProperty('display', 'none', 'important');
+  //             videoElement.style.setProperty('visibility', 'hidden', 'important');
+  //             videoElement.style.setProperty('opacity', '0', 'important');
+  //             videoElement.style.setProperty('pointer-events', 'none', 'important');
+  //             videoElement.style.setProperty('z-index', '-1', 'important');
+  //           } else {
+  //             console.log(`🔓 UltraSimpleVideo: FORCE SHOWING video for ${participant.name} (camera on)`);
+  //             videoElement.style.setProperty('display', 'block', 'important');
+  //             videoElement.style.setProperty('visibility', 'visible', 'important');
+  //             videoElement.style.setProperty('opacity', '1', 'important');
+  //             videoElement.style.setProperty('pointer-events', 'auto', 'important');
+  //             videoElement.style.setProperty('z-index', '1', 'important');
+  //           }
+  //         }
+  //       });
+  //     };
 
-    // Fix immediately
-    fixVideoMirroringAndMediaStates();
+  //     // Fix immediately
+  //     fixVideoMirroringAndMediaStates();
 
-    // Set up interval to continuously monitor and fix (reduced frequency for performance)
-    const interval = setInterval(fixVideoMirroringAndMediaStates, 2000);
+  //     // Set up interval to continuously monitor and fix (reduced frequency for performance)
+  //     const interval = setInterval(fixVideoMirroringAndMediaStates, 2000);
 
-    return () => clearInterval(interval);
-  }, [forceRender, otherParticipants]);
+  //     return () => clearInterval(interval);
+  //   }, [forceRender, otherParticipants]);
 
-  // DEDICATED Media State Monitoring - Runs independently to prevent issues
-  useEffect(() => {
-    const monitorMediaStates = () => {
-      console.log('🔍 UltraSimpleVideo: Monitoring media states...');
-      
-      otherParticipants.forEach(participant => {
-        const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
-        
-        if (videoElement) {
-          const currentDisplay = window.getComputedStyle(videoElement).display;
-          const currentVisibility = window.getComputedStyle(videoElement).visibility;
-          const currentOpacity = window.getComputedStyle(videoElement).opacity;
-          
-          console.log(`🔍 UltraSimpleVideo: ${participant.name} media state check:`, {
-            videoEnabled: participant.videoEnabled,
-            currentDisplay,
-            currentVisibility,
-            currentOpacity,
-            shouldBeVisible: participant.videoEnabled
-          });
-          
-          // Force correct media state if there's a mismatch
-          if (!participant.videoEnabled && (currentDisplay !== 'none' || currentVisibility !== 'hidden' || currentOpacity !== '0')) {
-            console.log(`🔒 UltraSimpleVideo: CORRECTING - Force hiding ${participant.name} video`);
-            videoElement.style.setProperty('display', 'none', 'important');
-            videoElement.style.setProperty('visibility', 'hidden', 'important');
-            videoElement.style.setProperty('opacity', '0', 'important');
-            videoElement.style.setProperty('pointer-events', 'none', 'important');
-            videoElement.style.setProperty('z-index', '-1', 'important');
-          } else if (participant.videoEnabled && (currentDisplay === 'none' || currentVisibility === 'hidden' || currentOpacity === '0')) {
-            console.log(`🔓 UltraSimpleVideo: GENTLY showing ${participant.name} video`);
-            videoElement.style.setProperty('display', 'block', 'important');
-            videoElement.style.setProperty('visibility', 'visible', 'important');
-            videoElement.style.setProperty('opacity', '1', 'important');
-            videoElement.style.setProperty('pointer-events', 'auto', 'important');
-            videoElement.style.setProperty('z-index', '1', 'important');
-          }
-        }
-      });
-    };
+  // DISABLED: DEDICATED Media State Monitoring - causing flickering
+  // useEffect(() => {
+  //   const monitorMediaStates = () => {
+  //     console.log('🔍 UltraSimpleVideo: Monitoring media states...');
+  //     
+  //     otherParticipants.forEach(participant => {
+  //       const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
+  //       
+  //       if (videoElement) {
+  //         const currentDisplay = window.getComputedStyle(videoElement).display;
+  //         const currentVisibility = window.getComputedStyle(videoElement).visibility;
+  //         const currentOpacity = window.getComputedStyle(videoElement).opacity;
+  //         
+  //         console.log(`🔍 UltraSimpleVideo: ${participant.name} media state check:`, {
+  //           videoEnabled: participant.videoEnabled,
+  //           currentDisplay,
+  //           currentVisibility,
+  //           currentOpacity,
+  //           shouldBeVisible: participant.videoEnabled
+  //         });
+  //         
+  //         // Force correct media state if there's a mismatch
+  //         if (!participant.videoEnabled && (currentDisplay !== 'none' || currentVisibility !== 'hidden' || currentOpacity !== '0')) {
+  //           console.log(`🔒 UltraSimpleVideo: CORRECTING - Force hiding ${participant.name} video`);
+  //           videoElement.style.setProperty('display', 'none', 'important');
+  //           videoElement.style.setProperty('visibility', 'hidden', 'important');
+  //           videoElement.style.setProperty('opacity', '0', 'important');
+  //           videoElement.style.setProperty('pointer-events', 'none', 'important');
+  //           videoElement.style.setProperty('z-index', '-1', 'important');
+  //         } else if (participant.videoEnabled && (currentDisplay === 'none' || currentVisibility === 'hidden' || currentOpacity === '0')) {
+  //           console.log(`🔓 UltraSimpleVideo: GENTLY showing ${participant.name} video`);
+  //           videoElement.style.setProperty('display', 'block', 'important');
+  //           videoElement.style.setProperty('visibility', 'visible', 'important');
+  //           videoElement.style.setProperty('opacity', '1', 'important');
+  //           videoElement.style.setProperty('pointer-events', 'auto', 'important');
+  //           videoElement.style.setProperty('z-index', '1', 'important');
+  //         }
+  //       }
+  //     });
+  //   };
 
-    // Monitor immediately
-    monitorMediaStates();
+  //   // Monitor immediately
+  //   monitorMediaStates();
 
-    // GENTLE MONITORING: Reduce monitoring frequency to prevent camera issues
-    const interval = setInterval(monitorMediaStates, 500); // Reduced to 500ms for stability
+  //   // GENTLE MONITORING: Reduce monitoring frequency to prevent camera issues
+  //   const interval = setInterval(monitorMediaStates, 500); // Reduced to 500ms for stability
 
-    return () => clearInterval(interval);
-  }, [otherParticipants]);
+  //   return () => clearInterval(interval);
+  // }, [otherParticipants]);
 
   // Stable video element creation callback to prevent recreation
   const createVideoElement = useCallback((participantId) => {
@@ -585,9 +585,10 @@ const UltraSimpleVideo = ({
     };
   }, [remoteStreams]);
 
-  // Set up local video
+  // SIMPLE: Single clean effect for local video - no conflicts, no flickering
   useEffect(() => {
     if (localStream && localVideoRef.current) {
+      console.log('🎥 UltraSimpleVideo: Setting up local video');
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
@@ -602,87 +603,87 @@ const UltraSimpleVideo = ({
   // Throttle re-renders to prevent excessive updates
   const reRenderTimeout = useRef(null);
   
-  // Force re-render when participants change (for media state updates)
-  useEffect(() => {
-    console.log('🔄 UltraSimpleVideo: Participants changed, checking if re-render needed');
-    console.log('🔄 UltraSimpleVideo: Participants data:', participants.map(p => ({ 
-      id: p.id, 
-      name: p.name, 
-      audioEnabled: p.audioEnabled, 
-      videoEnabled: p.videoEnabled 
-    })));
-    
-    // Clear existing timeout
-    if (reRenderTimeout.current) {
-      clearTimeout(reRenderTimeout.current);
-    }
-    
-    // Only force re-render if there are actual media state changes
-    const hasMediaStateChanges = participants.some(p => 
-      p.audioEnabled !== undefined || p.videoEnabled !== undefined
-    );
-    
-    if (hasMediaStateChanges) {
-      console.log('🔄 UltraSimpleVideo: Media state changes detected, throttling re-render');
-      // Throttle re-renders to prevent excessive updates
-      reRenderTimeout.current = setTimeout(() => {
-        console.log('🔄 UltraSimpleVideo: Executing throttled re-render');
-        setForceRender(prev => prev + 1);
-      }, 100); // 100ms throttle
-    } else {
-      console.log('🔄 UltraSimpleVideo: No media state changes, skipping re-render');
-    }
-  }, [participants]);
+  // DISABLED: Force re-render when participants change - causing video issues
+  // useEffect(() => {
+  //   console.log('🔄 UltraSimpleVideo: Participants changed, checking if re-render needed');
+  //   console.log('🔄 UltraSimpleVideo: Participants data:', participants.map(p => ({ 
+  //     id: p.id, 
+  //     name: p.name, 
+  //     audioEnabled: p.audioEnabled, 
+  //     videoEnabled: p.videoEnabled 
+  //   })));
+  //   
+  //   // Clear existing timeout
+  //   if (reRenderTimeout.current) {
+  //     clearTimeout(reRenderTimeout.current);
+  //   }
+  //   
+  //   // Only force re-render if there are actual media state changes
+  //   const hasMediaStateChanges = participants.some(p => 
+  //     p.audioEnabled !== undefined || p.videoEnabled !== undefined
+  //   );
+  //   
+  //   if (hasMediaStateChanges) {
+  //     console.log('🔄 UltraSimpleVideo: Media state changes detected, throttling re-render');
+  //     // Throttle re-renders to prevent excessive updates
+  //     reRenderTimeout.current = setTimeout(() => {
+  //       console.log('🔄 UltraSimpleVideo: Executing throttled re-render');
+  //       setForceRender(prev => prev + 1);
+  //     }, 100); // 100ms throttle
+  //   } else {
+  //     console.log('🔄 UltraSimpleVideo: No media state changes, skipping re-render');
+  //   }
+  // }, [participants]);
 
-  // Clean up video elements when participants are removed
-  useEffect(() => {
-    console.log('🧹 UltraSimpleVideo: Cleaning up video elements for removed participants');
-    console.log('🧹 UltraSimpleVideo: Current participants:', participants.map(p => ({ id: p.id, name: p.name })));
-    
-    // Get current participant IDs
-    const currentParticipantIds = participants.map(p => p.id);
-    
-    // Clean up video refs for participants that no longer exist
-    Object.keys(remoteVideoRefs.current).forEach(participantId => {
-      if (!currentParticipantIds.includes(participantId)) {
-        console.log(`🧹 UltraSimpleVideo: Cleaning up video ref for removed participant: ${participantId}`);
-        const videoElement = remoteVideoRefs.current[participantId];
-        if (videoElement) {
-          // Stop all tracks in the video element
-          if (videoElement.srcObject) {
-            videoElement.srcObject.getTracks().forEach(track => {
-              track.stop();
-            });
-          }
-          // Clear the video source
-          videoElement.srcObject = null;
-          // Remove the video element from the ref
-          delete remoteVideoRefs.current[participantId];
-        }
-      }
-    });
-    
-    // Clean up any duplicate video elements in the DOM
-    const allVideoElements = document.querySelectorAll('video[data-participant-id]');
-    allVideoElements.forEach(videoEl => {
-      const participantId = videoEl.getAttribute('data-participant-id');
-      if (participantId && !currentParticipantIds.includes(participantId)) {
-        console.log(`🧹 UltraSimpleVideo: Removing orphaned video element for participant: ${participantId}`);
-        if (videoEl.srcObject) {
-          videoEl.srcObject.getTracks().forEach(track => track.stop());
-        }
-        videoEl.srcObject = null;
-        videoEl.remove();
-      }
-    });
-    
-    // Force a re-render to ensure the UI updates
-    setTimeout(() => {
-      console.log('🔄 UltraSimpleVideo: Force re-render after participant cleanup');
-      setLayoutKey(prev => prev + 1);
-      setForceRender(prev => prev + 1);
-    }, 50);
-  }, [participants]);
+  // DISABLED: Clean up video elements when participants are removed - causing video issues
+  // useEffect(() => {
+  //   console.log('🧹 UltraSimpleVideo: Cleaning up video elements for removed participants');
+  //   console.log('🧹 UltraSimpleVideo: Current participants:', participants.map(p => ({ id: p.id, name: p.name })));
+  //   
+  //   // Get current participant IDs
+  //   const currentParticipantIds = participants.map(p => p.id);
+  //   
+  //   // Clean up video refs for participants that no longer exist
+  //   Object.keys(remoteVideoRefs.current).forEach(participantId => {
+  //     if (!currentParticipantIds.includes(participantId)) {
+  //       console.log(`🧹 UltraSimpleVideo: Cleaning up video ref for removed participant: ${participantId}`);
+  //       const videoElement = remoteVideoRefs.current[participantId];
+  //       if (videoElement) {
+  //         // Stop all tracks in the video element
+  //         if (videoElement.srcObject) {
+  //           videoElement.srcObject.getTracks().forEach(track => {
+  //             track.stop();
+  //           });
+  //         }
+  //         // Clear the video source
+  //         videoElement.srcObject = null;
+  //         // Remove the video element from the ref
+  //         delete remoteVideoRefs.current[participantId];
+  //       }
+  //     }
+  //   });
+  //   
+  //   // Clean up any duplicate video elements in the DOM
+  //   const allVideoElements = document.querySelectorAll('video[data-participant-id]');
+  //   allVideoElements.forEach(videoEl => {
+  //     const participantId = videoEl.getAttribute('data-participant-id');
+  //     if (participantId && !currentParticipantIds.includes(participantId)) {
+  //       console.log(`🧹 UltraSimpleVideo: Removing orphaned video element for participant: ${participantId}`);
+  //       if (videoEl.srcObject) {
+  //         videoEl.srcObject.getTracks().forEach(track => track.stop());
+  //       }
+  //       videoEl.srcObject = null;
+  //       videoEl.remove();
+  //     }
+  //   });
+  //   
+  //   // Force a re-render to ensure the UI updates
+  //   setTimeout(() => {
+  //     console.log('🔄 UltraSimpleVideo: Force re-render after participant cleanup');
+  //     setLayoutKey(prev => prev + 1);
+  //     setForceRender(prev => prev + 1);
+  //   }, 50);
+  // }, [participants]);
 
   // Set up remote videos
   useEffect(() => {
@@ -732,33 +733,34 @@ const UltraSimpleVideo = ({
     });
   }, [remoteStreams, currentUserId]);
 
-  useEffect(() => {
-    const forceCorrectMediaStates = () => {
-      otherParticipants.forEach(participant => {
-        const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
-        if (videoElement) {
-          videoElement.setAttribute('data-video-enabled', participant.videoEnabled);
-          videoElement.setAttribute('data-audio-enabled', participant.audioEnabled);
-          
-          if (!participant.videoEnabled) {
-            videoElement.style.setProperty('display', 'none', 'important');
-            videoElement.style.setProperty('visibility', 'hidden', 'important');
-            videoElement.style.setProperty('opacity', '0', 'important');
-            videoElement.style.setProperty('pointer-events', 'none', 'important');
-            videoElement.style.setProperty('z-index', '-1', 'important');
-          } else {
-            videoElement.style.setProperty('display', 'block', 'important');
-            videoElement.style.setProperty('visibility', 'visible', 'important');
-            videoElement.style.setProperty('opacity', '1', 'important');
-            videoElement.style.setProperty('pointer-events', 'auto', 'important');
-            videoElement.style.setProperty('z-index', '1', 'important');
-          }
-        }
-      });
-    };
+  // DISABLED: forceCorrectMediaStates - causing flickering
+  // useEffect(() => {
+  //   const forceCorrectMediaStates = () => {
+  //     otherParticipants.forEach(participant => {
+  //       const videoElement = document.querySelector(`video[data-participant-id="${participant.id}"]`);
+  //       if (videoElement) {
+  //         videoElement.setAttribute('data-video-enabled', participant.videoEnabled);
+  //         videoElement.setAttribute('data-audio-enabled', participant.audioEnabled);
+  //         
+  //         if (!participant.videoEnabled) {
+  //           videoElement.style.setProperty('display', 'none', 'important');
+  //           videoElement.style.setProperty('visibility', 'hidden', 'important');
+  //           videoElement.style.setProperty('opacity', '0', 'important');
+  //           videoElement.style.setProperty('pointer-events', 'none', 'important');
+  //           videoElement.style.setProperty('z-index', '-1', 'important');
+  //         } else {
+  //           videoElement.style.setProperty('display', 'block', 'important');
+  //           videoElement.style.setProperty('visibility', 'visible', 'important');
+  //           videoElement.style.setProperty('opacity', '1', 'important');
+  //           videoElement.style.setProperty('pointer-events', 'auto', 'important');
+  //           videoElement.style.setProperty('z-index', '1', 'important');
+  //         }
+  //       }
+  //     });
+  //   };
 
-    forceCorrectMediaStates();
-  }, [otherParticipants, forceRender]);
+  //   forceCorrectMediaStates();
+  // }, [otherParticipants, forceRender]);
   
 
   return (
