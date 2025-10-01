@@ -369,7 +369,7 @@ const UltraSimpleVideo = ({
     }
   }, [localStream]);
 
-  // ESSENTIAL: Handle remote stream updates - needed for participant videos
+  // IMMEDIATE PROTECTION: Force stream assignment when remoteStreams change
   useEffect(() => {
     console.log('🎥 UltraSimpleVideo: Remote streams updated:', Object.keys(remoteStreams));
     
@@ -379,26 +379,41 @@ const UltraSimpleVideo = ({
       const stream = remoteStreams[participantId];
       
       if (stream && stream.active && stream.getTracks().length > 0) {
-        // Update video element - only if not already assigned
-        if (videoElement && videoElement.srcObject !== stream) {
-          console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
+        // IMMEDIATE: Force video element assignment
+        if (videoElement) {
+          console.log(`🎥 UltraSimpleVideo: IMMEDIATE - Assigning stream to video element for ${participantId}`);
           videoElement.srcObject = stream;
-          videoElement.play().catch(() => {}); // Silent fail
+          
+          // Force visibility immediately
+          videoElement.style.display = 'block';
+          videoElement.style.visibility = 'visible';
+          videoElement.style.opacity = '1';
+          videoElement.style.position = 'relative';
+          videoElement.style.zIndex = '1';
+          
+          // Force play immediately and with delays
+          videoElement.play().catch(() => {});
+          setTimeout(() => videoElement.play().catch(() => {}), 50);
+          setTimeout(() => videoElement.play().catch(() => {}), 200);
+          setTimeout(() => videoElement.play().catch(() => {}), 1000);
         }
         
-        // Update audio element - only if not already assigned
-        if (audioElement && audioElement.srcObject !== stream) {
-          console.log(`🔊 UltraSimpleVideo: Assigning stream to audio element for ${participantId}`);
+        // IMMEDIATE: Force audio element assignment
+        if (audioElement) {
+          console.log(`🔊 UltraSimpleVideo: IMMEDIATE - Assigning stream to audio element for ${participantId}`);
           audioElement.srcObject = stream;
-          audioElement.play().catch(() => {}); // Silent fail
+          audioElement.play().catch(() => {});
+          setTimeout(() => audioElement.play().catch(() => {}), 50);
         }
       }
     });
   }, [remoteStreams]);
 
-  // SMART PROTECTION: Only protect videos for current participants
+  // ULTRA-AGGRESSIVE PROTECTION: Multiple layers of protection for host video
   useEffect(() => {
-    const protectCurrentParticipantVideos = () => {
+    const ultraProtectVideos = () => {
+      console.log('🛡️ UltraSimpleVideo: ULTRA-AGGRESSIVE PROTECTION running...');
+      
       // Only protect videos for participants who are currently in the meeting
       const currentParticipantIds = otherParticipants.map(p => p.id);
       
@@ -408,39 +423,50 @@ const UltraSimpleVideo = ({
         const stream = remoteStreams[participantId];
         
         if (stream && stream.active && stream.getTracks().length > 0) {
-          // Force video element to stay visible
+          // ULTRA-AGGRESSIVE: Force video element to stay visible
           if (videoElement) {
-            if (videoElement.srcObject !== stream) {
-              console.log(`🛡️ UltraSimpleVideo: SMART PROTECTION - Reassigning stream to video element for ${participantId}`);
-              videoElement.srcObject = stream;
-            }
+            console.log(`🛡️ UltraSimpleVideo: ULTRA-PROTECTING video for ${participantId}`);
             
-            // Force video to be visible and playing
+            // Always reassign stream (even if same)
+            videoElement.srcObject = stream;
+            
+            // Force all visibility properties
             videoElement.style.display = 'block';
             videoElement.style.visibility = 'visible';
             videoElement.style.opacity = '1';
-            videoElement.play().catch(() => {}); // Silent fail
+            videoElement.style.position = 'relative';
+            videoElement.style.zIndex = '1';
+            
+            // Force play multiple times
+            videoElement.play().catch(() => {});
+            setTimeout(() => videoElement.play().catch(() => {}), 100);
+            setTimeout(() => videoElement.play().catch(() => {}), 500);
           }
           
-          // Force audio element to stay active
+          // ULTRA-AGGRESSIVE: Force audio element to stay active
           if (audioElement) {
-            if (audioElement.srcObject !== stream) {
-              console.log(`🛡️ UltraSimpleVideo: SMART PROTECTION - Reassigning stream to audio element for ${participantId}`);
-              audioElement.srcObject = stream;
-            }
-            audioElement.play().catch(() => {}); // Silent fail
+            console.log(`🛡️ UltraSimpleVideo: ULTRA-PROTECTING audio for ${participantId}`);
+            audioElement.srcObject = stream;
+            audioElement.play().catch(() => {});
+            setTimeout(() => audioElement.play().catch(() => {}), 100);
           }
         }
       });
     };
 
     // Run immediately
-    protectCurrentParticipantVideos();
+    ultraProtectVideos();
     
-    // Run every 3 seconds to prevent videos from going off
-    const interval = setInterval(protectCurrentParticipantVideos, 3000);
+    // Run every 1 second for ultra-aggressive protection
+    const interval1 = setInterval(ultraProtectVideos, 1000);
     
-    return () => clearInterval(interval);
+    // Run every 2 seconds as backup
+    const interval2 = setInterval(ultraProtectVideos, 2000);
+    
+    return () => {
+      clearInterval(interval1);
+      clearInterval(interval2);
+    };
   }, [remoteStreams, otherParticipants]);
 
   // MINIMAL: Handle new participants joining - only when participant count changes
@@ -476,21 +502,28 @@ const UltraSimpleVideo = ({
     return () => clearTimeout(timeoutId);
   }, [otherParticipants.length]); // Only depend on participant count, not streams
 
-  // STABILITY: Ensure remaining videos stay visible when participants leave
+  // HOST VIDEO FORCE: Immediately force host video to be visible when participants change
   useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Participants changed, ensuring remaining videos stay visible');
+    console.log('🎥 UltraSimpleVideo: Participants changed, FORCING host video visibility');
     
-    // Force local video to stay visible
+    // IMMEDIATE: Force local video to stay visible
     if (localVideoRef.current && localStream) {
-      console.log('🎥 UltraSimpleVideo: Ensuring local video stays visible');
+      console.log('🎥 UltraSimpleVideo: FORCING local video to be visible');
       localVideoRef.current.srcObject = localStream;
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
       localVideoRef.current.style.opacity = '1';
+      localVideoRef.current.style.position = 'relative';
+      localVideoRef.current.style.zIndex = '1';
+      
+      // Force play multiple times
       localVideoRef.current.play().catch(() => {});
+      setTimeout(() => localVideoRef.current.play().catch(() => {}), 100);
+      setTimeout(() => localVideoRef.current.play().catch(() => {}), 500);
+      setTimeout(() => localVideoRef.current.play().catch(() => {}), 1000);
     }
     
-    // Force remaining participant videos to stay visible
+    // IMMEDIATE: Force remaining participant videos to stay visible
     otherParticipants.forEach(participant => {
       const videoElement = remoteVideoRefs.current[participant.id];
       const audioElement = remoteAudioRefs.current[participant.id];
@@ -498,18 +531,25 @@ const UltraSimpleVideo = ({
       
       if (stream && stream.active && stream.getTracks().length > 0) {
         if (videoElement) {
-          console.log(`🎥 UltraSimpleVideo: Ensuring participant video stays visible for ${participant.id}`);
+          console.log(`🎥 UltraSimpleVideo: FORCING participant video to be visible for ${participant.id}`);
           videoElement.srcObject = stream;
           videoElement.style.display = 'block';
           videoElement.style.visibility = 'visible';
           videoElement.style.opacity = '1';
+          videoElement.style.position = 'relative';
+          videoElement.style.zIndex = '1';
+          
+          // Force play multiple times
           videoElement.play().catch(() => {});
+          setTimeout(() => videoElement.play().catch(() => {}), 100);
+          setTimeout(() => videoElement.play().catch(() => {}), 500);
         }
         
         if (audioElement) {
-          console.log(`🔊 UltraSimpleVideo: Ensuring participant audio stays active for ${participant.id}`);
+          console.log(`🔊 UltraSimpleVideo: FORCING participant audio to be active for ${participant.id}`);
           audioElement.srcObject = stream;
           audioElement.play().catch(() => {});
+          setTimeout(() => audioElement.play().catch(() => {}), 100);
         }
       }
     });
