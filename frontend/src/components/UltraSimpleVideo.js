@@ -318,7 +318,7 @@ const UltraSimpleVideo = ({
   // }, [otherParticipants]);
 
   // Stable video element creation callback to prevent recreation
-  // ENHANCED: Video element creation with aggressive protection
+  // SIMPLE: Video element creation without aggressive intervals
   const createVideoElement = useCallback((participantId) => {
     return (el) => {
       if (el && participantId) {
@@ -338,31 +338,6 @@ const UltraSimpleVideo = ({
             el.play().catch(() => {}); // Silent fail
           }
         }
-        
-        // Set up a periodic check to ensure video stays visible
-        const checkInterval = setInterval(() => {
-          if (el && remoteStreams[participantId]) {
-            const stream = remoteStreams[participantId];
-            if (stream && stream.active && stream.getTracks().length > 0) {
-              // Force visibility
-              el.style.display = 'block';
-              el.style.visibility = 'visible';
-              el.style.opacity = '1';
-              
-              // Reassign stream if needed
-              if (el.srcObject !== stream) {
-                console.log(`🛡️ UltraSimpleVideo: Periodic stream reassignment for ${participantId}`);
-                el.srcObject = stream;
-              }
-              
-              // Force play
-              el.play().catch(() => {});
-            }
-          }
-        }, 2000); // Check every 2 seconds
-        
-        // Store interval for cleanup
-        remoteVideoRefs.current[`${participantId}_checkInterval`] = checkInterval;
       }
     };
   }, [remoteStreams]);
@@ -421,10 +396,13 @@ const UltraSimpleVideo = ({
     });
   }, [remoteStreams]);
 
-  // BULLETPROOF: Continuous protection for remote videos - prevents host video from going off
+  // SMART PROTECTION: Only protect videos for current participants
   useEffect(() => {
-    const protectRemoteVideos = () => {
-      Object.keys(remoteStreams).forEach(participantId => {
+    const protectCurrentParticipantVideos = () => {
+      // Only protect videos for participants who are currently in the meeting
+      const currentParticipantIds = otherParticipants.map(p => p.id);
+      
+      currentParticipantIds.forEach(participantId => {
         const videoElement = remoteVideoRefs.current[participantId];
         const audioElement = remoteAudioRefs.current[participantId];
         const stream = remoteStreams[participantId];
@@ -433,7 +411,7 @@ const UltraSimpleVideo = ({
           // Force video element to stay visible
           if (videoElement) {
             if (videoElement.srcObject !== stream) {
-              console.log(`🛡️ UltraSimpleVideo: BULLETPROOF - Reassigning stream to video element for ${participantId}`);
+              console.log(`🛡️ UltraSimpleVideo: SMART PROTECTION - Reassigning stream to video element for ${participantId}`);
               videoElement.srcObject = stream;
             }
             
@@ -447,7 +425,7 @@ const UltraSimpleVideo = ({
           // Force audio element to stay active
           if (audioElement) {
             if (audioElement.srcObject !== stream) {
-              console.log(`🛡️ UltraSimpleVideo: BULLETPROOF - Reassigning stream to audio element for ${participantId}`);
+              console.log(`🛡️ UltraSimpleVideo: SMART PROTECTION - Reassigning stream to audio element for ${participantId}`);
               audioElement.srcObject = stream;
             }
             audioElement.play().catch(() => {}); // Silent fail
@@ -457,13 +435,13 @@ const UltraSimpleVideo = ({
     };
 
     // Run immediately
-    protectRemoteVideos();
+    protectCurrentParticipantVideos();
     
-    // Run every 3 seconds to prevent host video from going off
-    const interval = setInterval(protectRemoteVideos, 3000);
+    // Run every 3 seconds to prevent videos from going off
+    const interval = setInterval(protectCurrentParticipantVideos, 3000);
     
     return () => clearInterval(interval);
-  }, [remoteStreams]);
+  }, [remoteStreams, otherParticipants]);
 
   // MINIMAL: Handle new participants joining - only when participant count changes
   useEffect(() => {
@@ -498,25 +476,54 @@ const UltraSimpleVideo = ({
     return () => clearTimeout(timeoutId);
   }, [otherParticipants.length]); // Only depend on participant count, not streams
 
-  // CLEANUP: Clean up intervals when component unmounts
+  // STABILITY: Ensure remaining videos stay visible when participants leave
+  useEffect(() => {
+    console.log('🎥 UltraSimpleVideo: Participants changed, ensuring remaining videos stay visible');
+    
+    // Force local video to stay visible
+    if (localVideoRef.current && localStream) {
+      console.log('🎥 UltraSimpleVideo: Ensuring local video stays visible');
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.style.display = 'block';
+      localVideoRef.current.style.visibility = 'visible';
+      localVideoRef.current.style.opacity = '1';
+      localVideoRef.current.play().catch(() => {});
+    }
+    
+    // Force remaining participant videos to stay visible
+    otherParticipants.forEach(participant => {
+      const videoElement = remoteVideoRefs.current[participant.id];
+      const audioElement = remoteAudioRefs.current[participant.id];
+      const stream = remoteStreams[participant.id];
+      
+      if (stream && stream.active && stream.getTracks().length > 0) {
+        if (videoElement) {
+          console.log(`🎥 UltraSimpleVideo: Ensuring participant video stays visible for ${participant.id}`);
+          videoElement.srcObject = stream;
+          videoElement.style.display = 'block';
+          videoElement.style.visibility = 'visible';
+          videoElement.style.opacity = '1';
+          videoElement.play().catch(() => {});
+        }
+        
+        if (audioElement) {
+          console.log(`🔊 UltraSimpleVideo: Ensuring participant audio stays active for ${participant.id}`);
+          audioElement.srcObject = stream;
+          audioElement.play().catch(() => {});
+        }
+      }
+    });
+  }, [otherParticipants.length, localStream, remoteStreams]);
+
+  // CLEANUP: Clean up video elements when component unmounts
   useEffect(() => {
     return () => {
-      console.log('🧹 UltraSimpleVideo: Cleaning up video elements and intervals');
+      console.log('🧹 UltraSimpleVideo: Cleaning up video elements');
       
       // Clean up video elements
       Object.values(remoteVideoRefs.current).forEach(video => {
         if (video && video.srcObject) {
           video.srcObject = null;
-        }
-      });
-      
-      // Clean up intervals
-      Object.keys(remoteVideoRefs.current).forEach(key => {
-        if (key.includes('_checkInterval')) {
-          const interval = remoteVideoRefs.current[key];
-          if (interval) {
-            clearInterval(interval);
-          }
         }
       });
     };
