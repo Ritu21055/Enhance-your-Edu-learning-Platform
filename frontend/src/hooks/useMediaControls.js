@@ -135,6 +135,26 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
         console.log('🎤 About to emit media state change:', { audioEnabled: newState, videoEnabled: isVideoEnabled });
         emitMediaStateChange(newState, isVideoEnabled);
         
+        // CRITICAL: Update all peer connections with the new stream state
+        if (window.ultraSimplePeerRef && window.ultraSimplePeerRef.peersRef) {
+          console.log('🎤 Updating all peer connections with new audio state...');
+          Object.keys(window.ultraSimplePeerRef.peersRef.current).forEach(participantId => {
+            const peer = window.ultraSimplePeerRef.peersRef.current[participantId];
+            if (peer && peer._pc) {
+              try {
+                // Remove the old stream and add the updated stream
+                if (peer.removeStream) {
+                  peer.removeStream(localStream);
+                }
+                peer.addStream(localStream);
+                console.log(`🎤 Updated peer connection for ${participantId} with new audio state`);
+              } catch (error) {
+                console.log(`⚠️ Could not update peer connection for ${participantId}:`, error.message);
+              }
+            }
+          });
+        }
+        
         // Apply enhanced audio constraints when enabling to ensure smooth audio
         if (newState) {
           const isMobileHotspot = window.location.hostname.includes('192.168.43') || 
@@ -216,6 +236,26 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
         // Emit media state change to other participants
         console.log('📹 About to emit media state change:', { audioEnabled: isAudioEnabled, videoEnabled: newState });
         emitMediaStateChange(isAudioEnabled, newState);
+        
+        // CRITICAL: Update all peer connections with the new stream state
+        if (window.ultraSimplePeerRef && window.ultraSimplePeerRef.peersRef) {
+          console.log('📹 Updating all peer connections with new video state...');
+          Object.keys(window.ultraSimplePeerRef.peersRef.current).forEach(participantId => {
+            const peer = window.ultraSimplePeerRef.peersRef.current[participantId];
+            if (peer && peer._pc) {
+              try {
+                // Remove the old stream and add the updated stream
+                if (peer.removeStream) {
+                  peer.removeStream(localStream);
+                }
+                peer.addStream(localStream);
+                console.log(`📹 Updated peer connection for ${participantId} with new video state`);
+              } catch (error) {
+                console.log(`⚠️ Could not update peer connection for ${participantId}:`, error.message);
+              }
+            }
+          });
+        }
       }
     } else {
       console.log('📹 No local stream available for video toggle');
