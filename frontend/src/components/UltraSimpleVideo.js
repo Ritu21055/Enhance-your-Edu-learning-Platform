@@ -555,6 +555,101 @@ const UltraSimpleVideo = ({
     });
   }, [otherParticipants.length, localStream, remoteStreams]);
 
+  // EMERGENCY: Global function to force host video visibility
+  useEffect(() => {
+    // Expose global function for emergency host video fix
+    window.forceHostVideoVisible = () => {
+      console.log('🚨 EMERGENCY: Forcing host video to be visible...');
+      
+      // Find all video elements in the DOM
+      const allVideos = document.querySelectorAll('video');
+      console.log('🚨 EMERGENCY: Found video elements:', allVideos.length);
+      
+      allVideos.forEach((video, index) => {
+        console.log(`🚨 EMERGENCY: Video ${index}:`, {
+          srcObject: !!video.srcObject,
+          display: video.style.display,
+          visibility: video.style.visibility,
+          opacity: video.style.opacity,
+          paused: video.paused,
+          currentTime: video.currentTime
+        });
+        
+        // Force all video elements to be visible and playing
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.position = 'relative';
+        video.style.zIndex = '999';
+        
+        // Force play
+        video.play().catch(err => console.log('🚨 EMERGENCY: Play failed:', err));
+      });
+      
+      // Also force through refs
+      Object.keys(remoteVideoRefs.current).forEach(participantId => {
+        const videoElement = remoteVideoRefs.current[participantId];
+        const stream = remoteStreams[participantId];
+        
+        if (videoElement && stream) {
+          console.log(`🚨 EMERGENCY: Forcing video for ${participantId}`);
+          videoElement.srcObject = stream;
+          videoElement.style.display = 'block';
+          videoElement.style.visibility = 'visible';
+          videoElement.style.opacity = '1';
+          videoElement.style.position = 'relative';
+          videoElement.style.zIndex = '999';
+          videoElement.play().catch(() => {});
+        }
+      });
+      
+      console.log('🚨 EMERGENCY: Host video force complete!');
+    };
+    
+    return () => {
+      delete window.forceHostVideoVisible;
+    };
+  }, [remoteStreams]);
+
+  // NUCLEAR OPTION: Constant DOM manipulation every 500ms
+  useEffect(() => {
+    const nuclearOption = () => {
+      console.log('☢️ NUCLEAR: Constant DOM manipulation for host video...');
+      
+      // Find ALL video elements in the DOM and force them
+      const allVideos = document.querySelectorAll('video');
+      
+      allVideos.forEach((video, index) => {
+        // Force visibility on ALL video elements
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.position = 'relative';
+        video.style.zIndex = '999';
+        video.style.width = '100%';
+        video.style.height = '100%';
+        
+        // Force play
+        video.play().catch(() => {});
+        
+        // If it has a stream, make sure it's assigned
+        if (video.srcObject) {
+          console.log(`☢️ NUCLEAR: Video ${index} has stream, ensuring it's visible`);
+        } else {
+          console.log(`☢️ NUCLEAR: Video ${index} has NO stream`);
+        }
+      });
+    };
+    
+    // Run immediately
+    nuclearOption();
+    
+    // Run every 500ms - NUCLEAR OPTION
+    const interval = setInterval(nuclearOption, 500);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   // CLEANUP: Clean up video elements when component unmounts
   useEffect(() => {
     return () => {
