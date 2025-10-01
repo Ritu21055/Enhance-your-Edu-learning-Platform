@@ -1761,6 +1761,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
     
     setLocalStream(newStream);
     
+    // Use the centralized update function to update all peer connections
+    updateAllPeerConnections(newStream);
+    
     // Update all existing peer connections with the new stream
     Object.keys(peersRef.current).forEach(participantId => {
       const peer = peersRef.current[participantId];
