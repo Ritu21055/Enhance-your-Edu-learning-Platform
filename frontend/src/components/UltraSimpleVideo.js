@@ -702,6 +702,45 @@ const UltraSimpleVideo = ({
     }
   }, [participants.length, localStream]);
 
+  // AGGRESSIVE: Force local video to show - runs every time participants change
+  useEffect(() => {
+    const forceLocalVideo = () => {
+      if (localVideoRef.current && localStream) {
+        console.log('🔧 UltraSimpleVideo: AGGRESSIVE - Forcing local video to show');
+        
+        const video = localVideoRef.current;
+        
+        // Force set the stream
+        video.srcObject = localStream;
+        
+        // Force all styles
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.width = '100%';
+        video.style.height = '100%';
+        video.style.objectFit = 'cover';
+        video.style.backgroundColor = 'transparent';
+        video.style.zIndex = '1';
+        
+        // Force play
+        video.load();
+        video.play().catch(err => {
+          console.log('🔧 UltraSimpleVideo: AGGRESSIVE - Local video play failed:', err);
+        });
+        
+        console.log('🔧 UltraSimpleVideo: AGGRESSIVE - Local video forced to show');
+      }
+    };
+    
+    // Run immediately
+    forceLocalVideo();
+    
+    // Also run after a short delay to catch any timing issues
+    setTimeout(forceLocalVideo, 100);
+    setTimeout(forceLocalVideo, 500);
+  }, [participants.length, localStream]);
+
   // Memoize participants to prevent unnecessary re-renders
   const memoizedParticipants = useMemo(() => {
     console.log('🔄 UltraSimpleVideo: Memoizing participants');
@@ -893,7 +932,22 @@ const UltraSimpleVideo = ({
           key={`local-video-${totalVideos}`}
           className={`video-item ${totalVideos > 2 ? 'video-item-scrollable' : ''} ${totalVideos === 1 ? 'single-video' : ''} ${isHost ? 'host-video' : ''}`}>
           <video
-            ref={localVideoRef}
+            ref={(ref) => {
+              localVideoRef.current = ref;
+              // CRITICAL: Immediately set stream when ref is created
+              if (ref && localStream) {
+                console.log('🎥 UltraSimpleVideo: DIRECT - Setting local stream on ref creation');
+                ref.srcObject = localStream;
+                ref.style.display = 'block';
+                ref.style.visibility = 'visible';
+                ref.style.opacity = '1';
+                ref.style.width = '100%';
+                ref.style.height = '100%';
+                ref.style.objectFit = 'cover';
+                ref.load();
+                ref.play().catch(err => console.log('🎥 UltraSimpleVideo: DIRECT - Play failed:', err));
+              }
+            }}
             autoPlay
             playsInline
             muted
