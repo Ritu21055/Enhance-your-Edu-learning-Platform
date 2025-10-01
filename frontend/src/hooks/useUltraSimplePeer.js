@@ -825,7 +825,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
               console.log(`ðŸ”§ CREATE-PEER: Force enabled audio track ${index} for ${participantId}`);
             }
             if (track.muted) {
-              track.muted = false;
+              // Note: muted property is read-only in newer browsers
               console.log(`ðŸ”§ CREATE-PEER: Force unmuted audio track ${index} for ${participantId}`);
             }
           });
@@ -1884,7 +1884,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
               console.log(`🔧 RESHARE: Enabled audio track ${index} for ${participantId}`);
             }
             if (track.muted) {
-              track.muted = false;
+              // Note: muted property is read-only in newer browsers
               console.log(`🔧 RESHARE: Unmuted audio track ${index} for ${participantId}`);
             }
           });

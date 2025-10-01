@@ -39,7 +39,7 @@ export const ensureHostAudioTransmission = (peer, stream, participantId, isHost)
       console.log(`🔊 AUDIO-UTILS: Force enabled host audio track ${index} for ${participantId}`);
     }
     if (track.muted) {
-      track.muted = false;
+      // Note: muted property is read-only in newer browsers
       console.log(`🔊 AUDIO-UTILS: Force unmuted host audio track ${index} for ${participantId}`);
     }
   });
@@ -88,7 +88,7 @@ export const ensureAudioTracksEnabled = (stream, participantId) => {
       console.log(`🔊 AUDIO-UTILS: Force enabled audio track ${index} for ${participantId}`);
     }
     if (track.muted) {
-      track.muted = false;
+      // Note: muted property is read-only in newer browsers
       console.log(`🔊 AUDIO-UTILS: Force unmuted audio track ${index} for ${participantId}`);
     }
   });
@@ -128,7 +128,7 @@ export const debugHostAudioReception = (stream, participantId, participants) => 
         console.log(`🔊 AUDIO-UTILS: Force enabled host audio track ${index} for participant reception`);
       }
       if (track.muted) {
-        track.muted = false;
+        // Note: muted property is read-only in newer browsers
         console.log(`🔊 AUDIO-UTILS: Force unmuted host audio track ${index} for participant reception`);
       }
     });
@@ -186,7 +186,7 @@ export const configureAudioElement = (audioElement, stream, participantId) => {
       console.log(`🔊 AUDIO-UTILS: Force enabled audio track ${index} for ${participantId}`);
     }
     if (track.muted) {
-      track.muted = false;
+      // Note: muted property is read-only in newer browsers
       console.log(`🔊 AUDIO-UTILS: Force unmuted audio track ${index} for ${participantId}`);
     }
   });
@@ -234,7 +234,7 @@ export const configureHostAudioElement = (audioElement, stream, participantId, i
         console.log(`🔊 AUDIO-UTILS: Force enabled HOST audio track ${index} for ${participantId}`);
       }
       if (track.muted) {
-        track.muted = false;
+        // Note: muted property is read-only in newer browsers
         console.log(`🔊 AUDIO-UTILS: Force unmuted HOST audio track ${index} for ${participantId}`);
       }
     });
@@ -381,7 +381,7 @@ export const initializeAudioStream = async (stream, setMicrophoneStatus) => {
 
   if (audioTrack.muted === true) {
     console.log('🔧 AUDIO-UTILS: Unmuting audio track...');
-    audioTrack.muted = false;
+    // Note: muted property is read-only in newer browsers
   }
 
   // Test if microphone is actually working
@@ -450,7 +450,7 @@ export const applyAudioConstraints = async (stream, participantId) => {
 
   if (audioTrack.muted) {
     console.log(`🔧 AUDIO-UTILS: Unmuting audio track for ${participantId}`);
-    audioTrack.muted = false;
+    // Note: muted property is read-only in newer browsers
   }
 
   // Force audio track to be active
@@ -549,7 +549,7 @@ export const forceReinitializeAudio = async (localStream, peersRef) => {
       console.log(`🔧 AUDIO-UTILS: Force enabled audio track ${index}`);
     }
     if (track.muted) {
-      track.muted = false;
+      // Note: muted property is read-only in newer browsers
       console.log(`🔧 AUDIO-UTILS: Force unmuted audio track ${index}`);
     }
   });
@@ -594,9 +594,9 @@ export const handleStreamReception = (stream, participantId, participants) => {
       track.enabled = true;
       console.log(`🔊 AUDIO-UTILS: Force enabled incoming audio track ${index} for ${participantId}`);
     }
+    // Note: muted property is read-only in newer browsers, so we can't set it directly
     if (track.muted) {
-      track.muted = false;
-      console.log(`🔊 AUDIO-UTILS: Force unmuted incoming audio track ${index} for ${participantId}`);
+      console.log(`🔊 AUDIO-UTILS: Track ${index} is muted (read-only property) for ${participantId}`);
     }
   });
   
@@ -687,7 +687,7 @@ export const fixAudioIssue = async (stream, peersRef) => {
   // Step 2: Force enable and unmute all audio tracks
   audioTracks.forEach((track, index) => {
     track.enabled = true;
-    track.muted = false;
+    // Note: muted property is read-only in newer browsers
     console.log(`🔊 AUDIO-UTILS: Fixed audio track ${index}`);
   });
   

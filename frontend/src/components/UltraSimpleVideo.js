@@ -147,7 +147,7 @@ const UltraSimpleVideo = ({
             console.log(`🔊 UltraSimpleVideo: Force enabled audio track ${index} for ${participantId}`);
           }
           if (track.muted) {
-            track.muted = false;
+            // Note: muted property is read-only in newer browsers
             console.log(`🔊 UltraSimpleVideo: Force unmuted audio track ${index} for ${participantId}`);
           }
         });
@@ -326,7 +326,7 @@ const UltraSimpleVideo = ({
                 console.log(`🔊 UltraSimpleVideo: Enabled audio track ${index} for ${participantId}`);
               }
               if (track.muted) {
-                track.muted = false;
+                // Note: muted property is read-only in newer browsers
                 console.log(`🔊 UltraSimpleVideo: Unmuted audio track ${index} for ${participantId}`);
               }
             });
@@ -374,7 +374,7 @@ const UltraSimpleVideo = ({
                   console.log(`🔊 UltraSimpleVideo: Force enabled audio track ${index} for ${participantId}`);
                 }
                 if (track.muted) {
-                  track.muted = false;
+                  // Note: muted property is read-only in newer browsers
                   console.log(`🔊 UltraSimpleVideo: Force unmuted audio track ${index} for ${participantId}`);
                 }
               });
@@ -447,7 +447,7 @@ const UltraSimpleVideo = ({
               console.log(`🔊 UltraSimpleVideo: Enabled audio track ${index} for ${participantId}`);
             }
             if (track.muted) {
-              track.muted = false;
+              // Note: muted property is read-only in newer browsers
               console.log(`🔊 UltraSimpleVideo: Unmuted audio track ${index} for ${participantId}`);
             }
           });
@@ -497,7 +497,7 @@ const UltraSimpleVideo = ({
                   console.log(`🔊 UltraSimpleVideo: Force enabled audio track ${index} for ${participantId}`);
                 }
                 if (track.muted) {
-                  track.muted = false;
+                  // Note: muted property is read-only in newer browsers
                   console.log(`🔊 UltraSimpleVideo: Force unmuted audio track ${index} for ${participantId}`);
                 }
               });
@@ -1617,7 +1617,7 @@ const UltraSimpleVideo = ({
                         console.log(`🔊 FIX AUDIO: Enabled audio track ${index} for ${participantId}`);
                       }
                       if (track.muted) {
-                        track.muted = false;
+                        // Note: muted property is read-only in newer browsers
                         console.log(`🔊 FIX AUDIO: Unmuted audio track ${index} for ${participantId}`);
                       }
                     });
