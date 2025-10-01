@@ -318,315 +318,48 @@ const UltraSimpleVideo = ({
   // }, [otherParticipants]);
 
   // Stable video element creation callback to prevent recreation
+  // MINIMAL: Simple video element creation - NO CLEANUP, NO MANIPULATION
   const createVideoElement = useCallback((participantId) => {
-    console.log(`🎥 UltraSimpleVideo: Creating stable video element for ${participantId}`);
     return (el) => {
       if (el && participantId) {
-        // Check if this is a new element or the same one
-        const existingElement = remoteVideoRefs.current[participantId];
-        if (existingElement && existingElement === el) {
-          console.log(`🎥 UltraSimpleVideo: Video element already exists for ${participantId}, skipping recreation`);
-          return;
-        }
-        
-        // ROBUST: Check if there are duplicate video elements in the DOM
-        const existingVideoElements = document.querySelectorAll(`video[data-participant-id="${participantId}"]`);
-        if (existingVideoElements.length > 1) {
-          console.log(`🧹 UltraSimpleVideo: Found ${existingVideoElements.length} duplicate video elements for ${participantId}, cleaning up...`);
-          // Keep the first one, remove the rest
-          for (let i = 1; i < existingVideoElements.length; i++) {
-            const duplicateEl = existingVideoElements[i];
-            if (duplicateEl.srcObject) {
-              duplicateEl.srcObject.getTracks().forEach(track => track.stop());
-            }
-            duplicateEl.srcObject = null;
-            duplicateEl.remove();
-          }
-        }
-        
-        // ADDITIONAL: Check for any orphaned video elements without proper data attributes
-        const allVideoElements = document.querySelectorAll('video');
-        allVideoElements.forEach(video => {
-          if (!video.getAttribute('data-participant-id') && !video.getAttribute('data-local-video')) {
-            console.log(`🧹 UltraSimpleVideo: Found orphaned video element, removing...`);
-            if (video.srcObject) {
-              video.srcObject.getTracks().forEach(track => track.stop());
-            }
-            video.srcObject = null;
-            video.remove();
-          }
-        });
-        
         remoteVideoRefs.current[participantId] = el;
         
         if (remoteStreams[participantId]) {
           const stream = remoteStreams[participantId];
-          console.log(`🔍 UltraSimpleVideo: Stream details for ${participantId}:`, {
-            stream: !!stream,
-            active: stream?.active,
-            tracks: stream?.getTracks()?.length,
-            videoTracks: stream?.getVideoTracks()?.length,
-            audioTracks: stream?.getAudioTracks()?.length,
-            streamId: stream?.id
-          });
-          // Validate stream before assignment
           if (stream && stream.active && stream.getTracks().length > 0) {
-            console.log(`✅ UltraSimpleVideo: Valid stream for ${participantId}, assigning...`);
-            
-            // CRITICAL: Configure video element for audio playback
-            el.muted = false; // Allow audio to play
-            el.volume = 1.0; // Set volume to maximum
-            el.autoplay = true;
-            el.playsInline = true;
-            
-            // Force audio tracks to be enabled
-            const audioTracks = stream.getAudioTracks();
-            console.log(`🔊 UltraSimpleVideo: Audio tracks for ${participantId}:`, audioTracks.length);
-            audioTracks.forEach((track, index) => {
-              if (!track.enabled) {
-                track.enabled = true;
-                console.log(`🔊 UltraSimpleVideo: Enabled audio track ${index} for ${participantId}`);
-              }
-              if (track.muted) {
-                // Note: muted property is read-only in newer browsers
-                console.log(`🔊 UltraSimpleVideo: Unmuted audio track ${index} for ${participantId}`);
-              }
-            });
-            
             el.srcObject = stream;
-            el.play().catch(err => {
-              console.log(`❌ UltraSimpleVideo: Video play failed for ${participantId}:`, err);
-              // Retry play after a short delay
-              setTimeout(() => {
-                el.play().catch(retryErr => {
-                  console.log(`❌ UltraSimpleVideo: Video play retry failed for ${participantId}:`, retryErr);
-                });
-              }, 500);
-            });
-          } else {
-            console.log(`❌ UltraSimpleVideo: Invalid stream for ${participantId}:`, {
-              stream: !!stream,
-              active: stream?.active,
-              tracks: stream?.getTracks?.()?.length
-            });
+            el.play().catch(() => {}); // Silent fail
           }
         }
-        
-        // Force stream assignment after a short delay to ensure element is ready
-        // Only if stream is not already assigned
-        setTimeout(() => {
-          if (remoteStreams[participantId] && el.srcObject !== remoteStreams[participantId]) {
-            const stream = remoteStreams[participantId];
-            // Validate stream before force assignment
-            if (stream && stream.active && stream.getTracks().length > 0) {
-              console.log(`🔄 UltraSimpleVideo: Force assigning valid stream after delay for ${participantId}`);
-              
-              // CRITICAL: Configure video element for audio playback
-              el.muted = false; // Allow audio to play
-              el.volume = 1.0; // Set volume to maximum
-              el.autoplay = true;
-              el.playsInline = true;
-              
-              // Force audio tracks to be enabled
-              const audioTracks = stream.getAudioTracks();
-              console.log(`🔊 UltraSimpleVideo: Force audio tracks for ${participantId}:`, audioTracks.length);
-              audioTracks.forEach((track, index) => {
-                if (!track.enabled) {
-                  track.enabled = true;
-                  console.log(`🔊 UltraSimpleVideo: Force enabled audio track ${index} for ${participantId}`);
-                }
-                if (track.muted) {
-                  // Note: muted property is read-only in newer browsers
-                  console.log(`🔊 UltraSimpleVideo: Force unmuted audio track ${index} for ${participantId}`);
-                }
-              });
-              
-              el.srcObject = stream;
-              el.play().then(() => {
-                console.log(`✅ UltraSimpleVideo: Force video play successful for ${participantId}`);
-              }).catch(err => {
-                console.log(`❌ UltraSimpleVideo: Force video play failed for ${participantId}:`, err);
-                // Retry force play after a short delay
-                setTimeout(() => {
-                  el.play().catch(retryErr => {
-                    console.log(`❌ UltraSimpleVideo: Force video play retry failed for ${participantId}:`, retryErr);
-                  });
-                }, 1000);
-              });
-            } else {
-              console.log(`❌ UltraSimpleVideo: Invalid stream for force assignment ${participantId}:`, {
-                stream: !!stream,
-                active: stream?.active,
-                tracks: stream?.getTracks?.()?.length
-              });
-            }
-          } else if (remoteStreams[participantId] && el.srcObject === remoteStreams[participantId]) {
-            console.log(`✅ UltraSimpleVideo: Stream already assigned for ${participantId}, skipping force assignment`);
-          }
-        }, 300); // Increased delay for better stream assignment
       }
     };
   }, [remoteStreams]);
 
-  // Stable audio element creation callback for better audio handling
+  // MINIMAL: Simple audio element creation - NO CLEANUP, NO MANIPULATION
   const createAudioElement = useCallback((participantId) => {
-    console.log(`🔊 UltraSimpleVideo: Creating stable audio element for ${participantId}`);
     return (el) => {
       if (el && participantId) {
-        // Check if this is a new element or the same one
-        const existingElement = remoteAudioRefs.current[participantId];
-        if (existingElement && existingElement === el) {
-          console.log(`🔊 UltraSimpleVideo: Audio element already exists for ${participantId}, skipping recreation`);
-          return;
-        }
-        
         remoteAudioRefs.current[participantId] = el;
-        
         if (remoteStreams[participantId]) {
-          const stream = remoteStreams[participantId];
-          console.log(`🔊 UltraSimpleVideo: Setting up audio element for ${participantId}`);
-          
-          // CRITICAL: Configure audio element for optimal playback
-          el.muted = false; // Allow audio to play
-          el.volume = 1.0; // Set volume to maximum
-          el.autoplay = true;
-          el.playsInline = true;
-          
-          // Force unmute after a short delay to bypass autoplay restrictions
-          setTimeout(() => {
-            if (el.muted) {
-              el.muted = false;
-              console.log(`🔊 UltraSimpleVideo: Force unmuted audio element for ${participantId}`);
-            }
-          }, 100);
-          
-          // Force audio tracks to be enabled
-          const audioTracks = stream.getAudioTracks();
-          console.log(`🔊 UltraSimpleVideo: Audio tracks for ${participantId}:`, audioTracks.length);
-          audioTracks.forEach((track, index) => {
-            if (!track.enabled) {
-              track.enabled = true;
-              console.log(`🔊 UltraSimpleVideo: Enabled audio track ${index} for ${participantId}`);
-            }
-            if (track.muted) {
-              // Note: muted property is read-only in newer browsers
-              console.log(`🔊 UltraSimpleVideo: Unmuted audio track ${index} for ${participantId}`);
-            }
-          });
-          
-          el.srcObject = stream;
-          
-          // Add immediate debugging
-          console.log(`🔊 UltraSimpleVideo: Audio stream assigned for ${participantId}:`, {
-            hasStream: !!el.srcObject,
-            audioTracks: stream.getAudioTracks().length,
-            elementMuted: el.muted,
-            elementVolume: el.volume,
-            elementAutoplay: el.autoplay
-          });
-          
-          el.play().then(() => {
-            console.log(`✅ UltraSimpleVideo: Audio play successful for ${participantId}`);
-          }).catch(err => {
-            console.log(`❌ UltraSimpleVideo: Audio play failed for ${participantId}:`, err);
-            // Retry play after a short delay
-            setTimeout(() => {
-              el.play().catch(retryErr => {
-                console.log(`❌ UltraSimpleVideo: Audio play retry failed for ${participantId}:`, retryErr);
-              });
-            }, 500);
-          });
-        }
-        
-        // Force audio assignment after a short delay
-        setTimeout(() => {
-          if (remoteStreams[participantId] && el.srcObject !== remoteStreams[participantId]) {
             const stream = remoteStreams[participantId];
             if (stream && stream.active && stream.getTracks().length > 0) {
-              console.log(`🔄 UltraSimpleVideo: Force assigning audio stream for ${participantId}`);
-              
-              // CRITICAL: Configure audio element for optimal playback
-              el.muted = false;
-              el.volume = 1.0;
-              el.autoplay = true;
-              el.playsInline = true;
-              
-              // Force audio tracks to be enabled
-              const audioTracks = stream.getAudioTracks();
-              audioTracks.forEach((track, index) => {
-                if (!track.enabled) {
-                  track.enabled = true;
-                  console.log(`🔊 UltraSimpleVideo: Force enabled audio track ${index} for ${participantId}`);
-                }
-                if (track.muted) {
-                  // Note: muted property is read-only in newer browsers
-                  console.log(`🔊 UltraSimpleVideo: Force unmuted audio track ${index} for ${participantId}`);
-                }
-              });
-              
               el.srcObject = stream;
-              
-              // Add debugging for force assignment
-              console.log(`🔊 UltraSimpleVideo: Force audio stream assigned for ${participantId}:`, {
-                hasStream: !!el.srcObject,
-                audioTracks: stream.getAudioTracks().length,
-                elementMuted: el.muted,
-                elementVolume: el.volume
-              });
-              
-              el.play().then(() => {
-                console.log(`✅ UltraSimpleVideo: Force audio play successful for ${participantId}`);
-              }).catch(err => {
-                console.log(`❌ UltraSimpleVideo: Force audio play failed for ${participantId}:`, err);
-              });
-            }
+            el.play().catch(() => {});
           }
-        }, 300);
+        }
       }
     };
   }, [remoteStreams]);
 
-  // SIMPLE: Single clean effect for local video - no conflicts, no flickering
+  // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
     if (localStream && localVideoRef.current) {
-      console.log('🎥 UltraSimpleVideo: Setting up local video');
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
-
-  // PROTECTION: Ensure local video stays visible when participants change
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      console.log('🛡️ UltraSimpleVideo: Protecting local video from participant changes');
+      console.log('🎥 UltraSimpleVideo: Setting up local video - MINIMAL APPROACH');
       localVideoRef.current.srcObject = localStream;
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
       localVideoRef.current.style.opacity = '1';
     }
-  }, [participants.length, localStream]);
-
-  // BULLETPROOF: Continuous local video protection - runs every 5 seconds
-  useEffect(() => {
-    const protectLocalVideo = () => {
-      if (localVideoRef.current && localStream) {
-        console.log('🛡️ UltraSimpleVideo: BULLETPROOF protecting local video');
-        localVideoRef.current.srcObject = localStream;
-        localVideoRef.current.style.display = 'block';
-        localVideoRef.current.style.visibility = 'visible';
-        localVideoRef.current.style.opacity = '1';
-        localVideoRef.current.style.width = '100%';
-        localVideoRef.current.style.height = '100%';
-        localVideoRef.current.style.objectFit = 'cover';
-      }
-    };
-
-    // Run immediately
-    protectLocalVideo();
-    
-    // Run every 5 seconds to prevent any interference
-    const interval = setInterval(protectLocalVideo, 5000);
-    
-    return () => clearInterval(interval);
   }, [localStream]);
 
 
@@ -920,8 +653,8 @@ const UltraSimpleVideo = ({
                         {participant.name ? participant.name.charAt(0).toUpperCase() : '?'}
                       </Typography>
                     </Box>
-                    <Typography variant="body2" className="camera-off-subtitle">
-                      {participant.name} has turned off their camera
+                      <Typography variant="body2" className="camera-off-subtitle">
+                        {participant.name} has turned off their camera
                     </Typography>
                   </Box>
                 )}
@@ -1002,14 +735,14 @@ const UltraSimpleVideo = ({
                     
                     {/* Video indicator - only show when camera is on */}
                     {participant.videoEnabled && (
-                      <Box
+                    <Box
                         className="media-indicator video-enabled"
                         title="Camera On"
-                      >
-                        <Typography variant="caption" className="media-indicator-icon">
+                    >
+                      <Typography variant="caption" className="media-indicator-icon">
                           📹
-                        </Typography>
-                      </Box>
+                      </Typography>
+                    </Box>
                     )}
                   </Box>
                   
