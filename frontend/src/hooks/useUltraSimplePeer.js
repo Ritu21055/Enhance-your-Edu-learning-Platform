@@ -1816,7 +1816,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     }
   }, [updateLocalStream]);
 
-  // Make the hook globally accessible for consent dialog integration
+  // Make the hook globally accessible for consent dialog integration and audio testing
   useEffect(() => {
     window.ultraSimplePeerRef = {
       current: {
@@ -1824,14 +1824,19 @@ const useUltraSimplePeer = (meetingId, userName) => {
         restoreOriginalStream,
         peersRef,
         localStream,
-        originalStream: originalStreamRef.current
+        originalStream: originalStreamRef.current,
+        participantsRef,
+        remoteStreams,
+        isHost,
+        socket,
+        socketConnected
       }
     };
     
     return () => {
       window.ultraSimplePeerRef = null;
     };
-  }, [updateLocalStream, localStream]);
+  }, [updateLocalStream, localStream, participantsRef, remoteStreams, isHost, socket, socketConnected]);
 
 
 

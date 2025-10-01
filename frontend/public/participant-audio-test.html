@@ -577,9 +577,24 @@
         function testWebRTCConnections() {
             log('🔍 Testing WebRTC connections...');
             
+            // Enhanced debugging for WebNexus detection
+            log(`🔍 Checking WebNexus availability...`);
+            log(`   - window.ultraSimplePeerRef exists: ${typeof window.ultraSimplePeerRef !== 'undefined'}`);
+            log(`   - window.ultraSimplePeerRef.current exists: ${window.ultraSimplePeerRef && window.ultraSimplePeerRef.current}`);
+            
+            if (typeof window.ultraSimplePeerRef !== 'undefined' && window.ultraSimplePeerRef.current) {
+                const peerRef = window.ultraSimplePeerRef.current;
+                log(`   - localStream exists: ${!!peerRef.localStream}`);
+                log(`   - participantsRef exists: ${!!peerRef.participantsRef}`);
+                log(`   - peersRef exists: ${!!peerRef.peersRef}`);
+                log(`   - isHost: ${peerRef.isHost}`);
+                log(`   - socket connected: ${peerRef.socketConnected}`);
+            }
+            
             // Check if we're in a WebNexus meeting
             if (typeof window.ultraSimplePeerRef === 'undefined' || !window.ultraSimplePeerRef.current) {
                 log('❌ WebNexus not detected - make sure you are in a meeting');
+                log('💡 Tip: Make sure you are in the main WebNexus application and have joined a meeting');
                 updateStatus('WebNexus not detected - make sure you are in a meeting', 'error');
                 return;
             }
@@ -788,11 +803,32 @@
             }
         }
 
+        // Check WebNexus availability periodically
+        function checkWebNexusAvailability() {
+            if (typeof window.ultraSimplePeerRef !== 'undefined' && window.ultraSimplePeerRef.current) {
+                const peerRef = window.ultraSimplePeerRef.current;
+                if (peerRef.localStream && peerRef.participantsRef) {
+                    log('✅ WebNexus detected and ready!');
+                    updateStatus('WebNexus detected - ready for audio testing', 'success');
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // Auto-update system diagnostics
         setInterval(updateSystemDiagnostics, 2000);
+        
+        // Check WebNexus availability every 3 seconds
+        setInterval(() => {
+            if (!checkWebNexusAvailability()) {
+                log('⏳ Waiting for WebNexus to be available...');
+            }
+        }, 3000);
 
         // Initialize
         log('👂 Participant Audio Test Page Loaded');
+        log('💡 Make sure you are in a WebNexus meeting before running tests');
         updateStatus('Ready to start audio test...', 'info');
         updateSystemDiagnostics();
     </script>
