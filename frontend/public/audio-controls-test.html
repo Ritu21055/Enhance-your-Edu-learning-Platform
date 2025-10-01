@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Controls Test - WebNexus</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .test-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .test-button {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .test-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .test-button.audio-enabled {
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+        }
+        
+        .test-button.audio-disabled {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .status.success {
+            background: rgba(46, 204, 113, 0.3);
+            border: 2px solid #2ecc71;
+            color: #2ecc71;
+        }
+        
+        .status.error {
+            background: rgba(231, 76, 60, 0.3);
+            border: 2px solid #e74c3c;
+            color: #e74c3c;
+        }
+        
+        .status.info {
+            background: rgba(52, 152, 219, 0.3);
+            border: 2px solid #3498db;
+            color: #3498db;
+        }
+        
+        .audio-level {
+            width: 100%;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        
+        .audio-level-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c);
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+        
+        .debug-log {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        .control-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .control-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .control-button.audio-enabled {
+            background: rgba(46, 204, 113, 0.3);
+            border-color: #2ecc71;
+        }
+        
+        .control-button.audio-disabled {
+            background: rgba(231, 76, 60, 0.3);
+            border-color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Audio Controls Test</h1>
+        
+        <div class="test-section">
+            <h3>🔧 Test Audio Mute/Unmute Controls</h3>
+            <p>This test simulates the WebNexus audio controls to verify they work correctly.</p>
+            
+            <div class="controls">
+                <button id="audioToggle" class="control-button audio-enabled">
+                    🎤 Mute Audio
+                </button>
+                <button id="testAudio" class="test-button">
+                    Test Audio Stream
+                </button>
+            </div>
+            
+            <div id="audioStatus" class="status info">Click "Test Audio Stream" to start</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 Audio Level Monitor</h3>
+            <div class="audio-level">
+                <div id="audioLevelBar" class="audio-level-bar"></div>
+            </div>
+            <div id="audioLevelText">Level: 0%</div>
+            <div id="audioStatus2" class="status info">Audio not active</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📝 Debug Information</h3>
+            <button class="test-button" onclick="clearDebugLog()">Clear Log</button>
+            <button class="test-button" onclick="exportDebugLog()">Export Log</button>
+            <div id="debugLog" class="debug-log">
+                Audio controls test ready...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let audioContext = null;
+        let analyser = null;
+        let microphoneSource = null;
+        let isMonitoring = false;
+        let debugLog = [];
+        let localStream = null;
+        let isAudioEnabled = true;
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}`;
+            debugLog.push(logMessage);
+            console.log(logMessage);
+            
+            const debugElement = document.getElementById('debugLog');
+            debugElement.innerHTML = debugLog.slice(-15).join('<br>');
+            debugElement.scrollTop = debugElement.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('audioStatus');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function updateAudioStatus(message, type = 'info') {
+            const status = document.getElementById('audioStatus2');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        async function testAudioStream() {
+            log('🎤 Testing audio stream...');
+            updateStatus('Testing audio stream...', 'info');
+            
+            try {
+                // Get audio stream with same constraints as WebNexus
+                const audioConstraints = {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    deviceId: { ideal: 'default' }
+                };
+                
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: audioConstraints
+                });
+                
+                log('✅ Audio stream obtained successfully');
+                updateStatus('✅ Audio stream working!', 'success');
+                
+                // Set up audio analysis
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphoneSource = audioContext.createMediaStreamSource(localStream);
+                microphoneSource.connect(analyser);
+                
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                
+                log('🎯 Starting audio level monitoring...');
+                updateAudioStatus('Monitoring audio levels...', 'info');
+                
+                // Start monitoring
+                isMonitoring = true;
+                monitorAudioLevel();
+                
+                // Update button text
+                document.getElementById('testAudio').textContent = 'Audio Stream Active';
+                document.getElementById('testAudio').disabled = true;
+                
+            } catch (error) {
+                log(`❌ Audio stream test failed: ${error.message}`);
+                updateStatus(`❌ Audio test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function toggleAudio() {
+            if (!localStream) {
+                log('❌ No audio stream available');
+                updateStatus('❌ No audio stream available', 'error');
+                return;
+            }
+            
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (!audioTrack) {
+                log('❌ No audio track found');
+                updateStatus('❌ No audio track found', 'error');
+                return;
+            }
+            
+            // Toggle audio track enabled state
+            const newState = !audioTrack.enabled;
+            audioTrack.enabled = newState;
+            isAudioEnabled = newState;
+            
+            log(`🎤 Audio toggled: ${newState ? 'enabled' : 'disabled'}`);
+            log(`🎤 Audio track state: enabled=${audioTrack.enabled}, muted=${audioTrack.muted}, readyState=${audioTrack.readyState}`);
+            
+            // Update UI
+            const button = document.getElementById('audioToggle');
+            if (newState) {
+                button.textContent = '🎤 Mute Audio';
+                button.className = 'control-button audio-enabled';
+                updateStatus('✅ Audio is ENABLED - others can hear you', 'success');
+            } else {
+                button.textContent = '🔇 Unmute Audio';
+                button.className = 'control-button audio-disabled';
+                updateStatus('🔇 Audio is MUTED - others cannot hear you', 'error');
+            }
+        }
+
+        function monitorAudioLevel() {
+            if (!isMonitoring || !analyser) return;
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+            
+            const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            const percentage = Math.min((average / 128) * 100, 100);
+            
+            // Update visual level
+            const audioLevelBar = document.getElementById('audioLevelBar');
+            const audioLevelText = document.getElementById('audioLevelText');
+            
+            audioLevelBar.style.width = `${percentage}%`;
+            audioLevelText.textContent = `Level: ${Math.round(percentage)}%`;
+            
+            if (average > 5) {
+                updateAudioStatus(`🎤 Audio detected! Level: ${Math.round(percentage)}%`, 'success');
+            } else {
+                updateAudioStatus('🔇 No audio detected', 'info');
+            }
+            
+            requestAnimationFrame(monitorAudioLevel);
+        }
+
+        function clearDebugLog() {
+            debugLog = [];
+            document.getElementById('debugLog').innerHTML = 'Debug log cleared...';
+            log('🧹 Debug log cleared');
+        }
+
+        function exportDebugLog() {
+            const logText = debugLog.join('\n');
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audio-controls-debug-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            log('📁 Debug log exported');
+        }
+
+        // Initialize
+        document.getElementById('testAudio').addEventListener('click', testAudioStream);
+        document.getElementById('audioToggle').addEventListener('click', toggleAudio);
+        
+        log('🎤 Audio Controls Test Page Loaded');
+        updateStatus('Ready to test audio controls', 'info');
+    </script>
+</body>
+</html>

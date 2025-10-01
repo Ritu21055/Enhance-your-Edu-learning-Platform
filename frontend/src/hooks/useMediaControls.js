@@ -121,6 +121,15 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
           readyState: audioTrack.readyState,
           constraints: audioTrack.getConstraints?.()
         });
+        
+        // Additional debugging for WebNexus
+        console.log('🎤 WebNexus Audio Control Debug:', {
+          newState,
+          isAudioEnabled: newState,
+          buttonShouldShow: newState ? 'Mic (enabled)' : 'MicOff (disabled)',
+          audioTrackEnabled: audioTrack.enabled,
+          streamActive: localStream.active
+        });
 
         // Emit media state change to other participants
         console.log('🎤 About to emit media state change:', { audioEnabled: newState, videoEnabled: isVideoEnabled });
