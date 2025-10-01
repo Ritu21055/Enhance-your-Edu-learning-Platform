@@ -1194,6 +1194,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
           streamEnded: stream.ended
         });
         
+        // CRITICAL: Call handleStreamReception to fix audio issues
+        handleStreamReception(stream, from, participantsRef.current);
+        
         // CRITICAL: Force stream to be active if it's not
         if (!stream.active) {
           console.log('ðŸ”§ UltraSimplePeer: Stream not active in handleSignal, attempting to reactivate...');

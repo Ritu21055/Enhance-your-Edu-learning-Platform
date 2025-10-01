@@ -615,65 +615,107 @@ export const handleStreamReception = (stream, participantId, participants) => {
     }
   });
   
+  // CRITICAL: Ensure audio elements are properly configured
+  setTimeout(() => {
+    configureAudioElements(stream, participantId);
+  }, 100);
+  
   console.log(`🔊 AUDIO-UTILS: Stream reception handling completed for ${participantId}`);
 };
 
-export const fixAudioIssue = async (localStream, peersRef) => {
-  console.log('🔧 AUDIO-UTILS: Starting comprehensive audio fix...');
+// New function to ensure audio elements are properly configured
+export const configureAudioElements = (stream, participantId) => {
+  console.log(`🔊 AUDIO-UTILS: Configuring audio elements for ${participantId}`);
   
-  try {
-    // Step 1: Check current audio state
-    console.log('🔧 AUDIO-UTILS: Checking current audio state...');
+  // Find all audio elements for this participant
+  const audioElements = document.querySelectorAll(`audio[data-participant-id="${participantId}"]`);
+  
+  if (audioElements.length === 0) {
+    console.log(`🔊 AUDIO-UTILS: No audio elements found for ${participantId}, creating one`);
     
-    if (!localStream) {
-      console.log('❌ AUDIO-UTILS: No local stream available');
-      return false;
-    }
-
-    const audioTracks = localStream.getAudioTracks();
-    console.log(`🔧 AUDIO-UTILS: Found ${audioTracks.length} audio tracks`);
+    // Create a new audio element
+    const audioElement = document.createElement('audio');
+    audioElement.setAttribute('data-participant-id', participantId);
+    audioElement.setAttribute('autoplay', 'true');
+    audioElement.setAttribute('playsinline', 'true');
+    audioElement.setAttribute('muted', 'false');
+    audioElement.volume = 1.0;
+    audioElement.srcObject = stream;
     
-    // Step 2: Force enable all audio tracks
-    audioTracks.forEach((track, index) => {
-      console.log(`🔧 AUDIO-UTILS: Audio track ${index} status:`, {
-        enabled: track.enabled,
-        muted: track.muted,
-        readyState: track.readyState,
-        label: track.label
+    // Add to DOM
+    document.body.appendChild(audioElement);
+    
+    console.log(`🔊 AUDIO-UTILS: Created audio element for ${participantId}`);
+  } else {
+    // Update existing audio elements
+    audioElements.forEach((audioElement, index) => {
+      console.log(`🔊 AUDIO-UTILS: Updating audio element ${index} for ${participantId}`);
+      
+      // Ensure proper configuration
+      audioElement.srcObject = stream;
+      audioElement.autoplay = true;
+      audioElement.playsInline = true;
+      audioElement.muted = false;
+      audioElement.volume = 1.0;
+      
+      // Force play
+      audioElement.play().catch(error => {
+        console.log(`🔊 AUDIO-UTILS: Audio play failed for ${participantId}:`, error);
       });
       
-      if (!track.enabled) {
-        track.enabled = true;
-        console.log(`🔧 AUDIO-UTILS: Force enabled audio track ${index}`);
-      }
-      
-      if (track.muted) {
-        track.muted = false;
-        console.log(`🔧 AUDIO-UTILS: Force unmuted audio track ${index}`);
-      }
+      console.log(`🔊 AUDIO-UTILS: Updated audio element ${index} for ${participantId}`);
     });
-
-    // Step 3: Re-add stream to all peers
-    Object.keys(peersRef.current).forEach(participantId => {
-      const peer = peersRef.current[participantId];
-      if (peer && peer.addStream) {
-        try {
-          peer.addStream(localStream);
-          console.log(`🔧 AUDIO-UTILS: Re-added stream to peer ${participantId}`);
-        } catch (error) {
-          console.log(`⚠️ AUDIO-UTILS: Could not re-add stream to peer ${participantId}:`, error.message);
-        }
-      }
-    });
-
-    console.log('✅ AUDIO-UTILS: Comprehensive audio fix completed');
-    return true;
-    
-  } catch (error) {
-    console.error('❌ AUDIO-UTILS: Failed to fix audio issue:', error);
-    return false;
   }
 };
+
+// Enhanced function to fix audio issues comprehensively
+export const fixAudioIssue = async (stream, peersRef) => {
+  console.log('🔊 AUDIO-UTILS: Starting comprehensive audio fix...');
+  
+  if (!stream || !stream.active) {
+    console.log('❌ AUDIO-UTILS: No active stream available for audio fix');
+    return false;
+  }
+  
+  // Step 1: Ensure local stream audio is working
+  const audioTracks = stream.getAudioTracks();
+  if (audioTracks.length === 0) {
+    console.log('❌ AUDIO-UTILS: No audio tracks found in stream');
+    return false;
+  }
+  
+  // Step 2: Force enable and unmute all audio tracks
+  audioTracks.forEach((track, index) => {
+    track.enabled = true;
+    track.muted = false;
+    console.log(`🔊 AUDIO-UTILS: Fixed audio track ${index}`);
+  });
+  
+  // Step 3: Ensure all peer connections have the stream
+  Object.keys(peersRef.current).forEach(participantId => {
+    const peer = peersRef.current[participantId];
+    if (peer && peer._pc) {
+      try {
+        // Force add stream to peer connection
+        peer.addStream(stream);
+        console.log(`🔊 AUDIO-UTILS: Added stream to peer ${participantId}`);
+      } catch (error) {
+        console.log(`⚠️ AUDIO-UTILS: Could not add stream to peer ${participantId}:`, error.message);
+      }
+    }
+  });
+  
+  // Step 4: Configure audio elements for all participants
+  setTimeout(() => {
+    Object.keys(peersRef.current).forEach(participantId => {
+      configureAudioElements(stream, participantId);
+    });
+  }, 500);
+  
+  console.log('✅ AUDIO-UTILS: Comprehensive audio fix completed');
+  return true;
+};
+
 
 export default {
   ensureHostAudioTransmission,
