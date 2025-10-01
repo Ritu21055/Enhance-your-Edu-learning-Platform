@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Transmission Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔊 Audio Transmission Debug</h1>
+    
+    <div class="debug-section">
+        <h3>🎯 Test Audio Transmission</h3>
+        <p>This page helps debug audio transmission issues between host and participants.</p>
+        
+        <button onclick="testAudioTransmission()">Test Audio Transmission</button>
+        <button onclick="testHostAudio()">Test Host Audio</button>
+        <button onclick="testParticipantAudio()">Test Participant Audio</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="debug-section">
+        <h3>📊 Debug Information</h3>
+        <div id="debug-info"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>📝 Console Log</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        let localStream = null;
+        let remoteStream = null;
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let dataArray = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function updateDebugInfo() {
+            const debugDiv = document.getElementById('debug-info');
+            debugDiv.innerHTML = `
+                <div class="status info">
+                    <strong>Local Stream:</strong> ${localStream ? '✅ Active' : '❌ Not Available'}<br>
+                    <strong>Remote Stream:</strong> ${remoteStream ? '✅ Active' : '❌ Not Available'}<br>
+                    <strong>Audio Context:</strong> ${audioContext ? '✅ Active' : '❌ Not Available'}<br>
+                    <strong>Microphone:</strong> ${microphone ? '✅ Active' : '❌ Not Available'}
+                </div>
+            `;
+        }
+
+        async function testAudioTransmission() {
+            log('🎯 Starting audio transmission test...', 'info');
+            
+            try {
+                // Get user media
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    },
+                    video: false
+                });
+                
+                log('✅ Local audio stream obtained', 'success');
+                
+                // Create audio context for analysis
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                microphone = audioContext.createMediaStreamSource(localStream);
+                microphone.connect(analyser);
+                
+                analyser.fftSize = 256;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                
+                log('✅ Audio context created for analysis', 'success');
+                
+                // Start audio level monitoring
+                monitorAudioLevels();
+                
+                // Simulate remote stream (for testing)
+                setTimeout(() => {
+                    simulateRemoteStream();
+                }, 2000);
+                
+            } catch (error) {
+                log(`❌ Error getting audio stream: ${error.message}`, 'error');
+            }
+            
+            updateDebugInfo();
+        }
+
+        function monitorAudioLevels() {
+            if (!analyser || !dataArray) return;
+            
+            analyser.getByteFrequencyData(dataArray);
+            const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            
+            if (average > 10) {
+                log(`🔊 Audio level: ${average.toFixed(2)} (Active)`, 'success');
+            } else {
+                log(`🔇 Audio level: ${average.toFixed(2)} (Silent)`, 'warning');
+            }
+            
+            setTimeout(monitorAudioLevels, 1000);
+        }
+
+        function simulateRemoteStream() {
+            log('🔄 Simulating remote stream...', 'info');
+            
+            // Create a simple audio element to test playback
+            const audioElement = document.createElement('audio');
+            audioElement.autoplay = true;
+            audioElement.playsInline = true;
+            audioElement.muted = false;
+            audioElement.volume = 1.0;
+            audioElement.srcObject = localStream;
+            
+            audioElement.play().then(() => {
+                log('✅ Remote audio playback successful', 'success');
+                remoteStream = localStream; // Simulate remote stream
+            }).catch(err => {
+                log(`❌ Remote audio playback failed: ${err.message}`, 'error');
+            });
+            
+            updateDebugInfo();
+        }
+
+        async function testHostAudio() {
+            log('🎤 Testing host audio transmission...', 'info');
+            
+            if (!localStream) {
+                log('❌ No local stream available. Run audio transmission test first.', 'error');
+                return;
+            }
+            
+            const audioTracks = localStream.getAudioTracks();
+            log(`📊 Host audio tracks: ${audioTracks.length}`, 'info');
+            
+            audioTracks.forEach((track, index) => {
+                log(`🔊 Track ${index}: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`, 'info');
+                
+                if (!track.enabled) {
+                    track.enabled = true;
+                    log(`✅ Force enabled track ${index}`, 'success');
+                }
+                if (track.muted) {
+                    track.muted = false;
+                    log(`✅ Force unmuted track ${index}`, 'success');
+                }
+            });
+        }
+
+        async function testParticipantAudio() {
+            log('👥 Testing participant audio reception...', 'info');
+            
+            if (!remoteStream) {
+                log('❌ No remote stream available. Run audio transmission test first.', 'error');
+                return;
+            }
+            
+            const audioElement = document.createElement('audio');
+            audioElement.autoplay = true;
+            audioElement.playsInline = true;
+            audioElement.muted = false;
+            audioElement.volume = 1.0;
+            audioElement.srcObject = remoteStream;
+            
+            // Force enable audio tracks
+            const audioTracks = remoteStream.getAudioTracks();
+            audioTracks.forEach((track, index) => {
+                if (!track.enabled) {
+                    track.enabled = true;
+                    log(`✅ Force enabled remote track ${index}`, 'success');
+                }
+                if (track.muted) {
+                    track.muted = false;
+                    log(`✅ Force unmuted remote track ${index}`, 'success');
+                }
+            });
+            
+            audioElement.play().then(() => {
+                log('✅ Participant audio playback successful', 'success');
+            }).catch(err => {
+                log(`❌ Participant audio playback failed: ${err.message}`, 'error');
+            });
+        }
+
+        // Initialize
+        updateDebugInfo();
+        log('🚀 Audio Transmission Debug Tool Ready', 'success');
+    </script>
+</body>
+</html>

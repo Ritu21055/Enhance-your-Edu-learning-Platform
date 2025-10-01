@@ -2,6 +2,15 @@
 import io from 'socket.io-client';
 import SimplePeer from 'simple-peer';
 import { getBackendUrl } from '../config/network';
+import { 
+  ensureHostAudioTransmission, 
+  ensureAudioTracksEnabled, 
+  debugHostAudioReception,
+  configureAudioElement,
+  configureHostAudioElement,
+  monitorRemoteStreams,
+  createAudioConstraints
+} from '../utils/audioUtils';
 
 const useUltraSimplePeer = (meetingId, userName) => {
   const [localStream, setLocalStream] = useState(null);
@@ -900,17 +909,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
           console.log(`ðŸ”— CREATE-PEER: Successfully added stream with audio to peer for ${participantId}`);
 
           
-         // CRITICAL: Ensure host audio transmission
-          if (isHostRef.current) {
-            setTimeout(() => {
-              try {
-                peer.addStream(stream);
-                console.log(`🔊 CREATE-PEER: Force re-added host stream to ${participantId}`);
-              } catch (reAddError) {
-                console.log(`🔊 CREATE-PEER: Host stream already added to ${participantId}:`, reAddError.message);
-              }
-            }, 100);
-          }
+          // CRITICAL: Ensure host audio transmission
+          ensureHostAudioTransmission(peer, stream, participantId, isHostRef.current);
           
           // Double-check that audio track is enabled
           const audioTracks = stream.getAudioTracks();
