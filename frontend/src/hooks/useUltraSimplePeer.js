@@ -868,6 +868,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
       console.log(`ðŸŽ¥ STREAM: Stream ID: ${stream.id}`);
       console.log(`ðŸŽ¥ STREAM: Video tracks: ${stream.getVideoTracks().length}`);
       console.log(`ðŸŽ¥ STREAM: Audio tracks: ${stream.getAudioTracks().length}`);
+
+      // CRITICAL: Call handleStreamReception to fix audio issues
+     handleStreamReception(stream, participantId, participantsRef.current);
       
       const isScreenShare = stream.getVideoTracks().some(track => 
         track.label && (
@@ -885,6 +888,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
           newStreams[participantId] = stream;
           return newStreams;
         });
+        
+        // CRITICAL: Call handleStreamReception to fix audio issues
+        handleStreamReception(stream, participantId, participantsRef.current);
         setForceRender(prev => prev + 1);
         return;
       }
