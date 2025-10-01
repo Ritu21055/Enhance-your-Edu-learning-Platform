@@ -604,6 +604,30 @@ const UltraSimpleVideo = ({
     }
   }, [participants.length, localStream]);
 
+  // BULLETPROOF: Continuous local video protection - runs every 5 seconds
+  useEffect(() => {
+    const protectLocalVideo = () => {
+      if (localVideoRef.current && localStream) {
+        console.log('🛡️ UltraSimpleVideo: BULLETPROOF protecting local video');
+        localVideoRef.current.srcObject = localStream;
+        localVideoRef.current.style.display = 'block';
+        localVideoRef.current.style.visibility = 'visible';
+        localVideoRef.current.style.opacity = '1';
+        localVideoRef.current.style.width = '100%';
+        localVideoRef.current.style.height = '100%';
+        localVideoRef.current.style.objectFit = 'cover';
+      }
+    };
+
+    // Run immediately
+    protectLocalVideo();
+    
+    // Run every 5 seconds to prevent any interference
+    const interval = setInterval(protectLocalVideo, 5000);
+    
+    return () => clearInterval(interval);
+  }, [localStream]);
+
 
   // Memoize participants to prevent unnecessary re-renders
   const memoizedParticipants = useMemo(() => {
@@ -696,53 +720,53 @@ const UltraSimpleVideo = ({
   //   }, 50);
   // }, [participants]);
 
-  // Set up remote videos
-  useEffect(() => {
-    // Clean up video elements for streams that no longer exist
-    Object.keys(remoteVideoRefs.current).forEach(participantId => {
-      if (!remoteStreams[participantId]) {
-        const videoElement = remoteVideoRefs.current[participantId];
-        if (videoElement) {
-          videoElement.srcObject = null;
-          delete remoteVideoRefs.current[participantId];
-        }
-      }
-    });
-    
-    Object.keys(remoteStreams).forEach(participantId => {
-      if (participantId === currentUserId) {
-        return;
-      }
-      
-      const videoEl = remoteVideoRefs.current[participantId];
-      const stream = remoteStreams[participantId];
-      
-      if (videoEl && stream) {
-        if (videoEl.srcObject !== stream) {
-          if (stream.active && stream.getTracks().length > 0) {
-            if (streamAssignmentTimeouts.current[participantId]) {
-              clearTimeout(streamAssignmentTimeouts.current[participantId]);
-            }
-            
-            streamAssignmentTimeouts.current[participantId] = setTimeout(() => {
-              console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
-              videoEl.srcObject = stream;
-              delete streamAssignmentTimeouts.current[participantId];
-            }, 200); // Increased delay for better stream assignment
-          }
-          
-          videoEl.play().catch(err => {
-            setTimeout(() => {
-              videoEl.srcObject = stream;
-              videoEl.play().catch(retryErr => {
-                // Ignore play errors
-              });
-            }, 500);
-          });
-        }
-      }
-    });
-  }, [remoteStreams, currentUserId]);
+  // DISABLED: Set up remote videos - causing local video interference
+  // useEffect(() => {
+  //   // Clean up video elements for streams that no longer exist
+  //   Object.keys(remoteVideoRefs.current).forEach(participantId => {
+  //     if (!remoteStreams[participantId]) {
+  //       const videoElement = remoteVideoRefs.current[participantId];
+  //       if (videoElement) {
+  //         videoElement.srcObject = null;
+  //         delete remoteVideoRefs.current[participantId];
+  //       }
+  //     }
+  //   });
+  //   
+  //   Object.keys(remoteStreams).forEach(participantId => {
+  //     if (participantId === currentUserId) {
+  //       return;
+  //     }
+  //     
+  //     const videoEl = remoteVideoRefs.current[participantId];
+  //     const stream = remoteStreams[participantId];
+  //     
+  //     if (videoEl && stream) {
+  //       if (videoEl.srcObject !== stream) {
+  //         if (stream.active && stream.getTracks().length > 0) {
+  //           if (streamAssignmentTimeouts.current[participantId]) {
+  //             clearTimeout(streamAssignmentTimeouts.current[participantId]);
+  //           }
+  //           
+  //           streamAssignmentTimeouts.current[participantId] = setTimeout(() => {
+  //             console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
+  //             videoEl.srcObject = stream;
+  //             delete streamAssignmentTimeouts.current[participantId];
+  //           }, 200); // Increased delay for better stream assignment
+  //         }
+  //         
+  //         videoEl.play().catch(err => {
+  //           setTimeout(() => {
+  //             videoEl.srcObject = stream;
+  //             videoEl.play().catch(retryErr => {
+  //               // Ignore play errors
+  //             });
+  //           }, 500);
+  //         });
+  //       }
+  //     }
+  //   });
+  // }, [remoteStreams, currentUserId]);
 
   // DISABLED: forceCorrectMediaStates - causing flickering
   // useEffect(() => {
