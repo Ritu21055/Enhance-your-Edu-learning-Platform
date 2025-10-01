@@ -673,9 +673,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraints,
-          audio: audioConstraints
-        });
+        video: videoConstraints,
+        audio: audioConstraints
+      });
       } catch (constraintError) {
         console.log('âš ï¸ Audio constraints failed, trying basic audio...');
         try {
@@ -689,7 +689,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
           video: true,
           audio: true
         });
-        }
+      }
       }
       
       setLocalStream(stream);
@@ -1128,12 +1128,42 @@ const useUltraSimplePeer = (meetingId, userName) => {
               if (now - lastAttempt > cooldownPeriod) {
                 console.log(`ðŸ” HEALTH CHECK: Connection to ${participant.name} is truly dead, attempting reconnection`);
                 lastReconnectionAttempt.current[participant.id] = now;
-            createConnectionsToAllParticipants();
+                
+                // Only reconnect to the specific participant, not all participants
+                setTimeout(async () => {
+                  try {
+                    // Double-check that we don't already have a connection
+                    if (peersRef.current[participant.id]) {
+                      console.log(`🔍 HEALTH CHECK: Connection already exists for ${participant.name}, skipping reconnection`);
+                      return;
+                    }
+                    
+                    await createPeerConnection(participant.id, localStream);
+                    console.log(`✅ HEALTH CHECK: Successfully reconnected to ${participant.name}`);
+                  } catch (error) {
+                    console.log(`❌ HEALTH CHECK: Failed to reconnect to ${participant.name}:`, error);
+                  }
+                }, 1000);
               } else {
                 console.log(`ðŸ” HEALTH CHECK: Connection to ${participant.name} is dead but in cooldown period, skipping reconnection`);
               }
             } else {
               console.log(`ðŸ” HEALTH CHECK: Connection to ${participant.name} is still establishing, skipping reconnection`);
+            }
+          }
+        });
+        
+        // Clean up any duplicate connections
+        const peerIds = Object.keys(peersRef.current);
+        const participantIds = allParticipants.map(p => p.id);
+        
+        // Remove connections to participants who are no longer in the meeting
+        peerIds.forEach(peerId => {
+          if (!participantIds.includes(peerId)) {
+            console.log(`🧹 HEALTH CHECK: Removing stale connection to ${peerId}`);
+            if (peersRef.current[peerId]) {
+              peersRef.current[peerId].destroy();
+              delete peersRef.current[peerId];
             }
           }
         });
@@ -1230,8 +1260,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
               // Apply enhanced audio constraints to prevent echo
               try {
                 track.applyConstraints({
-                  echoCancellation: true,
-                  noiseSuppression: true,
+                echoCancellation: true,
+                noiseSuppression: true,
                   autoGainControl: true
                 }).then(() => {
                   console.log('ðŸŽ¤ UltraSimplePeer: Enhanced audio constraints applied in handleSignal');
