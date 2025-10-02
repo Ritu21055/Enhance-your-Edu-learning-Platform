@@ -12,7 +12,7 @@ import {
   TextField
 } from '@mui/material';
 import io from 'socket.io-client';
-import { getBackendUrl, initializeBackendConfig } from './config/network';
+import { getBackendUrl } from './config/network';
 import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
 import './css/MeetingLobby.css';
@@ -43,29 +43,15 @@ const MeetingLobby = () => {
   }, [meetingTitle]);
 
   useEffect(() => {
-    // Initialize backend configuration first
-    const initializeConnection = async () => {
-      try {
-        await initializeBackendConfig();
-        const backendUrl = getBackendUrl();
-        console.log('🔍 Lobby: Connecting to backend URL:', backendUrl);
-        console.log('🔍 Lobby: Current hostname:', window.location.hostname);
-        console.log('🔍 Lobby: Current protocol:', window.location.protocol);
-        
-        const newSocket = io(backendUrl);
-        setSocket(newSocket);
-        
-        setupSocketEvents(newSocket, backendUrl);
-      } catch (error) {
-        console.error('❌ Lobby: Failed to initialize backend config:', error);
-        setError('Failed to initialize connection. Please refresh the page.');
-      }
-    };
+    // Initialize socket connection
+    const backendUrl = getBackendUrl();
+    console.log('🔍 Lobby: Connecting to backend URL:', backendUrl);
+    console.log('🔍 Lobby: Current hostname:', window.location.hostname);
+    console.log('🔍 Lobby: Current protocol:', window.location.protocol);
+    
+    const newSocket = io(backendUrl);
+    setSocket(newSocket);
 
-    initializeConnection();
-  }, []);
-
-  const setupSocketEvents = (newSocket, backendUrl) => {
     newSocket.on('connect', () => {
       console.log('✅ Lobby: Connected to server at:', backendUrl);
       setIsConnected(true);
@@ -97,7 +83,6 @@ const MeetingLobby = () => {
       return originalEmit.call(this, event, ...args);
     };
 
-    // Move all socket event handlers here
     newSocket.on('meeting-joined', (data) => {
       console.log('Meeting joined received:', data);
       console.log('🔍 Lobby: isHost from server:', data.isHost);
@@ -181,7 +166,11 @@ const MeetingLobby = () => {
       console.error('Socket error:', error);
       setError(`Connection error: ${error.message}`);
     });
-  };
+
+    return () => {
+      newSocket.close();
+    };
+  }, [meetingId, navigate]);
 
   const handleJoinMeeting = () => {
     if (!username.trim()) {
