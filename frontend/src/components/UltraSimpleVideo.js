@@ -444,6 +444,67 @@ const UltraSimpleVideo = ({
     return () => clearTimeout(timeoutId);
   }, [otherParticipants.length]); // Only depend on participant count, not streams
 
+  // ENSURE LOCAL VIDEO STAYS VISIBLE: When participants change, ensure local video remains
+  useEffect(() => {
+    console.log('🎥 UltraSimpleVideo: Participants changed, ensuring local video stays visible');
+    console.log('🎥 UltraSimpleVideo: Current participants count:', otherParticipants.length);
+    console.log('🎥 UltraSimpleVideo: Local stream available:', !!localStream);
+    
+    // Force local video to stay visible when participants change
+    if (localVideoRef.current && localStream) {
+      console.log('🎥 UltraSimpleVideo: Ensuring local video stays visible after participant change');
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.style.display = 'block';
+      localVideoRef.current.style.visibility = 'visible';
+      localVideoRef.current.style.opacity = '1';
+      localVideoRef.current.style.position = 'relative';
+      localVideoRef.current.style.zIndex = '1';
+      
+      // Force play
+      localVideoRef.current.play().catch(() => {});
+      setTimeout(() => localVideoRef.current.play().catch(() => {}), 100);
+    }
+  }, [otherParticipants.length, localStream]);
+
+  // ENSURE REMAINING VIDEOS STAY VISIBLE: When participants leave, ensure remaining videos stay
+  useEffect(() => {
+    console.log('🎥 UltraSimpleVideo: Ensuring remaining videos stay visible after participant leaves');
+    
+    // Force local video to stay visible
+    if (localVideoRef.current && localStream) {
+      console.log('🎥 UltraSimpleVideo: Ensuring local video stays visible after participant leaves');
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.style.display = 'block';
+      localVideoRef.current.style.visibility = 'visible';
+      localVideoRef.current.style.opacity = '1';
+      localVideoRef.current.play().catch(() => {});
+    }
+    
+    // Force remaining participant videos to stay visible
+    otherParticipants.forEach(participant => {
+      const videoElement = remoteVideoRefs.current[participant.id];
+      const audioElement = remoteAudioRefs.current[participant.id];
+      const stream = remoteStreams[participant.id];
+      
+      if (stream && stream.active && stream.getTracks().length > 0) {
+        if (videoElement) {
+          console.log(`🎥 UltraSimpleVideo: Ensuring participant video stays visible for ${participant.id}`);
+          videoElement.srcObject = stream;
+          videoElement.style.display = 'block';
+          videoElement.style.visibility = 'visible';
+          videoElement.style.opacity = '1';
+          videoElement.play().catch(() => {});
+        }
+        
+        if (audioElement) {
+          console.log(`🔊 UltraSimpleVideo: Ensuring participant audio stays active for ${participant.id}`);
+          audioElement.srcObject = stream;
+          audioElement.play().catch(() => {});
+        }
+      }
+    });
+  }, [otherParticipants.length, localStream, remoteStreams]);
+
   // DISABLED: Host video force completely removed to prevent interference
   // The aggressive protection systems have been removed to prevent video blinking
   // Use the "Fix Host Video Stream" button instead for manual fixes when needed
