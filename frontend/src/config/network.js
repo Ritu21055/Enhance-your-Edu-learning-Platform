@@ -18,9 +18,10 @@ const getNetworkConfig = () => {
     return LOCAL_CONFIG;
   }
   
-  // If accessing via IP address or domain, use the same hostname for backend
+  // For all other cases (including IP addresses), use the host's IP for backend
+  // This ensures participants can connect to the host's backend
   return {
-    BACKEND_URL: `${protocol}//${hostname}:5000`,
+    BACKEND_URL: 'http://192.168.0.108:5000',  // Always use host's IP for backend
     FRONTEND_URL: `${protocol}//${hostname}:${port || 3000}`
   };
 };

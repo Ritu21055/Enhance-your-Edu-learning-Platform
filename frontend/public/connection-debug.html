@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .warning { border-left-color: #ffc107; background: #fff3cd; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 WebNexus Connection Debug</h1>
+        
+        <div class="test-section">
+            <h3>📊 Current Environment</h3>
+            <div id="environment-info"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🌐 Network Tests</h3>
+            <button onclick="testAllConnections()">🚀 Test All Connections</button>
+            <button onclick="testBackendHealth()">❤️ Test Backend Health</button>
+            <button onclick="testSocketConnection()">🔌 Test Socket Connection</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>📝 Test Results</h3>
+            <div id="test-log" class="log">Click "Test All Connections" to start...</div>
+        </div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logElement.textContent += logEntry;
+            
+            if (type === 'error') {
+                logElement.style.color = '#dc3545';
+            } else if (type === 'success') {
+                logElement.style.color = '#28a745';
+            } else {
+                logElement.style.color = '#333';
+            }
+        }
+        
+        function clearLog() {
+            logElement.textContent = '';
+        }
+        
+        function displayEnvironment() {
+            const envDiv = document.getElementById('environment-info');
+            envDiv.innerHTML = `
+                <p><strong>Current URL:</strong> ${window.location.href}</p>
+                <p><strong>Hostname:</strong> ${window.location.hostname}</p>
+                <p><strong>Protocol:</strong> ${window.location.protocol}</p>
+                <p><strong>Port:</strong> ${window.location.port || 'default'}</p>
+                <p><strong>User Agent:</strong> ${navigator.userAgent}</p>
+                <p><strong>Is Localhost:</strong> ${window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'}</p>
+            `;
+        }
+        
+        async function testBackendHealth() {
+            log('🔄 Testing backend health endpoint...');
+            
+            const possibleUrls = [
+                'http://192.168.0.108:5000/api/health',
+                'http://localhost:5000/api/health',
+                'http://127.0.0.1:5000/api/health'
+            ];
+            
+            for (const url of possibleUrls) {
+                try {
+                    log(`Testing: ${url}`);
+                    const response = await fetch(url, { 
+                        method: 'GET',
+                        mode: 'cors',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        log(`✅ SUCCESS: ${url} - ${JSON.stringify(data)}`, 'success');
+                        return url;
+                    } else {
+                        log(`❌ FAILED: ${url} - Status: ${response.status}`, 'error');
+                    }
+                } catch (error) {
+                    log(`❌ ERROR: ${url} - ${error.message}`, 'error');
+                }
+            }
+            
+            log('❌ All backend health tests failed!', 'error');
+            return null;
+        }
+        
+        async function testSocketConnection() {
+            log('🔄 Testing socket connection...');
+            
+            return new Promise((resolve) => {
+                // Load socket.io client
+                const script = document.createElement('script');
+                script.src = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
+                document.head.appendChild(script);
+                
+                script.onload = () => {
+                    const possibleUrls = [
+                        'http://192.168.0.108:5000',
+                        'http://localhost:5000',
+                        'http://127.0.0.1:5000'
+                    ];
+                    
+                    let tested = 0;
+                    let success = false;
+                    
+                    for (const url of possibleUrls) {
+                        log(`Testing socket: ${url}`);
+                        
+                        try {
+                            const socket = io(url, {
+                                timeout: 5000,
+                                forceNew: true,
+                                transports: ['websocket', 'polling']
+                            });
+                            
+                            socket.on('connect', () => {
+                                log(`✅ Socket connected to: ${url}`, 'success');
+                                success = true;
+                                socket.disconnect();
+                                resolve(url);
+                            });
+                            
+                            socket.on('connect_error', (error) => {
+                                log(`❌ Socket failed: ${url} - ${error.message}`, 'error');
+                                tested++;
+                                if (tested === possibleUrls.length && !success) {
+                                    log('❌ All socket tests failed!', 'error');
+                                    resolve(null);
+                                }
+                            });
+                            
+                            socket.on('disconnect', () => {
+                                log(`🔌 Socket disconnected from: ${url}`);
+                            });
+                            
+                        } catch (error) {
+                            log(`❌ Socket error: ${url} - ${error.message}`, 'error');
+                            tested++;
+                            if (tested === possibleUrls.length && !success) {
+                                log('❌ All socket tests failed!', 'error');
+                                resolve(null);
+                            }
+                        }
+                    }
+                    
+                    // Timeout after 10 seconds
+                    setTimeout(() => {
+                        if (!success) {
+                            log('⏰ Socket connection timeout!', 'error');
+                            resolve(null);
+                        }
+                    }, 10000);
+                };
+                
+                script.onerror = () => {
+                    log('❌ Failed to load Socket.IO client', 'error');
+                    resolve(null);
+                };
+            });
+        }
+        
+        async function testAllConnections() {
+            log('🚀 Starting comprehensive connection tests...');
+            log('='.repeat(50));
+            
+            // Test backend health
+            const healthUrl = await testBackendHealth();
+            
+            log('='.repeat(50));
+            
+            // Test socket connection
+            const socketUrl = await testSocketConnection();
+            
+            log('='.repeat(50));
+            
+            // Summary
+            if (healthUrl && socketUrl) {
+                log('🎉 ALL TESTS PASSED! Backend is accessible and working.', 'success');
+                log(`✅ Recommended backend URL: ${healthUrl.replace('/api/health', '')}`, 'success');
+            } else if (healthUrl) {
+                log('⚠️ Backend health works but socket connection failed.', 'warning');
+                log(`✅ Backend URL: ${healthUrl.replace('/api/health', '')}`, 'success');
+                log('❌ Socket connection failed - check firewall or CORS settings.', 'error');
+            } else {
+                log('❌ ALL TESTS FAILED! Backend is not accessible.', 'error');
+                log('💡 Suggestions:', 'warning');
+                log('1. Check if backend server is running', 'warning');
+                log('2. Check Windows Firewall settings', 'warning');
+                log('3. Try running as administrator', 'warning');
+                log('4. Check if port 5000 is available', 'warning');
+            }
+        }
+        
+        // Initialize
+        displayEnvironment();
+    </script>
+</body>
+</html>
