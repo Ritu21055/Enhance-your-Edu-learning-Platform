@@ -478,7 +478,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       
       notification.innerHTML = `
         <div style="font-size: 18px; font-weight: 600; margin-bottom: 12px;">
-          ðŸš« Removed from Meeting
+           Removed from Meeting
         </div>
         <div style="font-size: 14px; opacity: 0.9; margin-bottom: 16px;">
           You have been removed from the meeting by the host
