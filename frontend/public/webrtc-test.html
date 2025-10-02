@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .info-box { margin: 15px 0; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .warning { border-left-color: #ffc107; background: #fff3cd; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        video { width: 300px; height: 200px; border: 2px solid #007bff; border-radius: 5px; margin: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 WebRTC Connection Test</h1>
+        
+        <div class="info-box">
+            <h3>📊 Current Device Information</h3>
+            <div id="device-info"></div>
+        </div>
+        
+        <div class="info-box">
+            <h3>🎥 Media Stream Test</h3>
+            <button onclick="testMediaStream()">🎥 Test Camera/Microphone</button>
+            <button onclick="testWebRTCConnection()">🔌 Test WebRTC Connection</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+        
+        <div class="info-box">
+            <h3>📹 Video Preview</h3>
+            <video id="localVideo" autoplay muted></video>
+            <video id="remoteVideo" autoplay></video>
+        </div>
+        
+        <div class="info-box">
+            <h3>📝 Test Results</h3>
+            <div id="test-log" class="log">Click "Test Camera/Microphone" to start...</div>
+        </div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        let localVideo = document.getElementById('localVideo');
+        let remoteVideo = document.getElementById('remoteVideo');
+        let localStream = null;
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logElement.textContent += logEntry;
+            
+            if (type === 'error') {
+                logElement.style.color = '#dc3545';
+            } else if (type === 'success') {
+                logElement.style.color = '#28a745';
+            } else {
+                logElement.style.color = '#333';
+            }
+        }
+        
+        function clearLog() {
+            logElement.textContent = '';
+        }
+        
+        function displayDeviceInfo() {
+            const deviceDiv = document.getElementById('device-info');
+            deviceDiv.innerHTML = `
+                <p><strong>Current URL:</strong> ${window.location.href}</p>
+                <p><strong>Hostname:</strong> ${window.location.hostname}</p>
+                <p><strong>Protocol:</strong> ${window.location.protocol}</p>
+                <p><strong>User Agent:</strong> ${navigator.userAgent}</p>
+                <p><strong>WebRTC Support:</strong> ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}</p>
+            `;
+        }
+        
+        async function testMediaStream() {
+            log('🔄 Testing camera and microphone access...');
+            
+            try {
+                // Request media stream
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                
+                log('✅ SUCCESS: Camera and microphone access granted!', 'success');
+                log(`Video tracks: ${localStream.getVideoTracks().length}`, 'success');
+                log(`Audio tracks: ${localStream.getAudioTracks().length}`, 'success');
+                
+                // Display video
+                localVideo.srcObject = localStream;
+                localVideo.play().catch(err => log(`Video play error: ${err.message}`, 'error'));
+                
+                // Test audio levels
+                if (localStream.getAudioTracks().length > 0) {
+                    const audioContext = new AudioContext();
+                    const analyser = audioContext.createAnalyser();
+                    const microphone = audioContext.createMediaStreamSource(localStream);
+                    microphone.connect(analyser);
+                    
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    let maxLevel = 0;
+                    
+                    const checkAudio = () => {
+                        analyser.getByteFrequencyData(dataArray);
+                        const currentLevel = Math.max(...dataArray);
+                        maxLevel = Math.max(maxLevel, currentLevel);
+                        log(`Audio level: ${currentLevel} (Max: ${maxLevel})`);
+                        
+                        if (maxLevel > 0) {
+                            log('✅ Audio is working - microphone is picking up sound!', 'success');
+                        } else {
+                            log('⚠️ No audio detected - check microphone', 'warning');
+                        }
+                    };
+                    
+                    setTimeout(checkAudio, 2000);
+                }
+                
+                return true;
+            } catch (error) {
+                log(`❌ ERROR: ${error.message}`, 'error');
+                log('💡 Make sure to allow camera and microphone access', 'warning');
+                return false;
+            }
+        }
+        
+        async function testWebRTCConnection() {
+            log('🔄 Testing WebRTC connection...');
+            
+            if (!localStream) {
+                log('❌ No local stream available. Run camera test first.', 'error');
+                return;
+            }
+            
+            try {
+                // Create RTCPeerConnection
+                const peerConnection = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                });
+                
+                log('✅ RTCPeerConnection created successfully', 'success');
+                
+                // Add local stream
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                    log(`Added ${track.kind} track: ${track.label}`, 'success');
+                });
+                
+                // Handle ICE candidates
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        log(`ICE candidate: ${event.candidate.candidate}`, 'success');
+                    } else {
+                        log('✅ ICE gathering complete', 'success');
+                    }
+                };
+                
+                // Handle remote stream
+                peerConnection.ontrack = (event) => {
+                    log('✅ Remote stream received', 'success');
+                    remoteVideo.srcObject = event.streams[0];
+                };
+                
+                // Create offer
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                log('✅ Offer created successfully', 'success');
+                
+                log('✅ WebRTC connection test completed successfully!', 'success');
+                
+            } catch (error) {
+                log(`❌ WebRTC ERROR: ${error.message}`, 'error');
+                log('💡 This might indicate network or browser compatibility issues', 'warning');
+            }
+        }
+        
+        // Initialize
+        displayDeviceInfo();
+    </script>
+</body>
+</html>
