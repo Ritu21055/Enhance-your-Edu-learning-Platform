@@ -44,13 +44,38 @@ const MeetingLobby = () => {
 
   useEffect(() => {
     // Initialize socket connection
-    const newSocket = io(getBackendUrl());
+    const backendUrl = getBackendUrl();
+    console.log('🔍 Lobby: Connecting to backend URL:', backendUrl);
+    console.log('🔍 Lobby: Current hostname:', window.location.hostname);
+    console.log('🔍 Lobby: Current protocol:', window.location.protocol);
+    
+    const newSocket = io(backendUrl);
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('Connected to server');
+      console.log('✅ Lobby: Connected to server at:', backendUrl);
       setIsConnected(true);
+      clearTimeout(connectionTimeout);
     });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('❌ Lobby: Connection error:', error);
+      console.error('❌ Lobby: Failed to connect to:', backendUrl);
+      setError(`Failed to connect to server: ${error.message}`);
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('⚠️ Lobby: Disconnected from server:', reason);
+      setIsConnected(false);
+    });
+
+    // Add connection timeout
+    const connectionTimeout = setTimeout(() => {
+      if (!isConnected) {
+        console.error('❌ Lobby: Connection timeout after 10 seconds');
+        setError('Connection timeout. Please check if the backend server is running.');
+      }
+    }, 10000);
 
     // Add debugging for all socket events
     const originalEmit = newSocket.emit;
@@ -350,6 +375,32 @@ const MeetingLobby = () => {
                 size="small"
                 className="lobby-connecting-chip"
               />
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={async () => {
+                  console.log('🔍 Lobby Debug: Testing backend connection...');
+                  console.log('🔍 Lobby Debug: Backend URL:', getBackendUrl());
+                  console.log('🔍 Lobby Debug: Current hostname:', window.location.hostname);
+                  
+                  try {
+                    const response = await fetch(`${getBackendUrl()}/health`);
+                    if (response.ok) {
+                      console.log('✅ Lobby Debug: Backend is reachable!');
+                      setError('');
+                    } else {
+                      console.log('❌ Lobby Debug: Backend responded with error:', response.status);
+                      setError(`Backend error: ${response.status}`);
+                    }
+                  } catch (error) {
+                    console.log('❌ Lobby Debug: Backend is not reachable:', error.message);
+                    setError(`Backend not reachable: ${error.message}`);
+                  }
+                }}
+                style={{ marginTop: '8px' }}
+              >
+                🔍 Test Backend Connection
+              </Button>
               </Box>
           )}
         </CardContent>
