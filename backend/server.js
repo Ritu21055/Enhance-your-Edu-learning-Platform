@@ -1138,6 +1138,7 @@ io.on('connection', (socket) => {
         // If already approved, send approval notification
         if (existingParticipant.isApproved) {
           socket.emit('participant-approved', {
+            approved: true,
             message: 'You have been approved to join the meeting',
             meetingId,
             hostId: meeting.hostId,
@@ -1688,6 +1689,7 @@ io.on('connection', (socket) => {
       console.log(`📤 APPROVAL: Sending participant-approved to ${participantId}`);
       console.log(`📤 APPROVAL: Host name: "${meeting.host}"`);
       socket.to(participantId).emit('participant-approved', { 
+        approved: true,
         message: 'You have been approved to join the meeting',
         meetingId,
         hostId: meeting.hostId,
