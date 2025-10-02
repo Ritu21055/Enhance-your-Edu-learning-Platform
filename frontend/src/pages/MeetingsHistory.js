@@ -84,7 +84,8 @@ const MeetingsHistory = () => {
   };
 
   const handleJoinMeeting = (meetingId) => {
-    navigate(`/lobby?meetingId=${meetingId}`);
+    console.log('🔄 Rejoining meeting from history:', meetingId);
+    navigate(`/lobby/${meetingId}`);
   };
 
   const handleRefresh = () => {
