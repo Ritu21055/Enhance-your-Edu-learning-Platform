@@ -69,6 +69,9 @@ const MeetingRoom = () => {
   console.log('🔍 MeetingRoom: URL params:', { meetingId, userName });
   console.log('🔍 MeetingRoom: userName value:', userName);
   console.log('🔍 MeetingRoom: userName type:', typeof userName);
+  console.log('🔍 MeetingRoom: userName length:', userName?.length);
+  console.log('🔍 MeetingRoom: userName trimmed:', userName?.trim());
+  console.log('🔍 MeetingRoom: finalUserName will be:', userName && userName.trim() !== '' ? userName.trim() : 'Guest');
   
 
   // State for UI

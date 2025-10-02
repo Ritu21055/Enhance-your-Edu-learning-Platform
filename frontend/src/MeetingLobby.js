@@ -149,6 +149,9 @@ const MeetingLobby = () => {
         // Clear the connection timeout since participant is approved
         clearTimeout(connectionTimeout);
         console.log('🔍 Lobby: Participant approved, navigating to meeting');
+        console.log('🔍 Lobby: Username being sent:', username);
+        console.log('🔍 Lobby: Username type:', typeof username);
+        console.log('🔍 Lobby: Username length:', username?.length);
         console.log('🔍 Lobby: Navigation URL:', `/meeting/${meetingId}?user=${username}&approved=true`);
         navigate(`/meeting/${meetingId}?user=${username}&approved=true`);
       } else {
