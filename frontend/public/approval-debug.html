@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approval Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .info-box { margin: 15px 0; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .warning { border-left-color: #ffc107; background: #fff3cd; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Approval Debug</h1>
+        
+        <div class="info-box">
+            <h3>📊 Current Issue</h3>
+            <p><strong>Problem:</strong> Participant gets approved but then times out</p>
+            <p><strong>Cause:</strong> Multiple approval systems causing conflicts</p>
+            <p><strong>Solution:</strong> Clear approval state and retry</p>
+        </div>
+        
+        <div class="info-box">
+            <h3>🔧 Quick Fixes</h3>
+            <button onclick="clearApprovalState()">🧹 Clear Approval State</button>
+            <button onclick="forceApproval()">✅ Force Approval</button>
+            <button onclick="resetConnection()">🔄 Reset Connection</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+        
+        <div class="info-box">
+            <h3>📝 Debug Log</h3>
+            <div id="debug-log" class="log">Click a button to start debugging...</div>
+        </div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('debug-log');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logElement.textContent += logEntry;
+            
+            if (type === 'error') {
+                logElement.style.color = '#dc3545';
+            } else if (type === 'success') {
+                logElement.style.color = '#28a745';
+            } else {
+                logElement.style.color = '#333';
+            }
+        }
+        
+        function clearLog() {
+            logElement.textContent = '';
+        }
+        
+        function clearApprovalState() {
+            log('🧹 Clearing approval state...');
+            
+            // Clear localStorage
+            localStorage.removeItem('meetingState');
+            localStorage.removeItem('pendingApprovals');
+            localStorage.removeItem('approvalState');
+            
+            // Clear sessionStorage
+            sessionStorage.removeItem('meetingState');
+            sessionStorage.removeItem('pendingApprovals');
+            sessionStorage.removeItem('approvalState');
+            
+            // Clear any global variables
+            if (window.meetingState) {
+                delete window.meetingState;
+            }
+            if (window.pendingApprovals) {
+                delete window.pendingApprovals;
+            }
+            
+            log('✅ Approval state cleared!', 'success');
+            log('💡 Now try joining the meeting again', 'warning');
+        }
+        
+        function forceApproval() {
+            log('✅ Forcing approval...');
+            
+            // Simulate approval
+            const approvalData = {
+                approved: true,
+                participantId: 'force-approval-' + Date.now(),
+                timestamp: Date.now()
+            };
+            
+            // Store in localStorage
+            localStorage.setItem('forceApproval', JSON.stringify(approvalData));
+            
+            log('✅ Force approval set!', 'success');
+            log('💡 This should bypass the approval timeout', 'warning');
+        }
+        
+        function resetConnection() {
+            log('🔄 Resetting connection...');
+            
+            // Clear all connection-related data
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Clear any global connection state
+            if (window.socket) {
+                window.socket.disconnect();
+                delete window.socket;
+            }
+            
+            // Clear any peer connections
+            if (window.peers) {
+                Object.values(window.peers).forEach(peer => {
+                    if (peer.destroy) peer.destroy();
+                });
+                delete window.peers;
+            }
+            
+            log('✅ Connection reset!', 'success');
+            log('💡 Refresh the page and try again', 'warning');
+        }
+        
+        // Initialize
+        log('🔍 Approval Debug Tool Ready');
+        log('💡 Use the buttons above to fix approval issues');
+    </script>
+</body>
+</html>
