@@ -103,15 +103,22 @@ export const detectBackendConfig = async () => {
   };
 };
 
-// Auto-detect backend configuration on page load (after function is defined)
-detectBackendConfig().then(detectedConfig => {
-  console.log('🌐 Auto-detected backend configuration:', detectedConfig);
-  // Update the config if needed
-  if (detectedConfig.BACKEND_URL !== config.BACKEND_URL) {
-    console.log('🌐 Switching to detected backend:', detectedConfig.BACKEND_URL);
-    Object.assign(config, detectedConfig);
+// Manual backend detection - call this function when needed
+export const initializeBackendConfig = async () => {
+  try {
+    const detectedConfig = await detectBackendConfig();
+    console.log('🌐 Auto-detected backend configuration:', detectedConfig);
+    // Update the config if needed
+    if (detectedConfig.BACKEND_URL !== config.BACKEND_URL) {
+      console.log('🌐 Switching to detected backend:', detectedConfig.BACKEND_URL);
+      Object.assign(config, detectedConfig);
+    }
+    return detectedConfig;
+  } catch (error) {
+    console.error('🌐 Backend detection failed:', error);
+    return config;
   }
-});
+};
 
 // Log current configuration
 console.log('🌐 Network Configuration:', {

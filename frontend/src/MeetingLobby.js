@@ -12,7 +12,7 @@ import {
   TextField
 } from '@mui/material';
 import io from 'socket.io-client';
-import { getBackendUrl } from './config/network';
+import { getBackendUrl, initializeBackendConfig } from './config/network';
 import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
 import './css/MeetingLobby.css';
@@ -43,19 +43,32 @@ const MeetingLobby = () => {
   }, [meetingTitle]);
 
   useEffect(() => {
-    // Initialize socket connection
-    const backendUrl = getBackendUrl();
-    console.log('🔍 Lobby: Connecting to backend URL:', backendUrl);
-    console.log('🔍 Lobby: Current hostname:', window.location.hostname);
-    console.log('🔍 Lobby: Current protocol:', window.location.protocol);
-    
-    const newSocket = io(backendUrl);
-    setSocket(newSocket);
+    // Initialize backend configuration first
+    const initializeConnection = async () => {
+      try {
+        await initializeBackendConfig();
+        const backendUrl = getBackendUrl();
+        console.log('🔍 Lobby: Connecting to backend URL:', backendUrl);
+        console.log('🔍 Lobby: Current hostname:', window.location.hostname);
+        console.log('🔍 Lobby: Current protocol:', window.location.protocol);
+        
+        const newSocket = io(backendUrl);
+        setSocket(newSocket);
+        
+        setupSocketEvents(newSocket, backendUrl);
+      } catch (error) {
+        console.error('❌ Lobby: Failed to initialize backend config:', error);
+        setError('Failed to initialize connection. Please refresh the page.');
+      }
+    };
 
+    initializeConnection();
+  }, []);
+
+  const setupSocketEvents = (newSocket, backendUrl) => {
     newSocket.on('connect', () => {
       console.log('✅ Lobby: Connected to server at:', backendUrl);
       setIsConnected(true);
-      clearTimeout(connectionTimeout);
     });
 
     newSocket.on('connect_error', (error) => {
@@ -84,7 +97,7 @@ const MeetingLobby = () => {
       return originalEmit.call(this, event, ...args);
     };
 
-
+    // Move all socket event handlers here
     newSocket.on('meeting-joined', (data) => {
       console.log('Meeting joined received:', data);
       console.log('🔍 Lobby: isHost from server:', data.isHost);
@@ -106,9 +119,9 @@ const MeetingLobby = () => {
         if (!currentUsername || currentUsername.trim() === '') {
           console.error('❌ Lobby: Username is empty, cannot navigate!');
           setError('Username is required to join as host');
-      return;
-    }
-    
+          return;
+        }
+        
         // Double-check username before navigation
         const finalUsername = currentUsername.trim();
         console.log('🔍 Lobby: Final username for navigation:', finalUsername);
@@ -129,60 +142,46 @@ const MeetingLobby = () => {
         
         navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true&host=true`);
       } else {
-        // If user is participant, show waiting message
+        // If user is participant, set waiting state
+        setIsHost(false);
         setIsWaiting(true);
-        setIsHost(false); // Ensure host state is cleared for participants
-      }
-    });
-
-    newSocket.on('waiting-for-approval', (data) => {
-      console.log('Waiting for approval:', data);
-      // Only set waiting if user is not a host
-      if (!isHost) {
-        setIsWaiting(true);
+        setHasJoined(true);
+        console.log('🔍 Lobby: Participant detected, waiting for approval');
       }
     });
 
     newSocket.on('participant-approved', (data) => {
-      console.log('Participant approved:', data);
-      // Set approval flag in localStorage
-      localStorage.setItem(`approved_${meetingId}`, 'true');
-      
-      // Use ref to get the most current username value
-      const currentUsername = usernameRef.current || username;
-      console.log('🔍 Participant approved - navigating with username:', currentUsername);
-      
-      // Ensure we have a valid username
-      if (!currentUsername || currentUsername.trim() === '') {
-        console.error('❌ No username available for participant approval!');
-        console.log('🔍 Available data:', { 
-          usernameRef: usernameRef.current, 
-          usernameState: username,
-          hasJoined: hasJoined 
-        });
-        // Use a fallback or show error
-        alert('Error: Username not found. Please refresh and try again.');
-        return;
+      console.log('Participant approved received:', data);
+      if (data.approved) {
+        setIsWaiting(false);
+        setHasJoined(true);
+        console.log('🔍 Lobby: Participant approved, navigating to meeting');
+        navigate(`/meeting/${meetingId}?user=${username}&approved=true`);
       }
-      
-      // Navigate to meeting room when approved
-      navigate(`/meeting/${meetingId}?user=${currentUsername.trim()}&approved=true`);
     });
 
-    newSocket.on('participant-rejected', () => {
-      console.log('Participant rejected');
-      alert('You have been rejected from the meeting');
-      navigate('/');
+    newSocket.on('participant-rejected', (data) => {
+      console.log('Participant rejected received:', data);
+      setIsWaiting(false);
+      setHasJoined(false);
+      setError('Your request to join the meeting was rejected by the host.');
     });
 
-    newSocket.on('disconnect', () => {
-      setIsConnected(false);
+    newSocket.on('meeting-not-found', () => {
+      console.log('Meeting not found');
+      setError('Meeting not found. Please check the meeting ID.');
     });
 
-    return () => {
-      newSocket.close();
-    };
-  }, [meetingId, navigate]);
+    newSocket.on('meeting-full', () => {
+      console.log('Meeting is full');
+      setError('Meeting is full. Cannot join at this time.');
+    });
+
+    newSocket.on('error', (error) => {
+      console.error('Socket error:', error);
+      setError(`Connection error: ${error.message}`);
+    });
+  };
 
   const handleJoinMeeting = () => {
     if (!username.trim()) {
