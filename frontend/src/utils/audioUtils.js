@@ -172,11 +172,13 @@ export const configureAudioElement = (audioElement, stream, participantId) => {
   audioElement.srcObject = stream;
   
   // Force play
-  audioElement.play().then(() => {
-    console.log(`✅ AUDIO-UTILS: Audio play successful for ${participantId}`);
-  }).catch(err => {
-    console.log(`❌ AUDIO-UTILS: Audio play failed for ${participantId}:`, err);
-  });
+  if (audioElement) {
+    audioElement.play().then(() => {
+      console.log(`✅ AUDIO-UTILS: Audio play successful for ${participantId}`);
+    }).catch(err => {
+      console.log(`❌ AUDIO-UTILS: Audio play failed for ${participantId}:`, err);
+    });
+  }
   
   // Force enable audio tracks
   const audioTracks = stream.getAudioTracks();
@@ -216,12 +218,14 @@ export const configureHostAudioElement = (audioElement, stream, participantId, i
     
     // Force play with retry for host audio
     const playHostAudio = () => {
-      audioElement.play().then(() => {
-        console.log(`✅ AUDIO-UTILS: Host audio play successful for ${participantId}`);
-      }).catch(err => {
-        console.log(`❌ AUDIO-UTILS: Host audio play failed for ${participantId}, retrying...`, err);
+      if (audioElement) {
+        audioElement.play().then(() => {
+          console.log(`✅ AUDIO-UTILS: Host audio play successful for ${participantId}`);
+        }).catch(err => {
+          console.log(`❌ AUDIO-UTILS: Host audio play failed for ${participantId}, retrying...`, err);
         setTimeout(playHostAudio, 100);
-      });
+        });
+      }
     };
     
     playHostAudio();
@@ -659,9 +663,11 @@ export const configureAudioElements = (stream, participantId) => {
       audioElement.volume = 1.0;
       
       // Force play
-      audioElement.play().catch(error => {
-        console.log(`🔊 AUDIO-UTILS: Audio play failed for ${participantId}:`, error);
-      });
+      if (audioElement) {
+        audioElement.play().catch(error => {
+          console.log(`🔊 AUDIO-UTILS: Audio play failed for ${participantId}:`, error);
+        });
+      }
       
       console.log(`🔊 AUDIO-UTILS: Updated audio element ${index} for ${participantId}`);
     });

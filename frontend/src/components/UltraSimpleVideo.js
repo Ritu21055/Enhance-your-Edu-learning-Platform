@@ -335,7 +335,7 @@ const UltraSimpleVideo = ({
           if (stream && stream.active && stream.getTracks().length > 0 && el.srcObject !== stream) {
             console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
             el.srcObject = stream;
-            el.play().catch(() => {}); // Silent fail
+            if (el) el.play().catch(() => {}); // Silent fail
           }
         }
       }
@@ -351,7 +351,7 @@ const UltraSimpleVideo = ({
             const stream = remoteStreams[participantId];
             if (stream && stream.active && stream.getTracks().length > 0) {
               el.srcObject = stream;
-            el.play().catch(() => {});
+            if (el) el.play().catch(() => {});
           }
         }
       }
@@ -392,16 +392,20 @@ const UltraSimpleVideo = ({
           videoElement.style.zIndex = '1';
           
           // Force play immediately - REDUCED aggressive play attempts
-          videoElement.play().catch(() => {});
-          setTimeout(() => videoElement.play().catch(() => {}), 100);
+          if (videoElement) {
+            videoElement.play().catch(() => {});
+            setTimeout(() => videoElement && videoElement.play().catch(() => {}), 100);
+          }
         }
         
         // IMMEDIATE: Force audio element assignment
         if (audioElement) {
           console.log(`🔊 UltraSimpleVideo: IMMEDIATE - Assigning stream to audio element for ${participantId}`);
           audioElement.srcObject = stream;
-          audioElement.play().catch(() => {});
-          setTimeout(() => audioElement.play().catch(() => {}), 50);
+          if (audioElement) {
+            audioElement.play().catch(() => {});
+            setTimeout(() => audioElement && audioElement.play().catch(() => {}), 50);
+          }
           }
         }
       });
@@ -461,8 +465,10 @@ const UltraSimpleVideo = ({
       localVideoRef.current.style.zIndex = '1';
       
       // Force play
-      localVideoRef.current.play().catch(() => {});
-      setTimeout(() => localVideoRef.current.play().catch(() => {}), 100);
+      if (localVideoRef.current) {
+        localVideoRef.current.play().catch(() => {});
+        setTimeout(() => localVideoRef.current && localVideoRef.current.play().catch(() => {}), 100);
+      }
     }
   }, [otherParticipants.length, localStream]);
 
@@ -477,7 +483,7 @@ const UltraSimpleVideo = ({
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
       localVideoRef.current.style.opacity = '1';
-      localVideoRef.current.play().catch(() => {});
+      if (localVideoRef.current) localVideoRef.current.play().catch(() => {});
     }
     
     // Force remaining participant videos to stay visible
@@ -493,13 +499,13 @@ const UltraSimpleVideo = ({
           videoElement.style.display = 'block';
           videoElement.style.visibility = 'visible';
           videoElement.style.opacity = '1';
-          videoElement.play().catch(() => {});
+          if (videoElement) videoElement.play().catch(() => {});
         }
         
         if (audioElement) {
           console.log(`🔊 UltraSimpleVideo: Ensuring participant audio stays active for ${participant.id}`);
           audioElement.srcObject = stream;
-          audioElement.play().catch(() => {});
+          if (audioElement) audioElement.play().catch(() => {});
         }
       }
     });
