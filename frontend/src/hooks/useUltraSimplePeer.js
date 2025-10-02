@@ -481,7 +481,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
           ðŸš« Removed from Meeting
         </div>
         <div style="font-size: 14px; opacity: 0.9; margin-bottom: 16px;">
-          You have been removed from the meeting by <strong>${data.hostName}</strong>
+          You have been removed from the meeting by the host
         </div>
         <div style="font-size: 12px; opacity: 0.8;">
           Redirecting to home page...
