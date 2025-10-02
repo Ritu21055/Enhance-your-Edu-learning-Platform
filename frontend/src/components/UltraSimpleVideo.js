@@ -376,8 +376,8 @@ const UltraSimpleVideo = ({
     Object.keys(remoteStreams).forEach(participantId => {
       const videoElement = remoteVideoRefs.current[participantId];
       const audioElement = remoteAudioRefs.current[participantId];
-      const stream = remoteStreams[participantId];
-      
+        const stream = remoteStreams[participantId];
+        
       if (stream && stream.active && stream.getTracks().length > 0) {
         // IMMEDIATE: Force video element assignment
         if (videoElement) {
@@ -402,9 +402,9 @@ const UltraSimpleVideo = ({
           audioElement.srcObject = stream;
           audioElement.play().catch(() => {});
           setTimeout(() => audioElement.play().catch(() => {}), 50);
+          }
         }
-      }
-    });
+      });
   }, [remoteStreams]);
 
   // DISABLED: Ultra-aggressive protection completely removed to prevent interference
@@ -482,8 +482,8 @@ const UltraSimpleVideo = ({
       // Also force through refs
     Object.keys(remoteVideoRefs.current).forEach(participantId => {
         const videoElement = remoteVideoRefs.current[participantId];
-        const stream = remoteStreams[participantId];
-        
+      const stream = remoteStreams[participantId];
+      
         if (videoElement && stream) {
           console.log(`🚨 EMERGENCY: Forcing video for ${participantId}`);
           videoElement.srcObject = stream;

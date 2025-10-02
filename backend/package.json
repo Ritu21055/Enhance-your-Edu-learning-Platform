@@ -21,8 +21,7 @@
     "socket.io": "^4.7.2",
     "cors": "^2.8.5",
     "uuid": "^9.0.0",
-    "@google-cloud/speech": "^6.0.0",
-    "child_process": "^1.0.2"
+    "@google-cloud/speech": "^6.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
