@@ -23,7 +23,6 @@
   },
   "scripts": {
     "start": "craco start",
-    "start-local": "craco start",
     "start-https": "set HTTPS=true && craco start",
     "build": "craco build",
     "test": "craco test",
