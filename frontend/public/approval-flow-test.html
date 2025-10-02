@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Approval Flow Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .info-box { margin: 15px 0; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .warning { border-left-color: #ffc107; background: #fff3cd; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .step { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Approval Flow Test</h1>
+        
+        <div class="info-box">
+            <h3>📊 What I Added</h3>
+            <p><strong>Enhanced Debugging:</strong> Added detailed logging to track the approval flow</p>
+            <p><strong>State Tracking:</strong> Now logs state changes at each step</p>
+            <p><strong>Event Monitoring:</strong> Tracks meeting-joined and participant-approved events</p>
+        </div>
+        
+        <div class="step">
+            <h3>🔍 Step 1: Check Console Logs</h3>
+            <p>Open browser console (F12) and look for these logs:</p>
+            <ul>
+                <li><code>🔍 Lobby: Meeting joined received:</code></li>
+                <li><code>🔍 Lobby: Participant detected, setting waiting state</code></li>
+                <li><code>🔍 Lobby: Participant approved received:</code></li>
+                <li><code>🔍 Lobby: Setting isWaiting to false</code></li>
+            </ul>
+        </div>
+        
+        <div class="step">
+            <h3>🧪 Step 2: Test the Flow</h3>
+            <button onclick="simulateFlow()">🔄 Simulate Approval Flow</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+        
+        <div class="step">
+            <h3>📝 Step 3: Check Results</h3>
+            <div id="test-log" class="log">Click "Simulate Approval Flow" to start...</div>
+        </div>
+        
+        <div class="info-box warning">
+            <h3>⚠️ If Still Not Working</h3>
+            <p>Check the console logs and look for:</p>
+            <ul>
+                <li>Is <code>participant-approved</code> event being received?</li>
+                <li>Is the navigation happening after approval?</li>
+                <li>Are there any JavaScript errors?</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('test-log');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logElement.textContent += logEntry;
+            
+            if (type === 'error') {
+                logElement.style.color = '#dc3545';
+            } else if (type === 'success') {
+                logElement.style.color = '#28a745';
+            } else {
+                logElement.style.color = '#333';
+            }
+        }
+        
+        function clearLog() {
+            logElement.textContent = '';
+        }
+        
+        function simulateFlow() {
+            log('🔄 Simulating approval flow...');
+            
+            // Simulate the flow
+            log('1. Participant joins meeting');
+            log('   → meeting-joined event received');
+            log('   → isHost: false');
+            log('   → Setting isWaiting: true');
+            log('   → Setting hasJoined: true');
+            log('   → Status: "Connecting to meeting"');
+            
+            setTimeout(() => {
+                log('2. Host approves participant');
+                log('   → participant-approved event received');
+                log('   → data.approved: true');
+                log('   → Setting isWaiting: false');
+                log('   → Navigation to meeting room');
+                log('   → Status: "Joining meeting"');
+                
+                setTimeout(() => {
+                    log('✅ Flow completed successfully!', 'success');
+                    log('💡 If this matches your console logs, the flow is working');
+                }, 1000);
+            }, 2000);
+        }
+        
+        // Initialize
+        log('🔍 Approval Flow Test Ready');
+        log('💡 Check your browser console for detailed logs');
+    </script>
+</body>
+</html>

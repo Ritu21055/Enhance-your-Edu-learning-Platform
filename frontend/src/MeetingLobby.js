@@ -84,8 +84,9 @@ const MeetingLobby = () => {
     };
 
     newSocket.on('meeting-joined', (data) => {
-      console.log('Meeting joined received:', data);
+      console.log('🔍 Lobby: Meeting joined received:', data);
       console.log('🔍 Lobby: isHost from server:', data.isHost);
+      console.log('🔍 Lobby: Current state before meeting-joined:', { isWaiting, isConnected, hasJoined });
       setMeetingInfo(data);
       
       if (data.isHost) {
@@ -128,22 +129,30 @@ const MeetingLobby = () => {
         navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true&host=true`);
       } else {
         // If user is participant, set waiting state
+        console.log('🔍 Lobby: Participant detected, setting waiting state');
         setIsHost(false);
         setIsWaiting(true);
         setHasJoined(true);
-        console.log('🔍 Lobby: Participant detected, waiting for approval');
+        console.log('🔍 Lobby: Participant state set - isWaiting: true, hasJoined: true');
+        console.log('🔍 Lobby: Participant will now wait for approval');
       }
     });
 
     newSocket.on('participant-approved', (data) => {
-      console.log('Participant approved received:', data);
+      console.log('🔍 Lobby: Participant approved received:', data);
+      console.log('🔍 Lobby: Current state before approval:', { isWaiting, isConnected, hasJoined });
+      
       if (data.approved) {
+        console.log('🔍 Lobby: Setting isWaiting to false');
         setIsWaiting(false);
         setHasJoined(true);
         // Clear the connection timeout since participant is approved
         clearTimeout(connectionTimeout);
         console.log('🔍 Lobby: Participant approved, navigating to meeting');
+        console.log('🔍 Lobby: Navigation URL:', `/meeting/${meetingId}?user=${username}&approved=true`);
         navigate(`/meeting/${meetingId}?user=${username}&approved=true`);
+      } else {
+        console.log('🔍 Lobby: Approval data shows not approved:', data);
       }
     });
 
