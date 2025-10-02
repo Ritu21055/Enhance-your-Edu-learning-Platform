@@ -391,10 +391,9 @@ const UltraSimpleVideo = ({
           videoElement.style.position = 'relative';
           videoElement.style.zIndex = '1';
           
-          // Force play immediately - REDUCED aggressive play attempts
+          // Conservative play attempt - no aggressive retries
           if (videoElement) {
             videoElement.play().catch(() => {});
-            setTimeout(() => videoElement && videoElement.play().catch(() => {}), 100);
           }
         }
         
@@ -404,7 +403,6 @@ const UltraSimpleVideo = ({
           audioElement.srcObject = stream;
           if (audioElement) {
             audioElement.play().catch(() => {});
-            setTimeout(() => audioElement && audioElement.play().catch(() => {}), 50);
           }
           }
         }
@@ -464,10 +462,9 @@ const UltraSimpleVideo = ({
       localVideoRef.current.style.position = 'relative';
       localVideoRef.current.style.zIndex = '1';
       
-      // Force play
+      // Conservative play attempt
       if (localVideoRef.current) {
         localVideoRef.current.play().catch(() => {});
-        setTimeout(() => localVideoRef.current && localVideoRef.current.play().catch(() => {}), 100);
       }
     }
   }, [otherParticipants.length, localStream]);
@@ -1596,11 +1593,8 @@ const UltraSimpleVideo = ({
                   video.style.width = '100%';
                   video.style.height = '100%';
                   
-                  // Force play multiple times with delays
+                  // Conservative play attempt
                   video.play().catch(err => console.log(`🎥 FIX HOST VIDEO: Play failed for video ${index}:`, err));
-                  setTimeout(() => video.play().catch(() => {}), 100);
-                  setTimeout(() => video.play().catch(() => {}), 500);
-                  setTimeout(() => video.play().catch(() => {}), 1000);
                   
                   console.log(`🎥 FIX HOST VIDEO: Applied fixes to video ${index}`);
                 });
@@ -1621,11 +1615,8 @@ const UltraSimpleVideo = ({
                     videoElement.style.width = '100%';
                     videoElement.style.height = '100%';
                     
-                    // Force play multiple times
+                    // Conservative play attempt
                     videoElement.play().catch(() => {});
-                    setTimeout(() => videoElement.play().catch(() => {}), 100);
-                    setTimeout(() => videoElement.play().catch(() => {}), 500);
-                    setTimeout(() => videoElement.play().catch(() => {}), 1000);
                   }
                 });
                 
@@ -1641,11 +1632,8 @@ const UltraSimpleVideo = ({
                   localVideoRef.current.style.width = '100%';
                   localVideoRef.current.style.height = '100%';
                   
-                  // Force play multiple times
+                  // Conservative play attempt
                   localVideoRef.current.play().catch(() => {});
-                  setTimeout(() => localVideoRef.current.play().catch(() => {}), 100);
-                  setTimeout(() => localVideoRef.current.play().catch(() => {}), 500);
-                  setTimeout(() => localVideoRef.current.play().catch(() => {}), 1000);
                 }
                 
                 console.log('🎥 FIX HOST VIDEO: Host video fix completed!');

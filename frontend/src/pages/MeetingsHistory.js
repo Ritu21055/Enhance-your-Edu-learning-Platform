@@ -54,18 +54,8 @@ const MeetingsHistory = () => {
         
         setMeetings(meetingsData);
         
-        // Mock highlight reel data for testing
-        const mockHighlightReels = new Map();
-        if (meetingsData.length > 0) {
-          // Add highlight reel for first meeting as example
-          mockHighlightReels.set(meetingsData[0].id, {
-            url: 'http://localhost:5000/output/edu_learning_highlights.mp4',
-            highlightCount: 5,
-            duration: '30 seconds',
-            status: 'success'
-          });
-        }
-        setHighlightReels(mockHighlightReels);
+        // Initialize empty highlight reels (no mock data)
+        setHighlightReels(new Map());
         
       } catch (error) {
         console.error('Error loading meetings:', error);
@@ -100,21 +90,7 @@ const MeetingsHistory = () => {
     }, 300);
   };
 
-  const handlePlayHighlightReel = (meetingId) => {
-    const highlightReel = highlightReels.get(meetingId);
-    if (highlightReel) {
-      // Open highlight reel in new tab or modal
-      window.open(highlightReel.url, '_blank');
-    }
-  };
-
-  const handleToggleExpanded = (meetingId) => {
-    setExpandedMeeting(expandedMeeting === meetingId ? null : meetingId);
-  };
-
-  const hasHighlightReel = (meetingId) => {
-    return highlightReels.has(meetingId);
-  };
+  // Highlight functionality will be implemented when real highlights are available
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -318,26 +294,13 @@ const MeetingsHistory = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        {hasHighlightReel(meeting.id) ? (
-                          <Button
-                            variant="contained"
-                            size="small"
-                            onClick={() => handlePlayHighlightReel(meeting.id)}
-                            className="highlight-button"
-                            startIcon={<PlayArrow />}
-                            color="warning"
-                          >
-                            {highlightReels.get(meeting.id)?.status === 'mock' ? 'View Demo' : 'Watch Highlights'}
-                          </Button>
-                        ) : (
-                          <Chip
-                            icon={<Star />}
-                            label="No Highlights"
-                            size="small"
-                            variant="outlined"
-                            className="no-highlights-chip"
-                          />
-                        )}
+                        <Chip
+                          icon={<Star />}
+                          label="No Highlights Available"
+                          size="small"
+                          variant="outlined"
+                          className="no-highlights-chip"
+                        />
                       </TableCell>
                       <TableCell>
                         <Button

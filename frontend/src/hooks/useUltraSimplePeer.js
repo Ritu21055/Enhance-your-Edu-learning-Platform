@@ -159,21 +159,23 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
     newSocket.on('disconnect', (reason) => {
       setSocketConnected(false);
+      console.log('🔌 Socket disconnected:', reason);
       
-      // Enhanced reconnection logic for multiple laptops
-      if (reason === 'io server disconnect') {
-        setTimeout(() => {
-          if (!socketConnected) {
-            newSocket.connect();
-          }
-        }, 2000);
-      } else if (reason !== 'io client disconnect') {
-        setTimeout(() => {
-          if (!socketConnected) {
-            newSocket.connect();
-          }
-        }, 3000);
-      }
+      // DISABLED: Automatic reconnection was causing video issues
+      // Let users manually reconnect instead of forcing automatic reconnection
+      // if (reason === 'io server disconnect') {
+      //   setTimeout(() => {
+      //     if (!socketConnected) {
+      //       newSocket.connect();
+      //     }
+      //   }, 2000);
+      // } else if (reason !== 'io client disconnect') {
+      //   setTimeout(() => {
+      //     if (!socketConnected) {
+      //       newSocket.connect();
+      //     }
+      //   }, 3000);
+      // }
     });
 
     // Handle meeting joined
@@ -1121,8 +1123,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
         clearInterval(connectionHealthCheckRef.current);
       }
       
-      // Reduced frequency and more lenient health check
-      connectionHealthCheckRef.current = setInterval(() => {
+      // DISABLED: Health check was causing automatic disconnections
+      // connectionHealthCheckRef.current = setInterval(() => {
+      /*
         const allParticipants = participantsRef.current.filter(p => 
           p.id !== socketRef.current?.id && p.isApproved
         );
@@ -1193,6 +1196,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
           }
         });
       }, 30000); // Increased to 30 seconds for stability in long meetings
+      */
     };
 
     // DISABLED: Health check to prevent duplicate connections and disconnections
