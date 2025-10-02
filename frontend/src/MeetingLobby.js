@@ -68,9 +68,9 @@ const MeetingLobby = () => {
       setIsConnected(false);
     });
 
-    // Add connection timeout
+    // Add connection timeout - but don't timeout if participant is approved
     const connectionTimeout = setTimeout(() => {
-      if (!isConnected) {
+      if (!isConnected && !isWaiting) {
         console.error('❌ Lobby: Connection timeout after 10 seconds');
         setError('Connection timeout. Please check if the backend server is running.');
       }
@@ -140,6 +140,8 @@ const MeetingLobby = () => {
       if (data.approved) {
         setIsWaiting(false);
         setHasJoined(true);
+        // Clear the connection timeout since participant is approved
+        clearTimeout(connectionTimeout);
         console.log('🔍 Lobby: Participant approved, navigating to meeting');
         navigate(`/meeting/${meetingId}?user=${username}&approved=true`);
       }
@@ -168,6 +170,7 @@ const MeetingLobby = () => {
     });
 
     return () => {
+      clearTimeout(connectionTimeout);
       newSocket.close();
     };
   }, [meetingId, navigate]);
