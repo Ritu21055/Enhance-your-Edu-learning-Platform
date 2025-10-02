@@ -12,6 +12,7 @@ import {
   forceReinitializeAudio,
   fixAudioIssue
 } from '../utils/audioUtils';
+import { addParticipant, updateMeetingStatus } from '../services/meetingsService';
 
 const useUltraSimplePeer = (meetingId, userName) => {
   console.log('🎯 UltraSimplePeer: Initializing with meetingId:', meetingId, 'userName:', userName);
@@ -219,6 +220,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
           };
           const updated = [...prev, participantWithDefaults];
           participantsRef.current = updated;
+          
+          // Track participant in meeting history
+          if (newParticipant.name && newParticipant.name !== 'Guest') {
+            addParticipant(meetingId, newParticipant.name);
+            console.log(`📝 Added participant ${newParticipant.name} to meeting history`);
+          }
           
           if (newParticipant.isApproved && newParticipant.id !== newSocket.id) {
         setTimeout(() => {
@@ -636,8 +643,11 @@ const useUltraSimplePeer = (meetingId, userName) => {
       }, 500);
       
       console.log(`âœ… UltraSimplePeer: Complete cleanup done for participant ${data.participantId}`);
-      console.log(`ðŸ“Š UltraSimplePeer: Remaining participants: ${participantsRef.current.length}`);
-      console.log(`ðŸ“Š UltraSimplePeer: Remaining peer connections: ${Object.keys(peersRef.current).length}`);
+      console.log(`ðŸ"Š UltraSimplePeer: Remaining participants: ${participantsRef.current.length}`);
+      console.log(`ðŸ"Š UltraSimplePeer: Remaining peer connections: ${Object.keys(peersRef.current).length}`);
+      
+      // Note: Meeting history will persist until page refresh
+      // Only mark as completed when host explicitly leaves or page is refreshed
     });
 
     // Add a catch-all event listener for debugging

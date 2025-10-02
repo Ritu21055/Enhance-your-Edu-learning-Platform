@@ -1,4 +1,11 @@
 // meetingsService.js - Service for managing meeting data
+import { 
+  getAllMeetingHistories, 
+  getMeetingHistory, 
+  saveMeetingToHistory, 
+  updateMeetingStatus as updateMeetingStatusApi,
+  addParticipantToMeeting as addParticipantToMeetingApi
+} from './meetingHistoryApi';
 
 // Meeting data structure
 const createMeeting = (meetingId, title, participants = []) => {
@@ -22,9 +29,10 @@ const createMeeting = (meetingId, title, participants = []) => {
   return meeting;
 };
 
-// Store meeting in localStorage
-const storeMeeting = (meeting) => {
+// Store meeting in localStorage and backend
+const storeMeeting = async (meeting) => {
   try {
+    // Store in localStorage (for immediate access)
     const existingMeetings = getMeetings();
     
     // Check if meeting with same ID already exists
@@ -41,6 +49,16 @@ const storeMeeting = (meeting) => {
     }
     
     localStorage.setItem('meetings', JSON.stringify(existingMeetings));
+    
+    // Also save to backend
+    try {
+      await saveMeetingToHistory(meeting);
+      console.log(`✅ Meeting ${meeting.id} saved to backend history`);
+    } catch (backendError) {
+      console.warn(`⚠️ Failed to save meeting ${meeting.id} to backend:`, backendError);
+      // Don't fail the whole operation if backend save fails
+    }
+    
     return true;
   } catch (error) {
     console.error('Error storing meeting:', error);
@@ -60,8 +78,9 @@ const getMeetings = () => {
 };
 
 // Update meeting status (e.g., mark as completed)
-const updateMeetingStatus = (meetingId, status, endTime = null) => {
+const updateMeetingStatus = async (meetingId, status, endTime = null) => {
   try {
+    // Update localStorage
     const meetings = getMeetings();
     const meetingIndex = meetings.findIndex(m => m.id === meetingId);
     
@@ -77,6 +96,16 @@ const updateMeetingStatus = (meetingId, status, endTime = null) => {
       meeting.lastUpdated = new Date().toISOString();
       
       localStorage.setItem('meetings', JSON.stringify(meetings));
+      
+      // Also update backend
+      try {
+        await updateMeetingStatusApi(meetingId, status, endTime);
+        console.log(`✅ Meeting ${meetingId} status updated in backend: ${status}`);
+      } catch (backendError) {
+        console.warn(`⚠️ Failed to update meeting ${meetingId} status in backend:`, backendError);
+        // Don't fail the whole operation if backend update fails
+      }
+      
       return true;
     }
     
@@ -88,8 +117,9 @@ const updateMeetingStatus = (meetingId, status, endTime = null) => {
 };
 
 // Add participant to meeting
-const addParticipant = (meetingId, participantName) => {
+const addParticipant = async (meetingId, participantName) => {
   try {
+    // Update localStorage
     const meetings = getMeetings();
     const meetingIndex = meetings.findIndex(m => m.id === meetingId);
     
@@ -105,6 +135,16 @@ const addParticipant = (meetingId, participantName) => {
         meeting.participants = meeting.participantList.length;
         
         localStorage.setItem('meetings', JSON.stringify(meetings));
+        
+        // Also update backend
+        try {
+          await addParticipantToMeetingApi(meetingId, participantName);
+          console.log(`✅ Participant ${participantName} added to meeting ${meetingId} in backend`);
+        } catch (backendError) {
+          console.warn(`⚠️ Failed to add participant ${participantName} to meeting ${meetingId} in backend:`, backendError);
+          // Don't fail the whole operation if backend update fails
+        }
+        
         return true;
       }
     }
@@ -178,6 +218,32 @@ const getMeetingStats = () => {
   }
 };
 
+// Get active meetings (ongoing meetings that participants can rejoin)
+const getActiveMeetings = () => {
+  try {
+    const meetings = getMeetings();
+    // Return only ongoing meetings (not completed)
+    return meetings.filter(meeting => meeting.status === 'ongoing');
+  } catch (error) {
+    console.error('Error getting active meetings:', error);
+    return [];
+  }
+};
+
+// Get recent meetings for rejoin functionality
+const getRecentMeetings = (limit = 5) => {
+  try {
+    const meetings = getMeetings();
+    // Sort by creation time (newest first) and limit results
+    return meetings
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, limit);
+  } catch (error) {
+    console.error('Error getting recent meetings:', error);
+    return [];
+  }
+};
+
 export {
   createMeeting,
   storeMeeting,
@@ -187,5 +253,7 @@ export {
   getMeetingById,
   deleteMeeting,
   clearAllMeetings,
-  getMeetingStats
+  getMeetingStats,
+  getActiveMeetings,
+  getRecentMeetings
 };
