@@ -13,15 +13,21 @@ const getNetworkConfig = () => {
   const protocol = window.location.protocol;
   const port = window.location.port;
   
-  // If accessing via localhost or 127.0.0.1, use local config
+  // Always use host's IP for backend (192.168.0.108:5000)
+  // This ensures both host and participants can connect to the same backend
+  const backendUrl = 'http://192.168.0.108:5000';
+  
+  // If accessing via localhost or 127.0.0.1, use localhost for frontend
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return LOCAL_CONFIG;
+    return {
+      BACKEND_URL: backendUrl,
+      FRONTEND_URL: 'http://localhost:3000'
+    };
   }
   
-  // For all other cases (including IP addresses), use the host's IP for backend
-  // This ensures participants can connect to the host's backend
+  // For all other cases (including IP addresses), use the same hostname for frontend
   return {
-    BACKEND_URL: 'http://192.168.0.108:5000',  // Always use host's IP for backend
+    BACKEND_URL: backendUrl,  // Always use host's IP for backend
     FRONTEND_URL: `${protocol}//${hostname}:${port || 3000}`
   };
 };
