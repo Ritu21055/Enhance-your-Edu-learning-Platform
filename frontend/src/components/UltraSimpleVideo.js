@@ -1548,6 +1548,75 @@ const UltraSimpleVideo = ({
             
             <button 
               className="debug-button"
+              onClick={async () => {
+                console.log('🌐 NETWORK: Testing backend connectivity...');
+                console.log('🌐 NETWORK: Current hostname:', window.location.hostname);
+                console.log('🌐 NETWORK: Current protocol:', window.location.protocol);
+                console.log('🌐 NETWORK: Current port:', window.location.port);
+                
+                // Test backend connectivity
+                try {
+                  const response = await fetch(`${window.location.protocol}//${window.location.hostname}:5000/health`);
+                  if (response.ok) {
+                    console.log('✅ NETWORK: Backend is reachable!');
+                  } else {
+                    console.log('❌ NETWORK: Backend responded but with error:', response.status);
+                  }
+                } catch (error) {
+                  console.log('❌ NETWORK: Backend is not reachable:', error.message);
+                  console.log('🌐 NETWORK: Try accessing the host laptop directly via its IP address');
+                }
+              }}
+            >
+              🌐 Test Network Connection
+            </button>
+            
+            <button 
+              className="debug-button"
+              onClick={async () => {
+                console.log('🔍 AUTO-DETECT: Testing backend auto-detection...');
+                
+                // Test local backend first
+                try {
+                  const localResponse = await fetch('http://localhost:5000/health', { 
+                    method: 'GET',
+                    timeout: 2000 
+                  });
+                  
+                  if (localResponse.ok) {
+                    console.log('✅ AUTO-DETECT: Local backend available (HOST MODE)');
+                    console.log('🌐 AUTO-DETECT: Using localhost:5000 for backend');
+                  } else {
+                    console.log('❌ AUTO-DETECT: Local backend not responding');
+                  }
+                } catch (error) {
+                  console.log('❌ AUTO-DETECT: Local backend not available:', error.message);
+                }
+                
+                // Test host backend
+                try {
+                  const hostResponse = await fetch('http://192.168.0.108:5000/health', { 
+                    method: 'GET',
+                    timeout: 2000 
+                  });
+                  
+                  if (hostResponse.ok) {
+                    console.log('✅ AUTO-DETECT: Host backend available (PARTICIPANT MODE)');
+                    console.log('🌐 AUTO-DETECT: Using 192.168.0.108:5000 for backend');
+                  } else {
+                    console.log('❌ AUTO-DETECT: Host backend not responding');
+                  }
+                } catch (error) {
+                  console.log('❌ AUTO-DETECT: Host backend not available:', error.message);
+                  console.log('🌐 AUTO-DETECT: Make sure host laptop is running the backend server');
+                }
+              }}
+            >
+              🔍 Test Auto-Detection
+            </button>
+            
+            <button 
+              className="debug-button"
               onClick={() => {
                 console.log('🎥 FIX HOST VIDEO: Force making host video visible in participant browser...');
                 
