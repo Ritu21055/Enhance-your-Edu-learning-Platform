@@ -997,7 +997,7 @@ const UltraSimpleVideo = ({
                   />
                   <Box className="video-overlay">
                     <Typography variant="body1" className="participant-name participant">
-                      Remote User
+                      Remote Participant
                     </Typography>
                   </Box>
                 </Box>

@@ -290,6 +290,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
       // Emit participant-ready event to trigger WebRTC connections
       setTimeout(() => {
         console.log('ðŸŽ¯ UltraSimplePeer: Emitting participant-ready after approval');
+        console.log('ðŸŽ¯ UltraSimplePeer: userName being sent:', userName);
+        console.log('ðŸŽ¯ UltraSimplePeer: userName type:', typeof userName);
+        console.log('ðŸŽ¯ UltraSimplePeer: userName length:', userName?.length);
         newSocket.emit('participant-ready', {
           meetingId,
           participantId: newSocket.id,
@@ -340,6 +343,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
     newSocket.on('participant-ready', async (data) => {
       console.log('ðŸŽ¯ UltraSimplePeer: Participant ready event received!');
       console.log('ðŸŽ¯ UltraSimplePeer: Event data:', data);
+      console.log('ðŸŽ¯ UltraSimplePeer: participantName received:', data.participantName);
+      console.log('ðŸŽ¯ UltraSimplePeer: participantName type:', typeof data.participantName);
+      console.log('ðŸŽ¯ UltraSimplePeer: participantName length:', data.participantName?.length);
       console.log('ðŸŽ¯ UltraSimplePeer: Current user is host:', isHostRef.current);
       console.log('ðŸŽ¯ UltraSimplePeer: Current user socket ID:', newSocket.id);
       console.log('ðŸŽ¯ UltraSimplePeer: Participant ID:', data.participantId);
