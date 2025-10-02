@@ -151,6 +151,7 @@ const MeetingRoom = () => {
     dismissFatigueAlert,
     fatigueHistory,
     isAnalyzing: isFatigueAnalyzing,
+    isWarmupActive,
     triggerImmediateAnalysis
   } = useFatigueDetection(sentimentData, isHost, socket);
 
@@ -161,23 +162,24 @@ const MeetingRoom = () => {
     fatigueAlert: fatigueAlert,
     hasFatigueAlert: !!fatigueAlert,
     isFatigueAnalyzing,
+    isWarmupActive,
     fatigueHistory: fatigueHistory?.length || 0
   });
 
-  // ENHANCED: Trigger fatigue analysis when participants join (host only)
-  useEffect(() => {
-    if (isHost && participants.length > 1 && triggerImmediateAnalysis) {
-      console.log('🧠 Fatigue Detection: Participants joined, triggering analysis', {
-        participantCount: participants.length,
-        isHost
-      });
+  // DISABLED: Immediate fatigue analysis when participants join (was too aggressive)
+  // useEffect(() => {
+  //   if (isHost && participants.length > 1 && triggerImmediateAnalysis) {
+  //     console.log('🧠 Fatigue Detection: Participants joined, triggering analysis', {
+  //       participantCount: participants.length,
+  //       isHost
+  //     });
       
-      // Trigger analysis after a short delay to allow sentiment data to accumulate
-      setTimeout(() => {
-        triggerImmediateAnalysis();
-      }, 5000); // 5 seconds delay to allow sentiment data to be collected
-    }
-  }, [isHost, participants.length, triggerImmediateAnalysis]);
+  //     // Trigger analysis after a short delay to allow sentiment data to accumulate
+  //     setTimeout(() => {
+  //       triggerImmediateAnalysis();
+  //     }, 5000); // 5 seconds delay to allow sentiment data to be collected
+  //   }
+  // }, [isHost, participants.length, triggerImmediateAnalysis]);
 
   // TEST: Add manual fatigue alert trigger for testing (host only)
   useEffect(() => {

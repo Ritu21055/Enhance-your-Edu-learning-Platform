@@ -7,15 +7,17 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 const useFatigueDetection = (sentimentData, isHost, socket) => {
   const [fatigueAlert, setFatigueAlert] = useState(null);
   const [fatigueHistory, setFatigueHistory] = useState([]);
+  const [isWarmupActive, setIsWarmupActive] = useState(true);
   const analysisIntervalRef = useRef(null);
   const lastAnalysisTimeRef = useRef(Date.now());
 
-  // Configuration constants (optimized for performance)
-  const FATIGUE_THRESHOLD = 10; // Percentage threshold for fatigue detection (lowered for easier triggering)
-  const SUSTAINED_DURATION = 2 * 60 * 1000; // 2 minutes in milliseconds
-  const ANALYSIS_INTERVAL = 15 * 1000; // Analyze every 15 seconds (more frequent)
-  const HISTORY_DURATION = 10 * 60 * 1000; // Keep 10 minutes of history
-  const MAX_HISTORY_ENTRIES = 20; // Limit memory usage
+  // Configuration constants (optimized for realistic fatigue detection)
+  const FATIGUE_THRESHOLD = 30; // Percentage threshold for fatigue detection (increased for realistic triggering)
+  const SUSTAINED_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds (increased for realistic detection)
+  const ANALYSIS_INTERVAL = 30 * 1000; // Analyze every 30 seconds (less frequent)
+  const HISTORY_DURATION = 15 * 60 * 1000; // Keep 15 minutes of history
+  const MAX_HISTORY_ENTRIES = 30; // Limit memory usage
+  const WARMUP_DURATION = 3 * 60 * 1000; // 3 minutes warm-up period before fatigue detection starts
   
 
   /**
@@ -23,11 +25,12 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
    */
   const calculateFatiguePercentage = useCallback((data) => {
     if (!data || !data.sentimentCounts) {
-      // Fallback: if no sentiment data, simulate fatigue after 2 minutes
+      // Fallback: if no sentiment data, simulate fatigue after warm-up + 5 minutes
       const meetingDuration = Date.now() - (data?.meetingStartTime || Date.now());
-      if (meetingDuration > SUSTAINED_DURATION) {
-        console.log('🧠 Fatigue Detection: No sentiment data, simulating fatigue after 2 minutes');
-        return 15; // Simulate 15% fatigue after 2 minutes
+      const totalRequiredDuration = WARMUP_DURATION + (5 * 60 * 1000); // 3 min warm-up + 5 min
+      if (meetingDuration > totalRequiredDuration) {
+        console.log('🧠 Fatigue Detection: No sentiment data, simulating fatigue after warm-up period');
+        return 25; // Simulate 25% fatigue after warm-up + 5 minutes
       }
       return 0;
     }
@@ -120,6 +123,26 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
       return;
     }
 
+    // Check if warm-up period has passed (3 minutes after participants join)
+    const firstEntry = fatigueHistory[0];
+    const meetingDuration = Date.now() - firstEntry.timestamp;
+    
+    if (meetingDuration < WARMUP_DURATION) {
+      console.log('🧠 Fatigue Detection: Still in warm-up period', {
+        meetingDuration: Math.round(meetingDuration / 1000),
+        warmupDuration: Math.round(WARMUP_DURATION / 1000),
+        remaining: Math.round((WARMUP_DURATION - meetingDuration) / 1000)
+      });
+      setIsWarmupActive(true);
+      return;
+    }
+
+    // Warm-up period completed
+    if (isWarmupActive) {
+      console.log('🧠 Fatigue Detection: Warm-up period completed, starting fatigue analysis');
+      setIsWarmupActive(false);
+    }
+
     const now = Date.now();
     const recentHistory = fatigueHistory.filter(
       entry => now - entry.timestamp <= SUSTAINED_DURATION
@@ -151,7 +174,7 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
       const totalParticipants = sentimentData.totalParticipants || 1;
       const neutralPercentage = (neutralCount / totalParticipants) * 100;
       
-      return neutralPercentage >= 50; // 50% or more participants showing neutral for 2+ minutes
+      return neutralPercentage >= 80; // 80% or more participants showing neutral for 5+ minutes
     });
     
     console.log('🧠 Fatigue Detection: Analysis results', {
@@ -406,6 +429,7 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
     dismissFatigueAlert,
     fatigueHistory,
     isAnalyzing: !!analysisIntervalRef.current,
+    isWarmupActive,
     triggerImmediateAnalysis
   };
 };
