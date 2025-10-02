@@ -152,8 +152,9 @@ const MeetingLobby = () => {
         console.log('🔍 Lobby: Username being sent:', username);
         console.log('🔍 Lobby: Username type:', typeof username);
         console.log('🔍 Lobby: Username length:', username?.length);
-        console.log('🔍 Lobby: Navigation URL:', `/meeting/${meetingId}?user=${username}&approved=true`);
-        navigate(`/meeting/${meetingId}?user=${username}&approved=true`);
+        console.log('🔍 Lobby: Username ref value:', usernameRef.current);
+        console.log('🔍 Lobby: Navigation URL:', `/meeting/${meetingId}?user=${usernameRef.current}&approved=true`);
+        navigate(`/meeting/${meetingId}?user=${usernameRef.current}&approved=true`);
       } else {
         console.log('🔍 Lobby: Approval data shows not approved:', data);
       }

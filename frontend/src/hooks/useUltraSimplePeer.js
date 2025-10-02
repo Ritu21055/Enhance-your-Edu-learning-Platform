@@ -300,6 +300,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
         console.log('ðŸŽ¯ UltraSimplePeer: userName length:', userName?.length);
         console.log('ðŸŽ¯ UltraSimplePeer: userName trimmed:', userName?.trim());
         console.log('ðŸŽ¯ UltraSimplePeer: About to emit participant-ready with participantName:', userName);
+        console.log('ðŸŽ¯ UltraSimplePeer: DEBUG - Current socket ID:', newSocket.id);
+        console.log('ðŸŽ¯ UltraSimplePeer: DEBUG - Meeting ID:', meetingId);
         newSocket.emit('participant-ready', {
           meetingId,
           participantId: newSocket.id,
