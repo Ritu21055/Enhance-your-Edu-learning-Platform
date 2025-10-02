@@ -76,15 +76,15 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
         return;
       }
 
-      // ENHANCED: Multiple validation checks to prevent canvas errors
+      // ENHANCED: More lenient validation checks for camera access scenarios
       if (video.videoWidth === 0 || video.videoHeight === 0) {
-        console.log('🧠 Video has zero dimensions, skipping analysis');
-        return;
+        console.log('🧠 Video has zero dimensions, but will attempt analysis with fallback...');
+        // Don't return immediately - try to use default dimensions
       }
 
       if (video.offsetWidth === 0 || video.offsetHeight === 0) {
-        console.log('🧠 Video element has zero display dimensions, skipping analysis');
-        return;
+        console.log('🧠 Video element has zero display dimensions, but will attempt analysis with fallback...');
+        // Don't return immediately - try to use default dimensions
       }
 
       // ENHANCED: Check if video is actually playing and has content
@@ -107,14 +107,18 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
 
       // Optimize canvas size for faster processing
       const maxSize = 320; // Limit canvas size for better performance
-      const aspectRatio = video.videoWidth / video.videoHeight;
+      
+      // ENHANCED: Use fallback dimensions when video dimensions are not available
+      const videoWidth = video.videoWidth || 640; // Fallback width
+      const videoHeight = video.videoHeight || 480; // Fallback height
+      const aspectRatio = videoWidth / videoHeight;
       let canvasWidth, canvasHeight;
       
       if (aspectRatio > 1) {
-        canvasWidth = Math.min(maxSize, video.videoWidth);
+        canvasWidth = Math.min(maxSize, videoWidth);
         canvasHeight = canvasWidth / aspectRatio;
       } else {
-        canvasHeight = Math.min(maxSize, video.videoHeight);
+        canvasHeight = Math.min(maxSize, videoHeight);
         canvasWidth = canvasHeight * aspectRatio;
       }
 
@@ -300,14 +304,16 @@ const useSentimentAnalysis = (videoRef, socket, meetingId, participantId) => {
     }
 
     const video = videoRef.current;
+    
+    // ENHANCED: More lenient video dimension checks for camera access scenarios
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.log('🧠 Cannot start sentiment analysis: Video has zero dimensions');
-      return;
+      console.log('🧠 Video has zero dimensions, but will try to start analysis anyway...');
+      // Don't return immediately - let the analysis attempt to start
     }
 
     if (video.offsetWidth === 0 || video.offsetHeight === 0) {
-      console.log('🧠 Cannot start sentiment analysis: Video element has zero display dimensions');
-      return;
+      console.log('🧠 Video element has zero display dimensions, but will try to start analysis anyway...');
+      // Don't return immediately - let the analysis attempt to start
     }
 
     console.log('🎬 Starting sentiment analysis...');

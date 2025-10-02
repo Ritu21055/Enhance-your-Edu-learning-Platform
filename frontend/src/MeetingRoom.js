@@ -299,6 +299,24 @@ const MeetingRoom = () => {
     }
   }, [isHost, modelsLoaded, localStream, localVideoRef.current, isAnalyzing, startAnalysis, sentimentError]);
 
+  // ENHANCED: Retry sentiment analysis when camera/mic access is granted
+  useEffect(() => {
+    if (!isHost && modelsLoaded && localStream && localVideoRef.current && !isAnalyzing) {
+      // Add a delay to ensure video is properly loaded after camera access
+      const retryTimeout = setTimeout(() => {
+        console.log('🧠 Retrying sentiment analysis after camera access...');
+        if (localVideoRef.current && localVideoRef.current.videoWidth > 0 && localVideoRef.current.videoHeight > 0) {
+          console.log('🧠 Video dimensions are valid, starting sentiment analysis...');
+          startAnalysis();
+        } else {
+          console.log('🧠 Video still not ready, will retry...');
+        }
+      }, 2000); // 2 second delay to let video stabilize
+
+      return () => clearTimeout(retryTimeout);
+    }
+  }, [isHost, modelsLoaded, localStream, localVideoRef.current, isAnalyzing, startAnalysis]);
+
   // Debug logging
   console.log('🔍 MeetingRoom Debug:', {
     socket: !!socket,
