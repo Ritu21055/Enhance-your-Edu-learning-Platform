@@ -45,16 +45,6 @@ const getNetworkConfig = () => {
 // Get the appropriate configuration
 const config = getNetworkConfig();
 
-// Auto-detect backend configuration on page load
-detectBackendConfig().then(detectedConfig => {
-  console.log('🌐 Auto-detected backend configuration:', detectedConfig);
-  // Update the config if needed
-  if (detectedConfig.BACKEND_URL !== config.BACKEND_URL) {
-    console.log('🌐 Switching to detected backend:', detectedConfig.BACKEND_URL);
-    Object.assign(config, detectedConfig);
-  }
-});
-
 // Export the configuration
 export const NETWORK_CONFIG = config;
 
@@ -112,6 +102,16 @@ export const detectBackendConfig = async () => {
     FRONTEND_URL: `http://${hostname}:3000`
   };
 };
+
+// Auto-detect backend configuration on page load (after function is defined)
+detectBackendConfig().then(detectedConfig => {
+  console.log('🌐 Auto-detected backend configuration:', detectedConfig);
+  // Update the config if needed
+  if (detectedConfig.BACKEND_URL !== config.BACKEND_URL) {
+    console.log('🌐 Switching to detected backend:', detectedConfig.BACKEND_URL);
+    Object.assign(config, detectedConfig);
+  }
+});
 
 // Log current configuration
 console.log('🌐 Network Configuration:', {
