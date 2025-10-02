@@ -22,9 +22,9 @@
     "webrtc-adapter": "^8.2.3"
   },
   "scripts": {
-    "start": "set HOST=0.0.0.0 && craco start",
+    "start": "craco start",
     "start-local": "craco start",
-    "start-https": "set HTTPS=true && set HOST=0.0.0.0 && craco start",
+    "start-https": "set HTTPS=true && craco start",
     "build": "craco build",
     "test": "craco test",
     "eject": "react-scripts eject"
