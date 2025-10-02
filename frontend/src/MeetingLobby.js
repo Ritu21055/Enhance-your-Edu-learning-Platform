@@ -69,13 +69,7 @@ const MeetingLobby = () => {
       setIsConnected(false);
     });
 
-    // Add connection timeout - but don't timeout if participant is approved
-    const connectionTimeout = setTimeout(() => {
-      if (!isConnected && !isWaiting) {
-        console.error('❌ Lobby: Connection timeout after 10 seconds');
-        setError('Connection timeout. Please check if the backend server is running.');
-      }
-    }, 10000);
+    // REMOVED: Connection timeout was causing unnecessary errors
 
     // Add debugging for all socket events
     const originalEmit = newSocket.emit;
@@ -149,8 +143,7 @@ const MeetingLobby = () => {
         console.log('🔍 Lobby: Setting isWaiting to false');
         setIsWaiting(false);
         setHasJoined(true);
-        // Clear the connection timeout since participant is approved
-        clearTimeout(connectionTimeout);
+        // Connection timeout removed
         console.log('🔍 Lobby: Participant approved, navigating to meeting');
         console.log('🔍 Lobby: Username being sent:', username);
         console.log('🔍 Lobby: Username type:', typeof username);
@@ -186,7 +179,6 @@ const MeetingLobby = () => {
     });
 
     return () => {
-      clearTimeout(connectionTimeout);
       newSocket.close();
     };
   }, [meetingId, navigate]);
