@@ -14,6 +14,11 @@ import {
 } from '../utils/audioUtils';
 
 const useUltraSimplePeer = (meetingId, userName) => {
+  console.log('🎯 UltraSimplePeer: Initializing with meetingId:', meetingId, 'userName:', userName);
+  console.log('🎯 UltraSimplePeer: userName type:', typeof userName);
+  console.log('🎯 UltraSimplePeer: userName length:', userName?.length);
+  console.log('🎯 UltraSimplePeer: userName trimmed:', userName?.trim());
+  
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState({});
   const [participants, setParticipants] = useState([]);
@@ -293,6 +298,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
         console.log('ðŸŽ¯ UltraSimplePeer: userName being sent:', userName);
         console.log('ðŸŽ¯ UltraSimplePeer: userName type:', typeof userName);
         console.log('ðŸŽ¯ UltraSimplePeer: userName length:', userName?.length);
+        console.log('ðŸŽ¯ UltraSimplePeer: userName trimmed:', userName?.trim());
+        console.log('ðŸŽ¯ UltraSimplePeer: About to emit participant-ready with participantName:', userName);
         newSocket.emit('participant-ready', {
           meetingId,
           participantId: newSocket.id,

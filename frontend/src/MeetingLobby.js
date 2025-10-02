@@ -268,8 +268,12 @@ const MeetingLobby = () => {
                 value={username}
                 onChange={(e) => {
                   const value = e.target.value;
+                  console.log('🔍 Lobby: Username input changed to:', value);
+                  console.log('🔍 Lobby: Username input type:', typeof value);
+                  console.log('🔍 Lobby: Username input length:', value?.length);
                   setUsername(value);
                   usernameRef.current = value; // Also store in ref
+                  console.log('🔍 Lobby: Username state updated, ref updated');
                 }}
                 error={!!error}
                 helperText={error}
