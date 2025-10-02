@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import io from 'socket.io-client';
 import { getBackendUrl } from './config/network';
-import { createMeeting, storeMeeting, getActiveMeetings, getRecentMeetings } from './services/meetingsService';
+import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
 import './css/MeetingLobby.css';
 
@@ -28,23 +28,12 @@ const MeetingLobby = () => {
   const [username, setUsername] = useState('');
   const [meetingTitle, setMeetingTitle] = useState('');
   const [isHost, setIsHost] = useState(false);
-  const [recentMeetings, setRecentMeetings] = useState([]);
-  const [showRecentMeetings, setShowRecentMeetings] = useState(false);
   const [error, setError] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
   
   // Use ref to store username persistently
   const usernameRef = useRef('');
 
-  // Load recent meetings for rejoin functionality
-  useEffect(() => {
-    const loadRecentMeetings = () => {
-      const meetings = getRecentMeetings(5);
-      setRecentMeetings(meetings);
-    };
-    
-    loadRecentMeetings();
-  }, []);
   
   // Preserve meeting title when switching roles
   const meetingTitleRef = useRef('');
@@ -202,13 +191,6 @@ const MeetingLobby = () => {
     };
   }, [meetingId, navigate]);
 
-  // Function to rejoin a recent meeting
-  const handleRejoinMeeting = (meetingId, meetingTitle) => {
-    console.log('🔄 Rejoining meeting:', meetingId, meetingTitle);
-    setUsername(usernameRef.current || '');
-    setMeetingTitle(meetingTitle);
-    navigate(`/meeting/${meetingId}`);
-  };
 
   const handleJoinMeeting = () => {
     if (!username.trim()) {
@@ -356,45 +338,6 @@ const MeetingLobby = () => {
             </Box>
           ) : null}
 
-          {/* Recent Meetings Section */}
-          {!hasJoined && recentMeetings.length > 0 && (
-            <Box className="recent-meetings-section">
-              <Typography variant="h6" className="recent-meetings-title">
-                🔄 Recent Meetings
-              </Typography>
-              <Typography variant="body2" className="recent-meetings-subtitle">
-                Rejoin a meeting you were in recently
-              </Typography>
-              
-              <Box className="recent-meetings-list">
-                {recentMeetings.slice(0, 3).map((meeting) => (
-                  <Card key={meeting.id} className="recent-meeting-card">
-                    <CardContent className="recent-meeting-content">
-                      <Box className="recent-meeting-info">
-                        <Typography variant="subtitle1" className="recent-meeting-title">
-                          {meeting.title}
-                        </Typography>
-                        <Typography variant="body2" className="recent-meeting-details">
-                          Code: {formatMeetingCode(meeting.id)} • {meeting.participants} participants
-                        </Typography>
-                        <Typography variant="caption" className="recent-meeting-time">
-                          {new Date(meeting.createdAt).toLocaleString()}
-                        </Typography>
-                      </Box>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => handleRejoinMeeting(meeting.id, meeting.title)}
-                        className="rejoin-button"
-                      >
-                        Rejoin
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
-            </Box>
-          )}
 
           {hasJoined ? (isWaiting ? (
             // Waiting for Approval
