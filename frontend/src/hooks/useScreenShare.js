@@ -143,6 +143,16 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         if (data && typeof data === 'object') {
           console.log('🖥️ Screen Share: Trying to find participant data in object...');
           console.log('🖥️ Screen Share: Object keys:', Object.keys(data));
+          console.log('🖥️ Screen Share: Object values:', Object.values(data));
+          
+          // Log each key-value pair
+          Object.entries(data).forEach(([key, value], index) => {
+            console.log(`🖥️ Screen Share: Key ${index}: "${key}" = `, value);
+            console.log(`🖥️ Screen Share: Value type: ${typeof value}`);
+            if (value && typeof value === 'object') {
+              console.log(`🖥️ Screen Share: Value keys: ${Object.keys(value)}`);
+            }
+          });
           
           // Check if any of the values might be participant data
           Object.values(data).forEach((value, index) => {
