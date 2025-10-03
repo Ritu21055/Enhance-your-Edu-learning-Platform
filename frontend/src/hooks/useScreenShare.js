@@ -95,15 +95,38 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         dataStringified: JSON.stringify(data, null, 2)
       });
       
+      // Simple test for array data
+      if (Array.isArray(data)) {
+        console.log('🖥️ Screen Share: Data is array with length:', data.length);
+        console.log('🖥️ Screen Share: First element:', data[0]);
+        console.log('🖥️ Screen Share: First element keys:', data[0] ? Object.keys(data[0]) : 'no first element');
+      }
+      
       // Check if data and participant exist before adding
       if (data && data.participant) {
         console.log('🖥️ Screen Share: Adding participant to screen share list', data.participant);
         setScreenShareParticipants(prev => [...prev, data.participant]);
-      } else if (Array.isArray(data) && data.length > 0 && data[0] && data[0].participant) {
+      } else if (Array.isArray(data) && data.length > 0) {
         // Handle case where data is wrapped in an array
-        console.log('🖥️ Screen Share: Data is array, extracting first element', data[0]);
-        console.log('🖥️ Screen Share: Adding participant from array to screen share list', data[0].participant);
-        setScreenShareParticipants(prev => [...prev, data[0].participant]);
+        console.log('🖥️ Screen Share: Data is array, checking first element', data[0]);
+        const firstElement = data[0];
+        if (firstElement && firstElement.participant) {
+          console.log('🖥️ Screen Share: Adding participant from array to screen share list', firstElement.participant);
+          setScreenShareParticipants(prev => [...prev, firstElement.participant]);
+        } else if (firstElement && typeof firstElement === 'object') {
+          // Try to find participant data in the first element
+          console.log('🖥️ Screen Share: First element keys:', Object.keys(firstElement));
+          console.log('🖥️ Screen Share: First element:', firstElement);
+          // If the first element itself is the participant data
+          if (firstElement.name || firstElement.id) {
+            console.log('🖥️ Screen Share: First element appears to be participant data, adding it');
+            setScreenShareParticipants(prev => [...prev, firstElement]);
+          } else {
+            console.warn('🖥️ Screen Share: First element does not contain participant data');
+          }
+        } else {
+          console.warn('🖥️ Screen Share: First element is not an object or is null');
+        }
       } else {
         console.warn('🖥️ Screen Share: Invalid screen-share-start data', data);
         console.warn('🖥️ Screen Share: Expected data.participant but got:', data?.participant);
