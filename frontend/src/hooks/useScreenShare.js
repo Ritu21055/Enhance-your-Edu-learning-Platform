@@ -26,33 +26,53 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     // Handle screen share start
     socket.on('screen-share-start', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-start', data);
-      setScreenShareParticipants(prev => [...prev, data.participant]);
+      
+      // Check if data and participant exist before adding
+      if (data && data.participant) {
+        setScreenShareParticipants(prev => [...prev, data.participant]);
+      } else {
+        console.warn('🖥️ Screen Share: Invalid screen-share-start data', data);
+      }
     });
 
     // Handle screen share stop
     socket.on('screen-share-stop', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-stop', data);
-      setScreenShareParticipants(prev => 
-        prev.filter(p => p.id !== data.participantId)
-      );
       
-      // Clean up peer connection
-      if (screenSharePeersRef.current[data.participantId]) {
-        screenSharePeersRef.current[data.participantId].destroy();
-        delete screenSharePeersRef.current[data.participantId];
+      // Check if data and participantId exist before filtering
+      if (data && data.participantId) {
+        setScreenShareParticipants(prev => 
+          prev.filter(p => p && p.id !== data.participantId)
+        );
+        
+        // Clean up peer connection
+        if (screenSharePeersRef.current[data.participantId]) {
+          screenSharePeersRef.current[data.participantId].destroy();
+          delete screenSharePeersRef.current[data.participantId];
+        }
+      } else {
+        console.warn('🖥️ Screen Share: Invalid screen-share-stop data', data);
       }
     });
 
     // Handle screen share signal
     socket.on('screen-share-signal', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-signal', data);
-      handleScreenShareSignal(data);
+      if (data) {
+        handleScreenShareSignal(data);
+      } else {
+        console.warn('🖥️ Screen Share: Invalid screen-share-signal data', data);
+      }
     });
 
     // Handle screen share request
     socket.on('screen-share-request', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-request', data);
-      handleScreenShareRequest(data);
+      if (data) {
+        handleScreenShareRequest(data);
+      } else {
+        console.warn('🖥️ Screen Share: Invalid screen-share-request data', data);
+      }
     });
 
     return () => {
@@ -107,7 +127,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     // Handle peer connection
     peer.on('signal', (signal) => {
       console.log('🖥️ Screen Share: Sending signal to', participantId);
-      if (socket && socket.emit) {
+      if (socket && socket.emit && socket.id) {
         socket.emit('screen-share-signal', {
           to: participantId,
           signal: signal,
@@ -173,7 +193,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       isScreenSharingRef.current = true;
 
       // Notify other participants (only if socket is available)
-      if (socket && socket.emit) {
+      if (socket && socket.emit && socket.id) {
         socket.emit('screen-share-start', {
           meetingId,
           participant: {
@@ -222,7 +242,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     setScreenShareParticipants([]);
 
     // Notify other participants (only if socket is available)
-    if (socket && socket.emit) {
+    if (socket && socket.emit && socket.id) {
       socket.emit('screen-share-stop', {
         meetingId,
         participantId: socket.id
