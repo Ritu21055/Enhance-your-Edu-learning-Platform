@@ -1158,16 +1158,18 @@ const MeetingRoom = () => {
         meetingTitle={`Meeting ${meetingId}`}
       />
 
-      {/* Screen Share Viewer */}
-      <ScreenShareViewer
-        isScreenSharing={isNewScreenSharing}
-        screenStream={newScreenStream}
-        remoteScreenStream={newRemoteScreenStream}
-        screenShareParticipants={newScreenShareParticipants}
-        onStartScreenShare={startNewScreenShare}
-        onStopScreenShare={stopNewScreenShare}
-        userName={finalUserName}
-      />
+      {/* Screen Share Viewer - Only show when there's active screen sharing */}
+      {(isNewScreenSharing || newRemoteScreenStream) && (
+        <ScreenShareViewer
+          isScreenSharing={isNewScreenSharing}
+          screenStream={newScreenStream}
+          remoteScreenStream={newRemoteScreenStream}
+          screenShareParticipants={newScreenShareParticipants}
+          onStartScreenShare={startNewScreenShare}
+          onStopScreenShare={stopNewScreenShare}
+          userName={finalUserName}
+        />
+      )}
 
     </Container>
   );

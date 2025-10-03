@@ -137,6 +137,7 @@ const ScreenShareViewer = ({
   return (
     <Box
       id="screen-share-container"
+      className={`screen-share-container ${isScreenSharing ? 'active-sharer' : 'active-viewer'}`}
       sx={{
         position: 'fixed',
         top: 0,
@@ -145,7 +146,14 @@ const ScreenShareViewer = ({
         height: '100vh',
         backgroundColor: '#000',
         zIndex: 9999,
-        display: isScreenSharing || remoteScreenStream ? 'block' : 'none'
+        display: isScreenSharing || remoteScreenStream ? 'block' : 'none',
+        // Minimize interface when sharing to prevent recursive capture
+        ...(isScreenSharing && {
+          transform: 'scale(0.1)',
+          transformOrigin: 'top right',
+          opacity: 0.1,
+          pointerEvents: 'none'
+        })
       }}
     >
       {/* Local Screen Share */}
@@ -206,7 +214,7 @@ const ScreenShareViewer = ({
         </Box>
       )}
 
-      {/* Controls Overlay */}
+      {/* Controls Overlay - Minimized when sharing to avoid recursive capture */}
       {(isScreenSharing || remoteScreenStream) && (
         <Box
           sx={{
@@ -220,7 +228,13 @@ const ScreenShareViewer = ({
             justifyContent: 'space-between',
             pointerEvents: 'none',
             opacity: showControls ? 1 : 0,
-            transition: 'opacity 0.3s ease'
+            transition: 'opacity 0.3s ease',
+            // Minimize interface when sharing to prevent recursive capture
+            ...(isScreenSharing && {
+              transform: 'scale(0.1)',
+              transformOrigin: 'top right',
+              opacity: 0.1
+            })
           }}
         >
           {/* Top Controls */}

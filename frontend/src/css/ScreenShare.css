@@ -290,3 +290,54 @@
     box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
   }
 }
+
+/* Minimize interface when sharing to prevent recursive capture */
+.screen-share-container.active-sharer .screen-share-controls {
+  transform: scale(0.1);
+  transform-origin: top right;
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.screen-share-container.active-sharer .screen-share-header {
+  transform: scale(0.1);
+  transform-origin: top right;
+  opacity: 0.1;
+}
+
+.screen-share-container.active-sharer .screen-share-actions {
+  transform: scale(0.1);
+  transform-origin: bottom right;
+  opacity: 0.1;
+}
+
+/* Hide only specific elements when screen sharing is active */
+body.screen-sharing-active {
+  overflow: hidden;
+}
+
+/* Hide only meeting controls and main video elements */
+body.screen-sharing-active .meeting-controls,
+body.screen-sharing-active video[data-participant-id],
+body.screen-sharing-active video[data-local-video] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Keep the meeting room visible but minimize screen share interface */
+body.screen-sharing-active .meeting-room {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure the screen share interface is visible */
+body.screen-sharing-active #screen-share-container {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}

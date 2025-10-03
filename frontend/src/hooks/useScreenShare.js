@@ -189,14 +189,39 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       console.log('🖥️ Screen Share: Starting screen capture...');
       setScreenShareError(null);
 
-      // Get screen stream
+      // Get screen stream with specific constraints to avoid recursive capture
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           cursor: 'always',
-          displaySurface: 'monitor'
+          displaySurface: 'monitor',
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          frameRate: { ideal: 30, max: 30 }
         },
-        audio: true
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
+        preferCurrentTab: false
       });
+
+      // Hide only specific elements that cause recursive capture
+      const meetingControls = document.querySelector('[data-testid="meeting-controls"]') || document.querySelector('.meeting-controls');
+      
+      // Hide meeting controls to prevent them from being captured
+      if (meetingControls) {
+        meetingControls.style.display = 'none';
+      }
+      
+      // Hide only the main video elements that might interfere
+      const mainVideoElements = document.querySelectorAll('video[data-participant-id], video[data-local-video]');
+      mainVideoElements.forEach(video => {
+        video.style.display = 'none';
+      });
+      
+      // Add a class to the body for targeted hiding
+      document.body.classList.add('screen-sharing-active');
 
       console.log('🖥️ Screen Share: Screen stream obtained', stream);
       
@@ -236,6 +261,36 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     }
   }, [socket, meetingId, userName]);
 
+  // Cleanup function to restore all UI elements
+  const cleanupScreenShare = useCallback(() => {
+    console.log('🖥️ Screen Share: Cleaning up and restoring UI');
+    
+    // Remove the screen sharing class from body
+    document.body.classList.remove('screen-sharing-active');
+    
+    // Restore all elements that might have been hidden
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(element => {
+      if (element.style.display === 'none' && !element.id.includes('screen-share')) {
+        element.style.display = '';
+        element.style.visibility = '';
+        element.style.opacity = '';
+        element.style.pointerEvents = '';
+      }
+    });
+    
+    // Force refresh of the page if needed
+    setTimeout(() => {
+      const meetingRoom = document.querySelector('.meeting-room') || document.querySelector('[class*="meeting"]');
+      if (meetingRoom && meetingRoom.style.display === 'none') {
+        console.log('🖥️ Screen Share: Forcing meeting room restoration');
+        meetingRoom.style.display = 'block';
+        meetingRoom.style.visibility = 'visible';
+        meetingRoom.style.opacity = '1';
+      }
+    }, 200);
+  }, []);
+
   // Stop screen sharing
   const stopScreenShare = useCallback(() => {
     console.log('🖥️ Screen Share: Stopping screen share');
@@ -260,6 +315,36 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     isScreenSharingRef.current = false;
     setScreenShareParticipants([]);
 
+    // Remove the screen sharing class from body FIRST
+    document.body.classList.remove('screen-sharing-active');
+    
+    // Restore meeting controls
+    const meetingControls = document.querySelector('[data-testid="meeting-controls"]') || document.querySelector('.meeting-controls');
+    if (meetingControls) {
+      meetingControls.style.display = 'flex';
+      meetingControls.style.visibility = 'visible';
+      meetingControls.style.opacity = '1';
+      meetingControls.style.pointerEvents = 'auto';
+    }
+    
+    // Restore main video elements
+    const mainVideoElements = document.querySelectorAll('video[data-participant-id], video[data-local-video]');
+    mainVideoElements.forEach(video => {
+      video.style.display = 'block';
+      video.style.visibility = 'visible';
+      video.style.opacity = '1';
+      video.style.pointerEvents = 'auto';
+    });
+    
+    // Hide the screen share container
+    const screenShareContainer = document.getElementById('screen-share-container');
+    if (screenShareContainer) {
+      screenShareContainer.style.display = 'none';
+      screenShareContainer.style.visibility = 'hidden';
+      screenShareContainer.style.opacity = '0';
+      screenShareContainer.style.pointerEvents = 'none';
+    }
+
     // Notify other participants (only if socket is available)
     if (socket && socket.emit && socket.id) {
       socket.emit('screen-share-stop', {
@@ -271,7 +356,10 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     }
 
     console.log('🖥️ Screen Share: Screen share stopped');
-  }, [socket, meetingId]);
+    
+    // Call cleanup to ensure everything is restored
+    cleanupScreenShare();
+  }, [socket, meetingId, cleanupScreenShare]);
 
   // Set screen share stream
   const setScreenShareStream = useCallback((stream) => {
@@ -315,7 +403,8 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       screenShareError: 'Socket not available',
       startScreenShare: () => console.warn('Socket not available'),
       stopScreenShare: () => console.warn('Socket not available'),
-      setScreenShareError: () => {}
+      setScreenShareError: () => {},
+      cleanupScreenShare: () => console.warn('Socket not available')
     };
   }
 
@@ -332,7 +421,8 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     stopScreenShare,
     
     // Utils
-    setScreenShareError
+    setScreenShareError,
+    cleanupScreenShare
   };
 };
 
