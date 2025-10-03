@@ -1759,15 +1759,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle screen sharing
-  socket.on('screen-share-start', ({ meetingId }) => {
-    socket.to(meetingId).emit('screen-share-start', { from: socket.id });
-  });
-
-  socket.on('screen-share-stop', ({ meetingId }) => {
-    socket.to(meetingId).emit('screen-share-stop', { from: socket.id });
-  });
-
   // Handle screen sharing changes (start/stop with stream info)
   socket.on('screen-share-change', ({ meetingId, participantId, isSharing, streamId }) => {
     console.log('🖥️ Screen sharing change:', { meetingId, participantId, isSharing, streamId });
