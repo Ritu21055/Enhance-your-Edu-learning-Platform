@@ -214,10 +214,14 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         meetingControls.style.display = 'none';
       }
       
-      // Hide only the main video elements that might interfere
-      const mainVideoElements = document.querySelectorAll('video[data-participant-id], video[data-local-video]');
-      mainVideoElements.forEach(video => {
-        video.style.display = 'none';
+      // Hide only the local video element that might interfere with screen capture
+      // The local video is the one without data-participant-id attribute
+      const allVideoElements = document.querySelectorAll('video');
+      allVideoElements.forEach(video => {
+        // Only hide videos that don't have data-participant-id (i.e., local video)
+        if (!video.getAttribute('data-participant-id')) {
+          video.style.display = 'none';
+        }
       });
       
       // Add a class to the body for targeted hiding
@@ -327,13 +331,16 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       meetingControls.style.pointerEvents = 'auto';
     }
     
-    // Restore main video elements
-    const mainVideoElements = document.querySelectorAll('video[data-participant-id], video[data-local-video]');
-    mainVideoElements.forEach(video => {
-      video.style.display = 'block';
-      video.style.visibility = 'visible';
-      video.style.opacity = '1';
-      video.style.pointerEvents = 'auto';
+    // Restore local video elements (videos without data-participant-id)
+    const allVideoElements = document.querySelectorAll('video');
+    allVideoElements.forEach(video => {
+      // Only restore videos that don't have data-participant-id (i.e., local video)
+      if (!video.getAttribute('data-participant-id')) {
+        video.style.display = 'block';
+        video.style.visibility = 'visible';
+        video.style.opacity = '1';
+        video.style.pointerEvents = 'auto';
+      }
     });
     
     // Hide the screen share container
