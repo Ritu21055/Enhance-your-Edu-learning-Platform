@@ -86,35 +86,6 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     };
   }, [socket]);
 
-  // Handle screen share signal
-  const handleScreenShareSignal = useCallback((data) => {
-    const { signal, from } = data;
-    
-    if (screenSharePeersRef.current[from]) {
-      console.log('🖥️ Screen Share: Signaling existing peer', from);
-      screenSharePeersRef.current[from].signal(signal);
-    } else {
-      console.log('🖥️ Screen Share: Creating new peer for', from);
-      createScreenSharePeer(from, signal);
-    }
-  }, [createScreenSharePeer]);
-
-  // Handle screen share request
-  const handleScreenShareRequest = useCallback((data) => {
-    const { from } = data;
-    
-    console.log('🖥️ Screen Share: Received request from', from);
-    console.log('🖥️ Screen Share: Current state:', {
-      isScreenSharing: isScreenSharingRef.current,
-      hasStream: !!screenShareStreamRef.current,
-      from: from
-    });
-    
-    // Always create a peer connection when someone requests screen share
-    // This allows participants to receive the screen share
-    createScreenSharePeer(from);
-  }, [createScreenSharePeer]);
-
   // Create screen share peer connection
   const createScreenSharePeer = useCallback((participantId, signal = null) => {
     console.log('🖥️ Screen Share: Creating peer for', participantId);
@@ -182,6 +153,35 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     screenSharePeersRef.current[participantId] = peer;
     setScreenSharePeer(peer);
   }, [socket, meetingId, userName]);
+
+  // Handle screen share signal
+  const handleScreenShareSignal = useCallback((data) => {
+    const { signal, from } = data;
+    
+    if (screenSharePeersRef.current[from]) {
+      console.log('🖥️ Screen Share: Signaling existing peer', from);
+      screenSharePeersRef.current[from].signal(signal);
+    } else {
+      console.log('🖥️ Screen Share: Creating new peer for', from);
+      createScreenSharePeer(from, signal);
+    }
+  }, [createScreenSharePeer]);
+
+  // Handle screen share request
+  const handleScreenShareRequest = useCallback((data) => {
+    const { from } = data;
+    
+    console.log('🖥️ Screen Share: Received request from', from);
+    console.log('🖥️ Screen Share: Current state:', {
+      isScreenSharing: isScreenSharingRef.current,
+      hasStream: !!screenShareStreamRef.current,
+      from: from
+    });
+    
+    // Always create a peer connection when someone requests screen share
+    // This allows participants to receive the screen share
+    createScreenSharePeer(from);
+  }, [createScreenSharePeer]);
 
   // Start screen sharing
   const startScreenShare = useCallback(async () => {
