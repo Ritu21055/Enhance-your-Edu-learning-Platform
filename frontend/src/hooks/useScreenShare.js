@@ -13,21 +13,6 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
   const [screenShareParticipants, setScreenShareParticipants] = useState([]);
   const [screenShareError, setScreenShareError] = useState(null);
   
-  // Early return if socket is not available
-  if (!socket) {
-    console.warn('🖥️ Screen Share: Socket not available');
-    return {
-      isScreenSharing: false,
-      screenStream: null,
-      remoteScreenStream: null,
-      screenShareParticipants: [],
-      screenShareError: 'Socket not available',
-      startScreenShare: () => console.warn('Socket not available'),
-      stopScreenShare: () => console.warn('Socket not available'),
-      setScreenShareError: () => {}
-    };
-  }
-  
   const screenSharePeersRef = useRef({});
   const screenShareStreamRef = useRef(null);
   const isScreenSharingRef = useRef(false);
@@ -279,6 +264,21 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       stopScreenShare();
     };
   }, [stopScreenShare]);
+
+  // Early return if socket is not available (after all hooks are declared)
+  if (!socket) {
+    console.warn('🖥️ Screen Share: Socket not available');
+    return {
+      isScreenSharing: false,
+      screenStream: null,
+      remoteScreenStream: null,
+      screenShareParticipants: [],
+      screenShareError: 'Socket not available',
+      startScreenShare: () => console.warn('Socket not available'),
+      stopScreenShare: () => console.warn('Socket not available'),
+      setScreenShareError: () => {}
+    };
+  }
 
   return {
     // State
