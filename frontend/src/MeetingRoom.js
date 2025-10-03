@@ -22,6 +22,8 @@ import { useChat } from './hooks/useChat';
 import { useMediaControls } from './hooks/useMediaControls';
 import useSentimentAnalysis from './hooks/useSentimentAnalysis';
 import useFatigueDetection from './hooks/useFatigueDetection';
+import useScreenShare from './hooks/useScreenShare';
+import ScreenShareViewer from './components/ScreenShareViewer';
 
 // Import components
 import UltraSimpleVideo from './components/UltraSimpleVideo';
@@ -154,6 +156,18 @@ const MeetingRoom = () => {
     isWarmupActive,
     triggerImmediateAnalysis
   } = useFatigueDetection(sentimentData, isHost, socket);
+
+  // Screen Sharing (New Implementation)
+  const {
+    isScreenSharing: isNewScreenSharing,
+    screenStream: newScreenStream,
+    remoteScreenStream: newRemoteScreenStream,
+    screenShareParticipants: newScreenShareParticipants,
+    screenShareError: newScreenShareError,
+    startScreenShare: startNewScreenShare,
+    stopScreenShare: stopNewScreenShare,
+    setScreenShareError: setNewScreenShareError
+  } = useScreenShare(socket, meetingId, finalUserName, isHost);
 
   // Debug fatigue detection
   console.log('🧠 Fatigue Detection Debug:', {
@@ -1060,7 +1074,7 @@ const MeetingRoom = () => {
           showParticipants={showParticipants}
           onToggleAudio={toggleAudio}
           onToggleVideo={toggleVideo}
-          onToggleScreenShare={toggleScreenShare}
+          onToggleScreenShare={isNewScreenSharing ? stopNewScreenShare : startNewScreenShare}
           onToggleChat={() => {
             console.log('💬 Chat button clicked, current showChat:', showChat);
             setShowChat(!showChat);
@@ -1144,6 +1158,16 @@ const MeetingRoom = () => {
         meetingTitle={`Meeting ${meetingId}`}
       />
 
+      {/* Screen Share Viewer */}
+      <ScreenShareViewer
+        isScreenSharing={isNewScreenSharing}
+        screenStream={newScreenStream}
+        remoteScreenStream={newRemoteScreenStream}
+        screenShareParticipants={newScreenShareParticipants}
+        onStartScreenShare={startNewScreenShare}
+        onStopScreenShare={stopNewScreenShare}
+        userName={finalUserName}
+      />
 
     </Container>
   );

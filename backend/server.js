@@ -2515,6 +2515,63 @@ io.on('connection', (socket) => {
     socket.emit('performance_stats', performanceData);
   });
 
+  // Screen Share Events
+  socket.on('screen-share-start', ({ meetingId, participant }) => {
+    console.log(`🖥️ Screen share started by ${participant.name} in meeting ${meetingId}`);
+    
+    // Find the meeting
+    const meeting = activeMeetings.get(meetingId);
+    if (meeting) {
+      // Notify all participants in the meeting
+      meeting.participants.forEach(p => {
+        if (p.id !== socket.id) {
+          io.to(p.id).emit('screen-share-start', {
+            participant: participant,
+            meetingId: meetingId
+          });
+        }
+      });
+    }
+  });
+
+  socket.on('screen-share-stop', ({ meetingId, participantId }) => {
+    console.log(`🖥️ Screen share stopped by ${participantId} in meeting ${meetingId}`);
+    
+    // Find the meeting
+    const meeting = activeMeetings.get(meetingId);
+    if (meeting) {
+      // Notify all participants in the meeting
+      meeting.participants.forEach(p => {
+        if (p.id !== socket.id) {
+          io.to(p.id).emit('screen-share-stop', {
+            participantId: participantId,
+            meetingId: meetingId
+          });
+        }
+      });
+    }
+  });
+
+  socket.on('screen-share-signal', ({ to, signal, from }) => {
+    console.log(`🖥️ Screen share signal from ${from} to ${to}`);
+    
+    // Forward the signal to the target participant
+    io.to(to).emit('screen-share-signal', {
+      signal: signal,
+      from: from
+    });
+  });
+
+  socket.on('screen-share-request', ({ from, meetingId }) => {
+    console.log(`🖥️ Screen share request from ${from} in meeting ${meetingId}`);
+    
+    // Forward the request to the target participant
+    io.to(from).emit('screen-share-request', {
+      from: socket.id,
+      meetingId: meetingId
+    });
+  });
+
   // Handle disconnection
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);

@@ -1,0 +1,292 @@
+/* Screen Share Styles */
+
+/* Screen Share Container */
+.screen-share-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Screen Share Video */
+.screen-share-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background-color: #000;
+}
+
+/* Screen Share Controls */
+.screen-share-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.screen-share-controls.hidden {
+  opacity: 0;
+}
+
+/* Top Controls Bar */
+.screen-share-top-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+  pointer-events: auto;
+}
+
+.screen-share-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.screen-share-participant-count {
+  background-color: rgba(255,255,255,0.2);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.screen-share-control-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.screen-share-control-button {
+  color: white;
+  background-color: rgba(0,0,0,0.5);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.screen-share-control-button:hover {
+  background-color: rgba(0,0,0,0.7);
+  transform: scale(1.1);
+}
+
+/* Bottom Controls Bar */
+.screen-share-bottom-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px 24px;
+  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+  pointer-events: auto;
+}
+
+.screen-share-main-button {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.screen-share-main-button.start {
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  color: white;
+}
+
+.screen-share-main-button.start:hover {
+  background: linear-gradient(135deg, #1976d2, #1565c0);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(33, 150, 243, 0.4);
+}
+
+.screen-share-main-button.stop {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  color: white;
+}
+
+.screen-share-main-button.stop:hover {
+  background: linear-gradient(135deg, #d32f2f, #c62828);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(244, 67, 54, 0.4);
+}
+
+/* Screen Share Info */
+.screen-share-info {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: white;
+}
+
+.screen-share-info-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.screen-share-info-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.screen-share-info-description {
+  font-size: 16px;
+  opacity: 0.7;
+  margin-bottom: 24px;
+}
+
+.screen-share-info-button {
+  padding: 16px 32px;
+  font-size: 18px;
+  font-weight: bold;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  color: white;
+  box-shadow: 0 6px 24px rgba(33, 150, 243, 0.4);
+  transition: all 0.2s ease;
+}
+
+.screen-share-info-button:hover {
+  background: linear-gradient(135deg, #1976d2, #1565c0);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(33, 150, 243, 0.6);
+}
+
+/* Screen Share Header */
+.screen-share-header {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(255, 107, 53, 0.9);
+  backdrop-filter: blur(25px);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+}
+
+.screen-share-header-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
+}
+
+.screen-share-participant-name {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .screen-share-top-controls {
+    padding: 12px 16px;
+  }
+  
+  .screen-share-title {
+    font-size: 16px;
+  }
+  
+  .screen-share-control-button {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .screen-share-bottom-controls {
+    padding: 12px 16px;
+  }
+  
+  .screen-share-main-button {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+}
+
+/* Animation for screen share transitions */
+@keyframes screenShareFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.screen-share-container {
+  animation: screenShareFadeIn 0.3s ease-out;
+}
+
+/* Screen share button in meeting controls */
+.control-button.screen-sharing {
+  background-color: #f44336;
+  color: white;
+  animation: pulse-red 2s infinite;
+}
+
+.control-button.screen-share-inactive {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.control-button.screen-share-inactive:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+@keyframes pulse-red {
+  0% {
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(244, 67, 54, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 67, 54, 0);
+  }
+}
