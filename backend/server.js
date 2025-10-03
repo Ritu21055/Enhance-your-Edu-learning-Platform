@@ -1098,6 +1098,12 @@ io.on('connection', (socket) => {
     socket.emit('pong', { message: 'pong', timestamp: new Date().toISOString() });
   });
 
+  // Test screen share event
+  socket.on('test-screen-share', (data) => {
+    console.log('🧪 Test screen share event received from:', socket.id, data);
+    socket.emit('test-screen-share', { message: 'Test screen share response', timestamp: new Date().toISOString() });
+  });
+
   // Join meeting room
   socket.on('join-meeting', ({ meetingId, userName, meetingTitle, isHost }) => {
     console.log(`👤 ${userName} (${socket.id}) joining meeting ${meetingId}`);
@@ -2510,19 +2516,27 @@ io.on('connection', (socket) => {
   socket.on('screen-share-start', ({ meetingId, participant }) => {
     console.log(`🖥️ Screen share started by ${participant.name} in meeting ${meetingId}`);
     console.log(`🖥️ Backend: Forwarding screen-share-start to participants`);
+    console.log(`🖥️ Backend: Socket ID: ${socket.id}`);
+    console.log(`🖥️ Backend: Participant data:`, participant);
     
     // Find the meeting
     const meeting = activeMeetings.get(meetingId);
     if (meeting) {
       console.log(`🖥️ Backend: Found meeting with ${meeting.participants.length} participants`);
+      console.log(`🖥️ Backend: Meeting participants:`, meeting.participants.map(p => ({ id: p.id, name: p.name, isApproved: p.isApproved })));
+      
       // Notify all participants in the meeting
       meeting.participants.forEach(p => {
         if (p.id !== socket.id) {
           console.log(`🖥️ Backend: Sending screen-share-start to participant ${p.id} (${p.name})`);
+          console.log(`🖥️ Backend: Participant isApproved: ${p.isApproved}`);
+          
           io.to(p.id).emit('screen-share-start', {
             participant: participant,
             meetingId: meetingId
           });
+          
+          console.log(`🖥️ Backend: screen-share-start event sent to ${p.id}`);
         }
       });
     } else {
@@ -2561,18 +2575,26 @@ io.on('connection', (socket) => {
   socket.on('screen-share-request', ({ from, meetingId }) => {
     console.log(`🖥️ Screen share request from ${from} in meeting ${meetingId}`);
     console.log(`🖥️ Backend: Forwarding screen-share-request to participants`);
+    console.log(`🖥️ Backend: Socket ID: ${socket.id}`);
+    console.log(`🖥️ Backend: From parameter: ${from}`);
     
     // Find the meeting and broadcast to all participants except the sender
     const meeting = activeMeetings.get(meetingId);
     if (meeting) {
       console.log(`🖥️ Backend: Found meeting with ${meeting.participants.length} participants`);
+      console.log(`🖥️ Backend: Meeting participants:`, meeting.participants.map(p => ({ id: p.id, name: p.name, isApproved: p.isApproved })));
+      
       meeting.participants.forEach(p => {
         if (p.id !== socket.id) {
           console.log(`🖥️ Backend: Sending screen-share-request to participant ${p.id} (${p.name})`);
+          console.log(`🖥️ Backend: Participant isApproved: ${p.isApproved}`);
+          
           io.to(p.id).emit('screen-share-request', {
             from: socket.id,
             meetingId: meetingId
           });
+          
+          console.log(`🖥️ Backend: screen-share-request event sent to ${p.id}`);
         }
       });
     } else {

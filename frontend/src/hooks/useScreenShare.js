@@ -30,6 +30,16 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       connected: socket.connected,
       hasOn: !!socket.on
     });
+    
+    // Add a test event listener to verify socket is working
+    const testHandler = (data) => {
+      console.log('🖥️ Screen Share: TEST EVENT RECEIVED:', data);
+    };
+    socket.on('test-screen-share', testHandler);
+    
+    // Test socket connection
+    console.log('🖥️ Screen Share: Testing socket connection...');
+    socket.emit('test-screen-share', { message: 'Testing screen share socket', timestamp: Date.now() });
 
     // Handle screen share start
     socket.on('screen-share-start', (data) => {
@@ -94,6 +104,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         socket.off('screen-share-stop');
         socket.off('screen-share-signal');
         socket.off('screen-share-request');
+        socket.off('test-screen-share');
       }
     };
   }, [socket]);
