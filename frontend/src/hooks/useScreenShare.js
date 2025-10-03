@@ -90,16 +90,25 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         dataKeys: data ? Object.keys(data) : 'no data',
         hasParticipant: data && !!data.participant,
         participantType: data && data.participant ? typeof data.participant : 'no participant',
-        participantKeys: data && data.participant ? Object.keys(data.participant) : 'no participant'
+        participantKeys: data && data.participant ? Object.keys(data.participant) : 'no participant',
+        fullData: data,
+        dataStringified: JSON.stringify(data, null, 2)
       });
       
       // Check if data and participant exist before adding
       if (data && data.participant) {
         console.log('🖥️ Screen Share: Adding participant to screen share list', data.participant);
         setScreenShareParticipants(prev => [...prev, data.participant]);
+      } else if (Array.isArray(data) && data.length > 0 && data[0] && data[0].participant) {
+        // Handle case where data is wrapped in an array
+        console.log('🖥️ Screen Share: Data is array, extracting first element', data[0]);
+        console.log('🖥️ Screen Share: Adding participant from array to screen share list', data[0].participant);
+        setScreenShareParticipants(prev => [...prev, data[0].participant]);
       } else {
         console.warn('🖥️ Screen Share: Invalid screen-share-start data', data);
         console.warn('🖥️ Screen Share: Expected data.participant but got:', data?.participant);
+        console.warn('🖥️ Screen Share: Data is array:', Array.isArray(data));
+        console.warn('🖥️ Screen Share: Array length:', Array.isArray(data) ? data.length : 'not array');
       }
     });
 
