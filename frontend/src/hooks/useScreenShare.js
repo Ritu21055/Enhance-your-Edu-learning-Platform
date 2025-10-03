@@ -13,13 +13,28 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
   const [screenShareParticipants, setScreenShareParticipants] = useState([]);
   const [screenShareError, setScreenShareError] = useState(null);
   
+  // Early return if socket is not available
+  if (!socket) {
+    console.warn('🖥️ Screen Share: Socket not available');
+    return {
+      isScreenSharing: false,
+      screenStream: null,
+      remoteScreenStream: null,
+      screenShareParticipants: [],
+      screenShareError: 'Socket not available',
+      startScreenShare: () => console.warn('Socket not available'),
+      stopScreenShare: () => console.warn('Socket not available'),
+      setScreenShareError: () => {}
+    };
+  }
+  
   const screenSharePeersRef = useRef({});
   const screenShareStreamRef = useRef(null);
   const isScreenSharingRef = useRef(false);
 
   // Initialize screen sharing socket events
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !socket.on) return;
 
     console.log('🖥️ Screen Share: Setting up socket events');
 
@@ -57,10 +72,12 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
 
     return () => {
       console.log('🖥️ Screen Share: Cleaning up socket events');
-      socket.off('screen-share-start');
-      socket.off('screen-share-stop');
-      socket.off('screen-share-signal');
-      socket.off('screen-share-request');
+      if (socket && socket.off) {
+        socket.off('screen-share-start');
+        socket.off('screen-share-stop');
+        socket.off('screen-share-signal');
+        socket.off('screen-share-request');
+      }
     };
   }, [socket]);
 
@@ -105,11 +122,15 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     // Handle peer connection
     peer.on('signal', (signal) => {
       console.log('🖥️ Screen Share: Sending signal to', participantId);
-      socket.emit('screen-share-signal', {
-        to: participantId,
-        signal: signal,
-        from: socket.id
-      });
+      if (socket && socket.emit) {
+        socket.emit('screen-share-signal', {
+          to: participantId,
+          signal: signal,
+          from: socket.id
+        });
+      } else {
+        console.warn('🖥️ Screen Share: Socket not available for signal');
+      }
     });
 
     // Handle stream reception
@@ -142,7 +163,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
 
     screenSharePeersRef.current[participantId] = peer;
     setScreenSharePeer(peer);
-  }, [socket]);
+  }, [socket, meetingId, userName]);
 
   // Start screen sharing
   const startScreenShare = useCallback(async () => {
@@ -166,14 +187,18 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       setIsScreenSharing(true);
       isScreenSharingRef.current = true;
 
-      // Notify other participants
-      socket.emit('screen-share-start', {
-        meetingId,
-        participant: {
-          id: socket.id,
-          name: userName
-        }
-      });
+      // Notify other participants (only if socket is available)
+      if (socket && socket.emit) {
+        socket.emit('screen-share-start', {
+          meetingId,
+          participant: {
+            id: socket.id,
+            name: userName
+          }
+        });
+      } else {
+        console.warn('🖥️ Screen Share: Socket not available for notification');
+      }
 
       // Handle stream end (user stops sharing)
       stream.getVideoTracks()[0].onended = () => {
@@ -211,11 +236,15 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     isScreenSharingRef.current = false;
     setScreenShareParticipants([]);
 
-    // Notify other participants
-    socket.emit('screen-share-stop', {
-      meetingId,
-      participantId: socket.id
-    });
+    // Notify other participants (only if socket is available)
+    if (socket && socket.emit) {
+      socket.emit('screen-share-stop', {
+        meetingId,
+        participantId: socket.id
+      });
+    } else {
+      console.warn('🖥️ Screen Share: Socket not available for stop notification');
+    }
 
     console.log('🖥️ Screen Share: Screen share stopped');
   }, [socket, meetingId]);
