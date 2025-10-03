@@ -26,6 +26,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     // Handle screen share start
     socket.on('screen-share-start', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-start', data);
+      console.log('🖥️ Screen Share: PARTICIPANT RECEIVED SCREEN SHARE START EVENT!');
       
       // Check if data and participant exist before adding
       if (data && data.participant) {
@@ -69,6 +70,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     // Handle screen share request
     socket.on('screen-share-request', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-request', data);
+      console.log('🖥️ Screen Share: PARTICIPANT RECEIVED SCREEN SHARE REQUEST EVENT!');
       if (data) {
         console.log('🖥️ Screen Share: Processing screen share request from', data.from);
         handleScreenShareRequest(data);

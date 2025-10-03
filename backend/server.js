@@ -2509,19 +2509,24 @@ io.on('connection', (socket) => {
   // Screen Share Events
   socket.on('screen-share-start', ({ meetingId, participant }) => {
     console.log(`🖥️ Screen share started by ${participant.name} in meeting ${meetingId}`);
+    console.log(`🖥️ Backend: Forwarding screen-share-start to participants`);
     
     // Find the meeting
     const meeting = activeMeetings.get(meetingId);
     if (meeting) {
+      console.log(`🖥️ Backend: Found meeting with ${meeting.participants.length} participants`);
       // Notify all participants in the meeting
       meeting.participants.forEach(p => {
         if (p.id !== socket.id) {
+          console.log(`🖥️ Backend: Sending screen-share-start to participant ${p.id} (${p.name})`);
           io.to(p.id).emit('screen-share-start', {
             participant: participant,
             meetingId: meetingId
           });
         }
       });
+    } else {
+      console.log(`🖥️ Backend: Meeting ${meetingId} not found!`);
     }
   });
 
@@ -2555,18 +2560,23 @@ io.on('connection', (socket) => {
 
   socket.on('screen-share-request', ({ from, meetingId }) => {
     console.log(`🖥️ Screen share request from ${from} in meeting ${meetingId}`);
+    console.log(`🖥️ Backend: Forwarding screen-share-request to participants`);
     
     // Find the meeting and broadcast to all participants except the sender
     const meeting = activeMeetings.get(meetingId);
     if (meeting) {
+      console.log(`🖥️ Backend: Found meeting with ${meeting.participants.length} participants`);
       meeting.participants.forEach(p => {
         if (p.id !== socket.id) {
+          console.log(`🖥️ Backend: Sending screen-share-request to participant ${p.id} (${p.name})`);
           io.to(p.id).emit('screen-share-request', {
             from: socket.id,
             meetingId: meetingId
           });
         }
       });
+    } else {
+      console.log(`🖥️ Backend: Meeting ${meetingId} not found for screen-share-request!`);
     }
   });
 
