@@ -29,6 +29,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       
       // Check if data and participant exist before adding
       if (data && data.participant) {
+        console.log('🖥️ Screen Share: Adding participant to screen share list', data.participant);
         setScreenShareParticipants(prev => [...prev, data.participant]);
       } else {
         console.warn('🖥️ Screen Share: Invalid screen-share-start data', data);
@@ -69,6 +70,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     socket.on('screen-share-request', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-request', data);
       if (data) {
+        console.log('🖥️ Screen Share: Processing screen share request from', data.from);
         handleScreenShareRequest(data);
       } else {
         console.warn('🖥️ Screen Share: Invalid screen-share-request data', data);
@@ -238,6 +240,14 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
 
       // Notify other participants (only if socket is available)
       if (socket && socket.emit && socket.id) {
+        console.log('🖥️ Screen Share: Emitting screen-share-start event', {
+          meetingId,
+          participant: {
+            id: socket.id,
+            name: userName
+          }
+        });
+        
         socket.emit('screen-share-start', {
           meetingId,
           participant: {
@@ -246,17 +256,18 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
           }
         });
         
+        console.log('🖥️ Screen Share: Emitting screen-share-request event', {
+          from: socket.id,
+          meetingId: meetingId
+        });
+        
         // Request screen share from all other participants
         socket.emit('screen-share-request', {
           from: socket.id,
           meetingId: meetingId
         });
         
-        // Also create peer connections to all existing participants
-        // This ensures the sharer can send the screen stream to others
-        console.log('🖥️ Screen Share: Creating peer connections to all participants');
-        // We'll need to get the list of participants from the main meeting room
-        // For now, let's rely on the screen-share-request mechanism
+        console.log('🖥️ Screen Share: Screen share events emitted successfully');
       } else {
         console.warn('🖥️ Screen Share: Socket not available for notification');
       }
