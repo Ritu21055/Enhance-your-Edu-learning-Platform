@@ -158,7 +158,15 @@ const MeetingRoom = () => {
   } = useFatigueDetection(sentimentData, isHost, socket);
 
   // Screen Sharing (New Implementation)
+  console.log('🖥️ MeetingRoom: About to call useScreenShare hook', {
+    hasSocket: !!socket,
+    socketConnected: socket?.connected,
+    meetingId,
+    userName: finalUserName,
+    isHost
+  });
   const screenShareHook = useScreenShare(socket, meetingId, finalUserName, isHost);
+  console.log('🖥️ MeetingRoom: useScreenShare hook called, result:', screenShareHook);
   
   const {
     isScreenSharing: isNewScreenSharing,

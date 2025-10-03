@@ -6,6 +6,15 @@ import SimplePeer from 'simple-peer';
  * Handles screen capture, peer connections, and stream management
  */
 const useScreenShare = (socket, meetingId, userName, isHost) => {
+  console.log('🖥️ Screen Share: useScreenShare hook called', {
+    hasSocket: !!socket,
+    socketConnected: socket?.connected,
+    meetingId,
+    userName,
+    isHost
+  });
+  console.log('🖥️ Screen Share: Hook initialization starting...');
+  
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState(null);
   const [remoteScreenStream, setRemoteScreenStream] = useState(null);
