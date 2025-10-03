@@ -316,7 +316,7 @@ body.screen-sharing-active {
   overflow: hidden;
 }
 
-/* Hide only meeting controls and local video elements */
+/* Hide meeting controls and local video elements */
 body.screen-sharing-active .meeting-controls,
 body.screen-sharing-active video:not([data-participant-id]) {
   display: none !important;

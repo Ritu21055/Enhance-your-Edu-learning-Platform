@@ -214,8 +214,8 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         meetingControls.style.display = 'none';
       }
       
-      // Hide only the local video element that might interfere with screen capture
-      // The local video is the one without data-participant-id attribute
+      // Hide the local video element to prevent recursive capture
+      // This is the correct behavior - the person sharing should not see their own video
       const allVideoElements = document.querySelectorAll('video');
       allVideoElements.forEach(video => {
         // Only hide videos that don't have data-participant-id (i.e., local video)
