@@ -53,10 +53,17 @@ const ScreenShareViewer = ({
   useEffect(() => {
     if (remoteScreenStream && remoteVideoRef.current) {
       console.log('🖥️ ScreenShareViewer: Setting remote screen stream');
+      console.log('🖥️ ScreenShareViewer: Stream details:', {
+        id: remoteScreenStream.id,
+        active: remoteScreenStream.active,
+        tracks: remoteScreenStream.getTracks().length
+      });
       remoteVideoRef.current.srcObject = remoteScreenStream;
       remoteVideoRef.current.play().catch(err => {
         console.log('🖥️ ScreenShareViewer: Remote video play error:', err);
       });
+    } else {
+      console.log('🖥️ ScreenShareViewer: No remote screen stream or video element');
     }
   }, [remoteScreenStream]);
 
@@ -356,6 +363,22 @@ const ScreenShareViewer = ({
           >
             Start Screen Sharing
           </Button>
+          
+          {/* Debug Info */}
+          <Box sx={{ mt: 3, p: 2, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 2 }}>
+            <Typography variant="body2" sx={{ color: 'white', mb: 1 }}>
+              Debug Info:
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'white', fontSize: '0.8rem' }}>
+              Screen Sharing: {isScreenSharing ? 'Yes' : 'No'}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'white', fontSize: '0.8rem' }}>
+              Remote Stream: {remoteScreenStream ? 'Yes' : 'No'}
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'white', fontSize: '0.8rem' }}>
+              Participants: {screenShareParticipants.length}
+            </Typography>
+          </Box>
         </Box>
       )}
     </Box>

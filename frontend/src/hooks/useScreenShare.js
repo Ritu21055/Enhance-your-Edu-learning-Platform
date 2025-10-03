@@ -97,17 +97,23 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       console.log('🖥️ Screen Share: Creating new peer for', from);
       createScreenSharePeer(from, signal);
     }
-  }, []);
+  }, [createScreenSharePeer]);
 
   // Handle screen share request
   const handleScreenShareRequest = useCallback((data) => {
     const { from } = data;
     
-    if (isScreenSharingRef.current && screenShareStreamRef.current) {
-      console.log('🖥️ Screen Share: Responding to request from', from);
-      createScreenSharePeer(from);
-    }
-  }, []);
+    console.log('🖥️ Screen Share: Received request from', from);
+    console.log('🖥️ Screen Share: Current state:', {
+      isScreenSharing: isScreenSharingRef.current,
+      hasStream: !!screenShareStreamRef.current,
+      from: from
+    });
+    
+    // Always create a peer connection when someone requests screen share
+    // This allows participants to receive the screen share
+    createScreenSharePeer(from);
+  }, [createScreenSharePeer]);
 
   // Create screen share peer connection
   const createScreenSharePeer = useCallback((participantId, signal = null) => {
@@ -141,6 +147,13 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     // Handle stream reception
     peer.on('stream', (stream) => {
       console.log('🖥️ Screen Share: Received remote screen stream from', participantId);
+      console.log('🖥️ Screen Share: Stream details:', {
+        id: stream.id,
+        active: stream.active,
+        tracks: stream.getTracks().length,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length
+      });
       setRemoteScreenStream(stream);
     });
 
@@ -200,6 +213,12 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
             id: socket.id,
             name: userName
           }
+        });
+        
+        // Request screen share from all other participants
+        socket.emit('screen-share-request', {
+          from: socket.id,
+          meetingId: meetingId
         });
       } else {
         console.warn('🖥️ Screen Share: Socket not available for notification');

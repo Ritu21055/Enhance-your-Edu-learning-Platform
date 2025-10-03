@@ -2565,11 +2565,18 @@ io.on('connection', (socket) => {
   socket.on('screen-share-request', ({ from, meetingId }) => {
     console.log(`🖥️ Screen share request from ${from} in meeting ${meetingId}`);
     
-    // Forward the request to the target participant
-    io.to(from).emit('screen-share-request', {
-      from: socket.id,
-      meetingId: meetingId
-    });
+    // Find the meeting and broadcast to all participants except the sender
+    const meeting = activeMeetings.get(meetingId);
+    if (meeting) {
+      meeting.participants.forEach(p => {
+        if (p.id !== socket.id) {
+          io.to(p.id).emit('screen-share-request', {
+            from: socket.id,
+            meetingId: meetingId
+          });
+        }
+      });
+    }
   });
 
   // Handle disconnection
