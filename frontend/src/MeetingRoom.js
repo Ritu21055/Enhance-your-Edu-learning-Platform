@@ -157,7 +157,18 @@ const MeetingRoom = () => {
     triggerImmediateAnalysis
   } = useFatigueDetection(sentimentData, isHost, socket);
 
-  // Screen Sharing (New Implementation)
+  // Screen Sharing (New Implementation) - Only initialize when socket is available
+  const screenShareHook = socket ? useScreenShare(socket, meetingId, finalUserName, isHost) : {
+    isScreenSharing: false,
+    screenStream: null,
+    remoteScreenStream: null,
+    screenShareParticipants: [],
+    screenShareError: null,
+    startScreenShare: () => console.warn('Socket not available for screen sharing'),
+    stopScreenShare: () => console.warn('Socket not available for screen sharing'),
+    setScreenShareError: () => {}
+  };
+  
   const {
     isScreenSharing: isNewScreenSharing,
     screenStream: newScreenStream,
@@ -167,7 +178,7 @@ const MeetingRoom = () => {
     startScreenShare: startNewScreenShare,
     stopScreenShare: stopNewScreenShare,
     setScreenShareError: setNewScreenShareError
-  } = useScreenShare(socket, meetingId, finalUserName, isHost);
+  } = screenShareHook;
 
   // Debug fatigue detection
   console.log('🧠 Fatigue Detection Debug:', {

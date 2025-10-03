@@ -19,9 +19,17 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
 
   // Initialize screen sharing socket events
   useEffect(() => {
-    if (!socket || !socket.on) return;
+    if (!socket || !socket.on) {
+      console.log('🖥️ Screen Share: Socket not available, skipping event setup');
+      return;
+    }
 
     console.log('🖥️ Screen Share: Setting up socket events');
+    console.log('🖥️ Screen Share: Socket details:', {
+      id: socket.id,
+      connected: socket.connected,
+      hasOn: !!socket.on
+    });
 
     // Handle screen share start
     socket.on('screen-share-start', (data) => {
