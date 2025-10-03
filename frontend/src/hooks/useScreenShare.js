@@ -102,6 +102,12 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         console.log('🖥️ Screen Share: First element keys:', data[0] ? Object.keys(data[0]) : 'no first element');
       }
       
+      // Log the actual data structure
+      console.log('🖥️ Screen Share: ACTUAL DATA STRUCTURE:', data);
+      console.log('🖥️ Screen Share: DATA TYPE:', typeof data);
+      console.log('🖥️ Screen Share: DATA KEYS:', data ? Object.keys(data) : 'no data');
+      console.log('🖥️ Screen Share: DATA VALUES:', data ? Object.values(data) : 'no data');
+      
       // Check if data and participant exist before adding
       if (data && data.participant) {
         console.log('🖥️ Screen Share: Adding participant to screen share list', data.participant);
@@ -132,6 +138,21 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         console.warn('🖥️ Screen Share: Expected data.participant but got:', data?.participant);
         console.warn('🖥️ Screen Share: Data is array:', Array.isArray(data));
         console.warn('🖥️ Screen Share: Array length:', Array.isArray(data) ? data.length : 'not array');
+        
+        // Try to find participant data in different possible structures
+        if (data && typeof data === 'object') {
+          console.log('🖥️ Screen Share: Trying to find participant data in object...');
+          console.log('🖥️ Screen Share: Object keys:', Object.keys(data));
+          
+          // Check if any of the values might be participant data
+          Object.values(data).forEach((value, index) => {
+            if (value && typeof value === 'object' && (value.name || value.id)) {
+              console.log(`🖥️ Screen Share: Found potential participant data at index ${index}:`, value);
+              console.log('🖥️ Screen Share: Adding potential participant to screen share list');
+              setScreenShareParticipants(prev => [...prev, value]);
+            }
+          });
+        }
       }
     });
 
