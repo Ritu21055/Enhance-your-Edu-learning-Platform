@@ -439,7 +439,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     };
   }, [stopScreenShare]);
 
-  // Early return if socket is not available (after all hooks are declared)
+  // Handle case when socket is not available
   if (!socket) {
     console.warn('🖥️ Screen Share: Socket not available');
     return {
