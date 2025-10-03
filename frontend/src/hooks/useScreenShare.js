@@ -84,6 +84,14 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     socket.on('screen-share-start', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-start', data);
       console.log('🖥️ Screen Share: PARTICIPANT RECEIVED SCREEN SHARE START EVENT!');
+      console.log('🖥️ Screen Share: Data structure analysis:', {
+        hasData: !!data,
+        dataType: typeof data,
+        dataKeys: data ? Object.keys(data) : 'no data',
+        hasParticipant: data && !!data.participant,
+        participantType: data && data.participant ? typeof data.participant : 'no participant',
+        participantKeys: data && data.participant ? Object.keys(data.participant) : 'no participant'
+      });
       
       // Check if data and participant exist before adding
       if (data && data.participant) {
@@ -91,6 +99,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         setScreenShareParticipants(prev => [...prev, data.participant]);
       } else {
         console.warn('🖥️ Screen Share: Invalid screen-share-start data', data);
+        console.warn('🖥️ Screen Share: Expected data.participant but got:', data?.participant);
       }
     });
 
