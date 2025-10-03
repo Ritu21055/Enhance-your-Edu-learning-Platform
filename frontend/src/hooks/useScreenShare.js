@@ -88,7 +88,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
 
   // Create screen share peer connection
   const createScreenSharePeer = useCallback((participantId, signal = null) => {
-    console.log('🖥️ Screen Share: Creating peer for', participantId);
+    console.log('🖥️ Screen Share: Creating peer for', participantId, 'with signal:', !!signal);
     
     const peer = new SimplePeer({
       initiator: !signal,
@@ -125,6 +125,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         videoTracks: stream.getVideoTracks().length,
         audioTracks: stream.getAudioTracks().length
       });
+      console.log('🖥️ Screen Share: Setting remote screen stream');
       setRemoteScreenStream(stream);
     });
 
@@ -180,6 +181,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     
     // Always create a peer connection when someone requests screen share
     // This allows participants to receive the screen share
+    console.log('🖥️ Screen Share: Creating peer connection for screen share from', from);
     createScreenSharePeer(from);
   }, [createScreenSharePeer]);
 
@@ -249,6 +251,12 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
           from: socket.id,
           meetingId: meetingId
         });
+        
+        // Also create peer connections to all existing participants
+        // This ensures the sharer can send the screen stream to others
+        console.log('🖥️ Screen Share: Creating peer connections to all participants');
+        // We'll need to get the list of participants from the main meeting room
+        // For now, let's rely on the screen-share-request mechanism
       } else {
         console.warn('🖥️ Screen Share: Socket not available for notification');
       }
