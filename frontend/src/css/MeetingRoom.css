@@ -1068,6 +1068,45 @@
   }
 }
 
+/* AI Question Generation Control Styles */
+.control-button.ai-question-toggle {
+  color: #8b5cf6 !important;
+  background: rgba(139, 92, 246, 0.2) !important;
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.control-button.ai-question-toggle:hover {
+  background: rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 0 25px rgba(139, 92, 246, 0.5) !important;
+  transform: scale(1.05) !important;
+}
+
+.control-button.ai-question-toggle.ai-active {
+  color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4) !important;
+}
+
+.control-button.ai-question-toggle.ai-active:hover {
+  background: rgba(16, 185, 129, 0.3) !important;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.5) !important;
+}
+
+.control-button.ai-question-toggle.ai-inactive {
+  color: #6b7280 !important;
+  background: rgba(107, 114, 128, 0.2) !important;
+  border-color: #6b7280 !important;
+  box-shadow: 0 0 20px rgba(107, 114, 128, 0.4) !important;
+}
+
+.control-button.ai-question-toggle.ai-inactive:hover {
+  background: rgba(107, 114, 128, 0.3) !important;
+  box-shadow: 0 0 25px rgba(107, 114, 128, 0.5) !important;
+}
+
 /* Highlight Toast Notification */
 .highlight-toast {
   position: fixed;

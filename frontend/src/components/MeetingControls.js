@@ -17,7 +17,8 @@ import {
   CallEnd,
   Star,
   FiberManualRecord,
-  Stop
+  Stop,
+  Psychology
 } from '@mui/icons-material';
 
 const MeetingControls = ({
@@ -35,7 +36,10 @@ const MeetingControls = ({
   onMarkHighlight,
   isHost,
   isRecording,
-  onToggleRecording
+  onToggleRecording,
+  // AI Question Generation props
+  isQuestionGenerationActive,
+  onToggleQuestionGeneration
 }) => {
   return (
     <Paper 
@@ -103,6 +107,17 @@ const MeetingControls = ({
             title={isRecording ? 'Stop Recording' : 'Start Recording'}
           >
             {isRecording ? <Stop /> : <FiberManualRecord />}
+          </IconButton>
+        )}
+        
+        {/* AI Question Generation Control - Only for hosts */}
+        {isHost && (
+          <IconButton
+            onClick={onToggleQuestionGeneration}
+            className={`control-button ai-question-toggle ${isQuestionGenerationActive ? 'ai-active' : 'ai-inactive'}`}
+            title={isQuestionGenerationActive ? 'Stop AI Questions' : 'Start AI Questions'}
+          >
+            <Psychology />
           </IconButton>
         )}
         

@@ -550,13 +550,25 @@ const MeetingRoom = () => {
   const handleStartQuestionGeneration = () => {
     if (socket && meetingId) {
       console.log('🤖 Starting AI question generation...');
+      console.log('🤖 Socket connected:', socket.connected);
+      console.log('🤖 Meeting ID:', meetingId);
+      console.log('🤖 Is Host:', isHost);
+      
       socket.emit('start_question_generation', { meetingId });
       setIsQuestionGenerationActive(true);
       
       // Also start audio transcription for the host
       if (isHost) {
+        console.log('🤖 Starting audio transcription for host...');
         startTranscriptionRecording();
       }
+    } else {
+      console.error('🤖 Cannot start AI question generation:', {
+        hasSocket: !!socket,
+        socketConnected: socket?.connected,
+        meetingId,
+        isHost
+      });
     }
   };
 
@@ -1104,6 +1116,15 @@ const MeetingRoom = () => {
             navigate('/');
           }}
           isHost={isHost}
+          // AI Question Generation props
+          isQuestionGenerationActive={isQuestionGenerationActive}
+          onToggleQuestionGeneration={() => {
+            if (isQuestionGenerationActive) {
+              handleStopQuestionGeneration();
+            } else {
+              handleStartQuestionGeneration();
+            }
+          }}
         />
       )}
 
