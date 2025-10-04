@@ -15,14 +15,6 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
   });
   console.log('🖥️ Screen Share: Hook initialization starting...');
   
-  // Test if useEffect is working at all
-  console.log('🖥️ Screen Share: About to declare useEffect...');
-  
-  // Test useEffect - this should always run
-  useEffect(() => {
-    console.log('🖥️ Screen Share: TEST useEffect is working!');
-  }, []);
-  
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState(null);
   const [remoteScreenStream, setRemoteScreenStream] = useState(null);
@@ -216,9 +208,29 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
           screenSharePeersRef.current[data.participantId].destroy();
           delete screenSharePeersRef.current[data.participantId];
         }
+        
+        // Clear remote screen stream when screen sharing stops
+        console.log('🖥️ Screen Share: Clearing remote screen stream');
+        setRemoteScreenStream(null);
+        
+        // Remove screen sharing class from body
+        document.body.classList.remove('screen-sharing-active');
+        
+        // Restore meeting controls
+        const meetingControls = document.querySelector('[data-testid="meeting-controls"]') || document.querySelector('.meeting-controls');
+        if (meetingControls) {
+          meetingControls.style.display = 'flex';
+          meetingControls.style.visibility = 'visible';
+          meetingControls.style.opacity = '1';
+        }
       } else {
         console.warn('🖥️ Screen Share: Invalid screen-share-stop data', data);
         console.warn('🖥️ Screen Share: Expected data.participantId but got:', data?.participantId);
+        
+        // Even with invalid data, clear the remote stream as a fallback
+        console.log('🖥️ Screen Share: Fallback - Clearing remote screen stream due to invalid data');
+        setRemoteScreenStream(null);
+        document.body.classList.remove('screen-sharing-active');
       }
     });
 
