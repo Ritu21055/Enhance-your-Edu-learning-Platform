@@ -15,6 +15,14 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
   });
   console.log('🖥️ Screen Share: Hook initialization starting...');
   
+  // Test if useEffect is working at all
+  console.log('🖥️ Screen Share: About to declare useEffect...');
+  
+  // Test useEffect - this should always run
+  useEffect(() => {
+    console.log('🖥️ Screen Share: TEST useEffect is working!');
+  }, []);
+  
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState(null);
   const [remoteScreenStream, setRemoteScreenStream] = useState(null);
