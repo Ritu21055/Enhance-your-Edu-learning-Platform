@@ -28,6 +28,13 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
 
   // Initialize screen sharing socket events
   useEffect(() => {
+    console.log('🖥️ Screen Share: useEffect triggered', {
+      hasSocket: !!socket,
+      socketConnected: socket?.connected,
+      socketId: socket?.id,
+      hasOn: !!socket?.on
+    });
+    
     if (!socket || !socket.on) {
       console.log('🖥️ Screen Share: Socket not available, skipping event setup');
       return;
@@ -49,6 +56,15 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     // Test socket connection
     console.log('🖥️ Screen Share: Testing socket connection...');
     socket.emit('test-screen-share', { message: 'Testing screen share socket', timestamp: Date.now() });
+    
+    // Add a simple test to see if socket is working
+    console.log('🖥️ Screen Share: Testing basic socket functionality...');
+    socket.emit('test-connection', { 
+      message: 'Testing basic socket connection from participant', 
+      timestamp: Date.now(),
+      participantId: userName,
+      meetingId: meetingId
+    });
     
     // Add debugging for all socket events
     const originalEmit = socket.emit;
