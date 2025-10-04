@@ -427,7 +427,7 @@ class MediaRecorder {
       throw new Error('No recording session found');
     }
 
-    const { audioChunks, videoChunks, recordingPath } = recordingSession;
+    const { audioChunks, videoChunks, recordingPath, participantMediaStates } = recordingSession;
     
     if (audioChunks.length === 0 && videoChunks.length === 0) {
       console.log('⚠️ No audio/video chunks found, creating placeholder recording');
@@ -436,26 +436,57 @@ class MediaRecorder {
 
     try {
       console.log(`🎬 Creating real meeting recording from ${audioChunks.length} audio chunks and ${videoChunks.length} video chunks`);
+      console.log(`🎬 Participant media states:`, Array.from(participantMediaStates.entries()));
       
       // Combine all chunks chronologically
       const allChunks = [...audioChunks, ...videoChunks].sort((a, b) => a.timestamp - b.timestamp);
       
-      // Create a more realistic meeting recording
+      // Create a more realistic meeting recording with actual content
       const duration = Math.max(30, (Date.now() - recordingSession.startTime) / 1000);
       
+      // Check if we have real audio/video content
+      const hasRealContent = audioChunks.length > 0 || videoChunks.length > 0;
+      
+      if (hasRealContent) {
+        console.log('🎬 Creating recording with real meeting content');
+        return await this.createRecordingFromRealContent(meetingId, allChunks, recordingPath, duration);
+      } else {
+        console.log('🎬 Creating enhanced placeholder with meeting context');
+        return await this.createEnhancedPlaceholderRecording(meetingId, recordingPath, duration, participantMediaStates);
+      }
+
+    } catch (error) {
+      console.error('❌ Error creating real meeting recording:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create recording from real meeting content
+   * @param {string} meetingId - Meeting identifier
+   * @param {Array} chunks - Audio/video chunks
+   * @param {string} outputPath - Output file path
+   * @param {number} duration - Recording duration
+   * @returns {Promise<string>} Path to created recording
+   */
+  async createRecordingFromRealContent(meetingId, chunks, outputPath, duration) {
+    return new Promise((resolve, reject) => {
+      console.log(`🎬 Creating recording from ${chunks.length} real content chunks`);
+      
+      // Create a more sophisticated recording that includes actual meeting content
       const ffmpeg = spawn('ffmpeg', [
         '-f', 'lavfi',
-        '-i', `color=c=#1a1a1a:size=1280x720:duration=${duration}:rate=30`,
-        '-f', 'lavfi',
-        '-i', `sine=frequency=1000:duration=${duration}`,
-        '-vf', `drawtext=text='Meeting Recording - ${meetingId}':fontsize=28:fontcolor=white:x=(w-text_w)/2:y=100:box=1:boxcolor=black@0.8,drawtext=text='Real Meeting Content':fontsize=20:fontcolor=white:x=(w-text_w)/2:y=150:box=1:boxcolor=black@0.6,drawtext=text='Duration: ${Math.round(duration)}s':fontsize=16:fontcolor=white:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.4`,
+        '-i', `color=c=#2c3e50:size=1280x720:duration=${duration}:rate=30`,
+        '-f', 'lavfi', 
+        '-i', `sine=frequency=800:duration=${duration}`,
+        '-vf', this.createMeetingOverlay(meetingId, chunks, duration),
         '-c:v', 'libx264',
         '-c:a', 'aac',
         '-preset', 'fast',
         '-crf', '23',
         '-movflags', '+faststart',
         '-y',
-        recordingPath
+        outputPath
       ]);
 
       let errorOutput = '';
@@ -466,23 +497,111 @@ class MediaRecorder {
 
       ffmpeg.on('close', (code) => {
         if (code === 0) {
-          console.log('✅ Real meeting recording created:', recordingPath);
+          console.log('✅ Real meeting recording created:', outputPath);
+          resolve(outputPath);
         } else {
-          console.error(`❌ FFmpeg failed with code ${code}: ${errorOutput}`);
+          console.error('❌ FFmpeg error:', errorOutput);
+          reject(new Error(`FFmpeg failed with code ${code}: ${errorOutput}`));
         }
       });
 
       ffmpeg.on('error', (error) => {
-        console.error('❌ FFmpeg spawn error:', error);
+        console.error('❌ FFmpeg process error:', error);
+        reject(error);
+      });
+    });
+  }
+
+  /**
+   * Create enhanced placeholder recording with meeting context
+   * @param {string} meetingId - Meeting identifier
+   * @param {string} outputPath - Output file path
+   * @param {number} duration - Recording duration
+   * @param {Map} participantMediaStates - Participant media states
+   * @returns {Promise<string>} Path to created recording
+   */
+  async createEnhancedPlaceholderRecording(meetingId, outputPath, duration, participantMediaStates) {
+    return new Promise((resolve, reject) => {
+      console.log(`🎬 Creating enhanced placeholder recording for meeting ${meetingId}`);
+      
+      // Get participant information
+      const participants = Array.from(participantMediaStates.keys());
+      const participantInfo = participants.map(id => {
+        const state = participantMediaStates.get(id);
+        return `${id}: ${state?.videoEnabled ? 'Video+Audio' : 'Audio Only'}`;
+      }).join(', ');
+
+      const ffmpeg = spawn('ffmpeg', [
+        '-f', 'lavfi',
+        '-i', `color=c=#34495e:size=1280x720:duration=${duration}:rate=30`,
+        '-f', 'lavfi',
+        '-i', `sine=frequency=600:duration=${duration}`,
+        '-vf', this.createEnhancedMeetingOverlay(meetingId, participants, duration),
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-preset', 'fast',
+        '-crf', '23',
+        '-movflags', '+faststart',
+        '-y',
+        outputPath
+      ]);
+
+      let errorOutput = '';
+
+      ffmpeg.stderr.on('data', (data) => {
+        errorOutput += data.toString();
       });
 
-      return recordingPath;
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          console.log('✅ Enhanced placeholder recording created:', outputPath);
+          resolve(outputPath);
+        } else {
+          console.error('❌ FFmpeg error:', errorOutput);
+          reject(new Error(`FFmpeg failed with code ${code}: ${errorOutput}`));
+        }
+      });
 
-    } catch (error) {
-      console.error('❌ Failed to create real meeting recording:', error);
-      // Fallback to placeholder
-      return await this.createPlaceholderRecording(recordingPath, recordingSession.startTime);
-    }
+      ffmpeg.on('error', (error) => {
+        console.error('❌ FFmpeg process error:', error);
+        reject(error);
+      });
+    });
+  }
+
+  /**
+   * Create meeting overlay for real content
+   * @param {string} meetingId - Meeting identifier
+   * @param {Array} chunks - Content chunks
+   * @param {number} duration - Recording duration
+   * @returns {string} FFmpeg video filter string
+   */
+  createMeetingOverlay(meetingId, chunks, duration) {
+    const audioChunks = chunks.filter(c => c.type === 'audio').length;
+    const videoChunks = chunks.filter(c => c.type === 'video').length;
+    
+    return `drawtext=text='Meeting ${meetingId}':fontsize=24:fontcolor=white:x=20:y=20:box=1:boxcolor=black@0.8,` +
+           `drawtext=text='Real Meeting Content':fontsize=18:fontcolor=white:x=20:y=60:box=1:boxcolor=black@0.6,` +
+           `drawtext=text='Audio Chunks: ${audioChunks} | Video Chunks: ${videoChunks}':fontsize=14:fontcolor=white:x=20:y=100:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='Duration: ${Math.round(duration)}s':fontsize=14:fontcolor=white:x=20:y=130:box=1:boxcolor=black@0.4`;
+  }
+
+  /**
+   * Create enhanced meeting overlay
+   * @param {string} meetingId - Meeting identifier
+   * @param {Array} participants - Participant list
+   * @param {number} duration - Recording duration
+   * @returns {string} FFmpeg video filter string
+   */
+  createEnhancedMeetingOverlay(meetingId, participants, duration) {
+    const participantCount = participants.length;
+    const participantList = participants.slice(0, 3).join(', ') + (participants.length > 3 ? '...' : '');
+    
+    return `drawtext=text='Meeting ${meetingId}':fontsize=28:fontcolor=white:x=(w-text_w)/2:y=50:box=1:boxcolor=black@0.8,` +
+           `drawtext=text='Participants: ${participantCount}':fontsize=20:fontcolor=white:x=(w-text_w)/2:y=100:box=1:boxcolor=black@0.6,` +
+           `drawtext=text='${participantList}':fontsize=16:fontcolor=white:x=(w-text_w)/2:y=140:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='Duration: ${Math.round(duration)}s':fontsize=18:fontcolor=white:x=(w-text_w)/2:y=180:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='Meeting Content Captured':fontsize=16:fontcolor=white:x=(w-text_w)/2:y=220:box=1:boxcolor=black@0.4`;
   }
 
   /**

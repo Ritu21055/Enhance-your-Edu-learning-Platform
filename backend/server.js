@@ -57,6 +57,32 @@ app.use(express.json());
 // Serve static files (highlight reels)
 app.use('/output', express.static('output'));
 
+// API endpoint to get highlight reel for a meeting
+app.get('/api/meetings/:meetingId/highlight-reel', async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const history = await meetingHistoryManager.getMeetingHistory(meetingId);
+    
+    if (!history) {
+      return res.status(404).json({ error: 'Meeting history not found' });
+    }
+    
+    if (!history.highlightReel) {
+      return res.status(404).json({ error: 'Highlight reel not found for this meeting' });
+    }
+    
+    res.json({
+      meetingId,
+      highlightReel: history.highlightReel,
+      meeting: history.meeting,
+      highlights: history.highlights
+    });
+  } catch (error) {
+    console.error('❌ Error getting highlight reel:', error);
+    res.status(500).json({ error: 'Failed to get highlight reel' });
+  }
+});
+
 // Store active meetings
 const activeMeetings = new Map();
 
@@ -2034,16 +2060,16 @@ io.on('connection', (socket) => {
           context: recentContext.substring(0, 100) + '...'
         });
         
-        // More strict validation - require substantial conversation
-        if (recentContext.length < 200) {
-          console.log('📝 Skipping question generation - insufficient transcript context (need at least 200 chars)');
+        // Basic validation - require minimal conversation
+        if (recentContext.length < 100) {
+          console.log('📝 Skipping question generation - insufficient transcript context (need at least 100 chars)');
           return;
         }
         
         // Check if context contains actual conversation (not just empty strings)
         const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
-        if (meaningfulWords < 20) {
-          console.log('📝 Skipping question generation - insufficient meaningful words (need at least 20 words)');
+        if (meaningfulWords < 10) {
+          console.log('📝 Skipping question generation - insufficient meaningful words (need at least 10 words)');
           return;
         }
         
@@ -2250,11 +2276,22 @@ io.on('connection', (socket) => {
       llmService.addToTranscriptHistory(meetingId, transcript);
       
       // Analyze transcript for automatic highlight detection
+      console.log('🤖 AI Highlight: Analyzing transcript for highlights:', {
+        meetingId,
+        transcript: transcript.substring(0, 100) + '...',
+        timestamp
+      });
+      
       const highlight = aiHighlightDetector.analyzeAudioChunk(
         null, // No audio data for now, just text analysis
         timestamp,
         transcript
       );
+      
+      console.log('🤖 AI Highlight: Analysis result:', {
+        hasHighlight: !!highlight,
+        highlight: highlight
+      });
       
       if (highlight) {
         console.log('🤖 AI detected highlight:', highlight);
@@ -2410,7 +2447,8 @@ io.on('connection', (socket) => {
           highlights,
           recordingSession,
           transcriptHistory,
-          sentimentData
+          sentimentData,
+          highlightReelPath // Include highlight reel path
         );
         console.log('💾 Meeting saved to history:', historyPath);
         
@@ -2420,7 +2458,8 @@ io.on('connection', (socket) => {
           historyPath,
           highlights: highlights.length,
           transcriptEntries: transcriptHistory.length,
-          hasRecording: !!recordingSession
+          hasRecording: !!recordingSession,
+          highlightReelPath: highlightReelPath
         });
       } catch (historyError) {
         console.error('❌ Failed to save meeting to history:', historyError);

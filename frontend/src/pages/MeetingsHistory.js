@@ -30,6 +30,7 @@ import {
 } from '@mui/icons-material';
 import '../css/MeetingsHistory.css';
 import { getMeetings, getMeetingStats, clearAllMeetings } from '../services/meetingsService';
+import { getMeetingHistory } from '../services/meetingHistoryApi';
 
 const MeetingsHistory = () => {
   const navigate = useNavigate();
@@ -90,7 +91,18 @@ const MeetingsHistory = () => {
     }, 300);
   };
 
-  // Highlight functionality will be implemented when real highlights are available
+  // Load highlight reel data for meetings
+  const loadHighlightReelData = async (meetingId) => {
+    try {
+      const history = await getMeetingHistory(meetingId);
+      if (history && history.highlightReel) {
+        return history.highlightReel;
+      }
+    } catch (error) {
+      console.error('Error loading highlight reel data:', error);
+    }
+    return null;
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -294,13 +306,33 @@ const MeetingsHistory = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          icon={<Star />}
-                          label="No Highlights Available"
-                          size="small"
-                          variant="outlined"
-                          className="no-highlights-chip"
-                        />
+                        {meeting.highlightReel ? (
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Chip
+                              icon={<Star />}
+                              label={`${meeting.highlightReel.highlightCount || 0} highlights`}
+                              color="primary"
+                              size="small"
+                              className="highlights-chip"
+                            />
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<PlayArrow />}
+                              onClick={() => window.open(meeting.highlightReel.url, '_blank')}
+                            >
+                              View Reel
+                            </Button>
+                          </Box>
+                        ) : (
+                          <Chip
+                            icon={<Star />}
+                            label="No Highlights Available"
+                            size="small"
+                            variant="outlined"
+                            className="no-highlights-chip"
+                          />
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button

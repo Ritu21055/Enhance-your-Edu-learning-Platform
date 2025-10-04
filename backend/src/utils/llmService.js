@@ -817,66 +817,31 @@ Generate only the question, no explanations.`;
 
   // Intelligent question generation trigger based on conversation flow
   shouldGenerateQuestionIntelligently(meetingId, transcriptContext) {
-    // First check basic time interval - increased to 3 minutes minimum
+    // First check basic time interval - exactly 3 minutes minimum
     if (!this.shouldGenerateQuestion(meetingId, 3)) {
+      console.log('🤖 Question trigger: Time interval not met (need 3 minutes)');
       return false;
     }
 
-    // Only generate questions if there's substantial conversation (at least 500 characters)
-    if (!transcriptContext || transcriptContext.length < 500) {
-      console.log('🤖 Question trigger: Insufficient conversation content (need at least 500 chars)');
+    // Only require basic conversation (reduced from 500 to 200 characters)
+    if (!transcriptContext || transcriptContext.length < 200) {
+      console.log('🤖 Question trigger: Insufficient conversation content (need at least 200 chars)');
       return false;
     }
     
-    // Check for meaningful conversation (not just repeated words or empty content)
+    // Check for basic meaningful conversation (reduced requirements)
     const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
     const uniqueWords = new Set(words.map(word => word.toLowerCase()));
     
-    if (words.length < 30 || uniqueWords.size < 10) {
-      console.log('🤖 Question trigger: Insufficient meaningful conversation (need at least 30 words, 10 unique)');
+    if (words.length < 15 || uniqueWords.size < 5) {
+      console.log('🤖 Question trigger: Insufficient meaningful conversation (need at least 15 words, 5 unique)');
       return false;
     }
 
-    // Analyze conversation for question-worthy moments
-    const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
-    
-    // Only generate questions if there are clear unresolved issues
-    if (conversationAnalysis.unresolvedIssues.length > 0) {
-      console.log('🤖 Question trigger: Unresolved issues detected');
-      return true;
-    }
-
-    // Only generate questions if there are significant key points that need follow-up
-    if (conversationAnalysis.keyPoints.length > 2) {
-      console.log('🤖 Question trigger: Multiple key points need follow-up');
-      return true;
-    }
-
-    // Check if conversation has been active recently
-    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    const recentSentences = sentences.slice(-5); // Last 5 sentences
-    
-    // Only generate questions if there's been substantial recent activity
-    if (recentSentences.length < 3) {
-      console.log('🤖 Question trigger: Insufficient recent conversation activity');
-      return false;
-    }
-    
-    // Check if recent conversation has question patterns
-    const hasQuestions = recentSentences.some(sentence => 
-      sentence.toLowerCase().includes('?') || 
-      sentence.toLowerCase().includes('what') || 
-      sentence.toLowerCase().includes('how') || 
-      sentence.toLowerCase().includes('why')
-    );
-
-    // Only generate questions if conversation is stalling AND there's been substantial activity
-    if (!hasQuestions && sentences.length > 8 && transcriptContext.length > 500) {
-      console.log('🤖 Question trigger: Conversation stalling with substantial content');
-      return true;
-    }
-
-    return false;
+    // Always generate questions every 3 minutes if there's basic conversation
+    // This ensures regular question generation based on conversation
+    console.log('🤖 Question trigger: Time interval met with sufficient conversation - generating question');
+    return true;
   }
 
   // Update last question time

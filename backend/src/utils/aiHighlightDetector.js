@@ -127,7 +127,7 @@ class AIHighlightDetector {
       ]
     };
     
-    this.highlightThreshold = 0.5; // Lower threshold for better detection
+    this.highlightThreshold = 0.3; // Lower threshold for better detection
     this.minHighlightDuration = 5; // seconds
     this.maxHighlightDuration = 30; // seconds
     
@@ -190,6 +190,13 @@ class AIHighlightDetector {
    */
   analyzeAudioChunk(audioData, timestamp, transcript = '') {
     try {
+      console.log('🤖 AI Highlight Detector: Starting analysis', {
+        hasAudioData: !!audioData,
+        timestamp,
+        transcriptLength: transcript.length,
+        transcript: transcript.substring(0, 50) + '...'
+      });
+      
       // Calculate volume level
       const volume = this.calculateVolume(audioData);
       this.volumeHistory.push({ timestamp, volume });
@@ -207,6 +214,14 @@ class AIHighlightDetector {
       // Enhanced conversation analysis for better highlight detection
       const conversationAnalysis = this.analyzeConversationForHighlights(transcript);
       
+      console.log('🤖 AI Highlight Detector: Analysis components', {
+        volume,
+        speechPattern,
+        textAnalysis,
+        conversationAnalysis,
+        highlightThreshold: this.highlightThreshold
+      });
+      
       // Calculate importance score with conversation context
       const importanceScore = this.calculateImportanceScore({
         volume,
@@ -216,17 +231,26 @@ class AIHighlightDetector {
         conversationAnalysis
       });
       
+      console.log('🤖 AI Highlight Detector: Importance score calculated', {
+        importanceScore,
+        highlightThreshold: this.highlightThreshold,
+        willCreateHighlight: importanceScore > this.highlightThreshold
+      });
+      
       // Check if this moment should be highlighted
       if (importanceScore > this.highlightThreshold) {
-        return this.createHighlight(timestamp, importanceScore, {
+        const highlight = this.createHighlight(timestamp, importanceScore, {
           volume,
           speechPattern,
           textAnalysis,
           transcript,
           conversationAnalysis
         });
+        console.log('🤖 AI Highlight Detector: Created highlight', highlight);
+        return highlight;
       }
       
+      console.log('🤖 AI Highlight Detector: No highlight created (score too low)');
       return null;
     } catch (error) {
       console.error('Error analyzing audio chunk:', error);

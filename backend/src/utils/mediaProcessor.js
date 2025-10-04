@@ -209,6 +209,10 @@ class MediaProcessor {
       const hasVideo = highlight.hasVideo !== false; // Default to true if not specified
       const hasAudio = highlight.hasAudio !== false; // Default to true if not specified
       
+      // Enhanced overlay with participant information
+      const participantInfo = highlight.participantId ? `Participant: ${highlight.participantId}` : 'Meeting Discussion';
+      const highlightType = highlight.type || 'Important Moment';
+      
       let ffmpegArgs = [
         '-i', inputPath,
         '-ss', startTime.toString(),
@@ -219,15 +223,15 @@ class MediaProcessor {
         '-avoid_negative_ts', 'make_zero'
       ];
       
-      // Handle video encoding
+      // Handle video encoding with enhanced overlays
       if (hasVideo) {
         ffmpegArgs.push('-c:v', 'libx264');
-        // Add video overlay
-        ffmpegArgs.push('-vf', `drawtext=text='${overlayText}':fontsize=20:fontcolor=white:x=20:y=20:box=1:boxcolor=black@0.7`);
+        // Add comprehensive video overlay with participant info
+        ffmpegArgs.push('-vf', this.createEnhancedHighlightOverlay(highlight, overlayText, participantInfo, highlightType));
       } else {
-        // Audio-only: create video with audio waveform visualization
+        // Audio-only: create video with audio waveform visualization and participant info
         ffmpegArgs.push('-c:v', 'libx264');
-        ffmpegArgs.push('-vf', `color=c=#2c3e50:size=1280x720,drawtext=text='${overlayText}':fontsize=24:fontcolor=white:x=(w-text_w)/2:y=100:box=1:boxcolor=black@0.8,drawtext=text='Audio Only':fontsize=18:fontcolor=white:x=(w-text_w)/2:y=150:box=1:boxcolor=black@0.6`);
+        ffmpegArgs.push('-vf', this.createAudioOnlyOverlay(highlight, overlayText, participantInfo, highlightType));
       }
       
       // Handle audio encoding
@@ -284,6 +288,46 @@ class MediaProcessor {
                     highlight.priority === 'medium' ? 'MEDIUM PRIORITY' : 'LOW PRIORITY';
     
     return `${emoji} ${priority} - ${highlight.description || highlight.type.toUpperCase()}`;
+  }
+
+  /**
+   * Create enhanced highlight overlay with participant information
+   * @param {Object} highlight - Highlight object
+   * @param {string} overlayText - Main overlay text
+   * @param {string} participantInfo - Participant information
+   * @param {string} highlightType - Type of highlight
+   * @returns {string} FFmpeg video filter string
+   */
+  createEnhancedHighlightOverlay(highlight, overlayText, participantInfo, highlightType) {
+    const timestamp = new Date(highlight.timestamp).toLocaleTimeString();
+    const confidence = highlight.importanceScore ? Math.round(highlight.importanceScore * 100) : 0;
+    
+    return `drawtext=text='${highlightType}':fontsize=24:fontcolor=white:x=20:y=20:box=1:boxcolor=black@0.8,` +
+           `drawtext=text='${participantInfo}':fontsize=18:fontcolor=white:x=20:y=60:box=1:boxcolor=black@0.6,` +
+           `drawtext=text='${overlayText}':fontsize=16:fontcolor=white:x=20:y=100:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='Time: ${timestamp}':fontsize=14:fontcolor=white:x=20:y=140:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='Confidence: ${confidence}%':fontsize=14:fontcolor=white:x=20:y=170:box=1:boxcolor=black@0.4`;
+  }
+
+  /**
+   * Create audio-only overlay with participant information
+   * @param {Object} highlight - Highlight object
+   * @param {string} overlayText - Main overlay text
+   * @param {string} participantInfo - Participant information
+   * @param {string} highlightType - Type of highlight
+   * @returns {string} FFmpeg video filter string
+   */
+  createAudioOnlyOverlay(highlight, overlayText, participantInfo, highlightType) {
+    const timestamp = new Date(highlight.timestamp).toLocaleTimeString();
+    const confidence = highlight.importanceScore ? Math.round(highlight.importanceScore * 100) : 0;
+    
+    return `color=c=#2c3e50:size=1280x720,` +
+           `drawtext=text='${highlightType}':fontsize=28:fontcolor=white:x=(w-text_w)/2:y=100:box=1:boxcolor=black@0.8,` +
+           `drawtext=text='${participantInfo}':fontsize=20:fontcolor=white:x=(w-text_w)/2:y=150:box=1:boxcolor=black@0.6,` +
+           `drawtext=text='Audio Discussion':fontsize=18:fontcolor=white:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.6,` +
+           `drawtext=text='${overlayText}':fontsize=16:fontcolor=white:x=(w-text_w)/2:y=250:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='Time: ${timestamp}':fontsize=14:fontcolor=white:x=(w-text_w)/2:y=290:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='Confidence: ${confidence}%':fontsize=14:fontcolor=white:x=(w-text_w)/2:y=320:box=1:boxcolor=black@0.4`;
   }
 
   /**

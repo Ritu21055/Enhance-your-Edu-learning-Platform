@@ -36,7 +36,7 @@ class MeetingHistoryManager {
    * @param {Object} sentimentData - Sentiment analysis data
    * @returns {Promise<string>} Path to saved meeting file
    */
-  async saveMeetingToHistory(meetingData, highlights = [], recordingSession = null, transcriptHistory = [], sentimentData = null) {
+  async saveMeetingToHistory(meetingData, highlights = [], recordingSession = null, transcriptHistory = [], sentimentData = null, highlightReelPath = null) {
     try {
       const meetingId = meetingData.id;
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -67,6 +67,12 @@ class MeetingHistoryManager {
           endTime: recordingSession.endTime,
           duration: recordingSession.endTime - recordingSession.startTime,
           options: recordingSession.options
+        } : null,
+        highlightReel: highlightReelPath ? {
+          path: highlightReelPath,
+          url: `/output/${path.basename(highlightReelPath)}`,
+          generatedAt: new Date().toISOString(),
+          highlightCount: highlights.length
         } : null,
         transcript: {
           totalEntries: transcriptHistory.length,
