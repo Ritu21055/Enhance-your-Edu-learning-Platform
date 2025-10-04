@@ -13,16 +13,28 @@ const getNetworkConfig = () => {
   const protocol = window.location.protocol;
   const port = window.location.port;
   
+  console.log('🔍 Network Detection:', {
+    hostname,
+    protocol,
+    port,
+    isLocalhost: hostname === 'localhost' || hostname === '127.0.0.1',
+    isIP: /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+  });
+  
   // If accessing via localhost or 127.0.0.1, use local config
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    console.log('🏠 Using localhost config');
     return LOCAL_CONFIG;
   }
   
   // For all other cases (including IP addresses), use the same hostname for backend
-  return {
+  const config = {
     BACKEND_URL: `${protocol}//${hostname}:5000`,
     FRONTEND_URL: `${protocol}//${hostname}:${port || 3000}`
   };
+  
+  console.log('🌐 Using network config:', config);
+  return config;
 };
 
 // Get the appropriate configuration
@@ -33,7 +45,28 @@ export const NETWORK_CONFIG = config;
 
 // Helper function to get the backend URL
 export const getBackendUrl = () => {
-  return config.BACKEND_URL;
+  const backendUrl = config.BACKEND_URL;
+  console.log('🔗 Backend URL:', backendUrl);
+  return backendUrl;
+};
+
+// Helper function to test backend connectivity
+export const testBackendConnection = async () => {
+  const backendUrl = getBackendUrl();
+  try {
+    console.log('🧪 Testing backend connection to:', backendUrl);
+    const response = await fetch(`${backendUrl}/health`);
+    if (response.ok) {
+      console.log('✅ Backend connection successful');
+      return { success: true, url: backendUrl };
+    } else {
+      console.log('❌ Backend responded with error:', response.status);
+      return { success: false, error: `HTTP ${response.status}`, url: backendUrl };
+    }
+  } catch (error) {
+    console.log('❌ Backend connection failed:', error.message);
+    return { success: false, error: error.message, url: backendUrl };
+  }
 };
 
 // Helper function to get the frontend URL

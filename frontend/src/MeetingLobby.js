@@ -12,7 +12,7 @@ import {
   TextField
 } from '@mui/material';
 import io from 'socket.io-client';
-import { getBackendUrl } from './config/network';
+import { getBackendUrl, testBackendConnection } from './config/network';
 import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
 import './css/MeetingLobby.css';
@@ -397,21 +397,14 @@ const MeetingLobby = () => {
                 size="small"
                 onClick={async () => {
                   console.log('🔍 Lobby Debug: Testing backend connection...');
-                  console.log('🔍 Lobby Debug: Backend URL:', getBackendUrl());
-                  console.log('🔍 Lobby Debug: Current hostname:', window.location.hostname);
+                  const result = await testBackendConnection();
                   
-                  try {
-                    const response = await fetch(`${getBackendUrl()}/health`);
-                    if (response.ok) {
-                      console.log('✅ Lobby Debug: Backend is reachable!');
-                      setError('');
-                    } else {
-                      console.log('❌ Lobby Debug: Backend responded with error:', response.status);
-                      setError(`Backend error: ${response.status}`);
-                    }
-                  } catch (error) {
-                    console.log('❌ Lobby Debug: Backend is not reachable:', error.message);
-                    setError(`Backend not reachable: ${error.message}`);
+                  if (result.success) {
+                    console.log('✅ Lobby Debug: Backend is reachable!');
+                    setError('');
+                  } else {
+                    console.log('❌ Lobby Debug: Backend connection failed:', result.error);
+                    setError(`Backend not reachable: ${result.error} (URL: ${result.url})`);
                   }
                 }}
                 style={{ marginTop: '8px' }}

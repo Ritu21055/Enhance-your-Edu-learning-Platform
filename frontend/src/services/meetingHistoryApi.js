@@ -1,6 +1,6 @@
 // meetingHistoryApi.js - API service for meeting history backend integration
 
-const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://192.168.0.108:5000';
 
 // Get all meeting histories from backend
 export const getAllMeetingHistories = async () => {
