@@ -413,55 +413,52 @@ const UltraSimpleVideo = ({
 
   // REMOVED: Duplicate video visibility handling - consolidated into main effects
 
-  // FORCE HOST VIDEO: Ensure host video is always visible to participants
+  // GENTLE HOST VIDEO: Ensure host video is visible (with or without participants)
   useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Force host video visibility check');
+    console.log('🎥 UltraSimpleVideo: Gentle host video visibility check');
+    console.log('🎥 UltraSimpleVideo: Other participants count:', otherParticipants.length);
     
-    // Force host video to be visible for participants
-    if (otherParticipants.length > 0) {
-      console.log('🎥 UltraSimpleVideo: Participants present, ensuring host video visibility');
+    // Only set up host video if it's missing or not properly configured
+    if (localVideoRef.current && localStream) {
+      const needsSetup = !localVideoRef.current.srcObject || 
+                        localVideoRef.current.style.display === 'none' ||
+                        localVideoRef.current.style.visibility === 'hidden';
       
-      // Force local video (host) to be visible
-      if (localVideoRef.current && localStream) {
-        console.log('🎥 UltraSimpleVideo: Force ensuring local video (host) is visible');
+      if (needsSetup) {
+        console.log('🎥 UltraSimpleVideo: Setting up local video (host)');
         localVideoRef.current.srcObject = localStream;
         localVideoRef.current.style.display = 'block';
         localVideoRef.current.style.visibility = 'visible';
         localVideoRef.current.style.opacity = '1';
-        localVideoRef.current.style.position = 'relative';
-        localVideoRef.current.style.zIndex = '1';
         localVideoRef.current.play().catch(() => {});
       }
     }
   }, [otherParticipants.length, localStream]);
 
-  // AGGRESSIVE HOST VIDEO PROTECTION: Periodic check to ensure host video stays visible
+  // GENTLE HOST VIDEO PROTECTION: Light check to ensure host video stays visible (reduced frequency)
   useEffect(() => {
-    if (otherParticipants.length > 0 && localStream) {
-      console.log('🎥 UltraSimpleVideo: Starting aggressive host video protection');
+    if (localStream) {
+      console.log('🎥 UltraSimpleVideo: Starting gentle host video protection');
+      console.log('🎥 UltraSimpleVideo: Other participants count:', otherParticipants.length);
       
       const forceHostVideoInterval = setInterval(() => {
         if (localVideoRef.current && localStream) {
-          // Check if host video is actually visible
-          const isVisible = localVideoRef.current.style.display !== 'none' && 
-                           localVideoRef.current.style.visibility !== 'hidden' && 
-                           localVideoRef.current.style.opacity !== '0';
+          // Only check if host video is completely missing, not just hidden
+          const hasNoStream = !localVideoRef.current.srcObject;
           
-          if (!isVisible || !localVideoRef.current.srcObject) {
-            console.log('🎥 UltraSimpleVideo: AGGRESSIVE - Host video not visible, forcing visibility');
+          if (hasNoStream) {
+            console.log('🎥 UltraSimpleVideo: GENTLE - Host video missing stream, restoring');
             localVideoRef.current.srcObject = localStream;
             localVideoRef.current.style.display = 'block';
             localVideoRef.current.style.visibility = 'visible';
             localVideoRef.current.style.opacity = '1';
-            localVideoRef.current.style.position = 'relative';
-            localVideoRef.current.style.zIndex = '999';
             localVideoRef.current.play().catch(() => {});
           }
         }
-      }, 2000); // Check every 2 seconds
+      }, 5000); // Reduced frequency: Check every 5 seconds instead of 2
       
       return () => {
-        console.log('🎥 UltraSimpleVideo: Stopping aggressive host video protection');
+        console.log('🎥 UltraSimpleVideo: Stopping gentle host video protection');
         clearInterval(forceHostVideoInterval);
       };
     }
@@ -472,6 +469,7 @@ const UltraSimpleVideo = ({
     // Expose global function for emergency host video fix
     window.forceHostVideoVisible = () => {
       console.log('🚨 EMERGENCY: Forcing host video to be visible...');
+      console.log('🎥 UltraSimpleVideo: Other participants count:', otherParticipants.length);
       
       // Find all video elements in the DOM
       const allVideos = document.querySelectorAll('video');
@@ -521,7 +519,7 @@ const UltraSimpleVideo = ({
     return () => {
       delete window.forceHostVideoVisible;
     };
-  }, [remoteStreams]);
+  }, [remoteStreams, otherParticipants.length]);
 
   // DISABLED: Nuclear option completely removed to prevent interference
   // The aggressive protection systems have been removed to prevent video blinking
