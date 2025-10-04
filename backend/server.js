@@ -1051,6 +1051,40 @@ app.post('/api/meetings/history/cleanup', async (req, res) => {
   }
 });
 
+// Save meeting to history endpoint
+app.post('/api/meetings/history/save', async (req, res) => {
+  try {
+    const { meetingData, highlights = [], recordingSession = null, transcriptHistory = [], sentimentData = null } = req.body;
+    
+    console.log('💾 Saving meeting to history:', meetingData.id);
+    
+    if (!meetingData || !meetingData.id) {
+      return res.status(400).json({ error: 'Meeting data is required' });
+    }
+    
+    // Save meeting to history
+    const historyPath = await meetingHistoryManager.saveMeetingToHistory(
+      meetingData,
+      highlights,
+      recordingSession,
+      transcriptHistory,
+      sentimentData
+    );
+    
+    console.log('✅ Meeting saved to history:', historyPath);
+    
+    res.json({ 
+      success: true,
+      message: 'Meeting saved to history successfully',
+      historyPath,
+      meetingId: meetingData.id
+    });
+  } catch (error) {
+    console.error('❌ Error saving meeting to history:', error);
+    res.status(500).json({ error: 'Failed to save meeting to history' });
+  }
+});
+
 // API endpoint to get all active meetings (persistent)
 app.get('/api/meetings/active', async (req, res) => {
   try {

@@ -50,6 +50,15 @@ export const getMeetingStatistics = async () => {
 // Save meeting to backend history
 export const saveMeetingToHistory = async (meetingData, highlights = [], recordingSession = null, transcriptHistory = [], sentimentData = null) => {
   try {
+    console.log('💾 MeetingHistoryApi: Attempting to save meeting to backend:', meetingData.id);
+    console.log('💾 MeetingHistoryApi: API URL:', `${API_BASE_URL}/api/meetings/history/save`);
+    console.log('💾 MeetingHistoryApi: Meeting data:', {
+      id: meetingData.id,
+      title: meetingData.title,
+      participants: meetingData.participants,
+      status: meetingData.status
+    });
+    
     const response = await fetch(`${API_BASE_URL}/api/meetings/history/save`, {
       method: 'POST',
       headers: {
@@ -64,14 +73,25 @@ export const saveMeetingToHistory = async (meetingData, highlights = [], recordi
       })
     });
     
+    console.log('💾 MeetingHistoryApi: Response status:', response.status);
+    console.log('💾 MeetingHistoryApi: Response ok:', response.ok);
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('💾 MeetingHistoryApi: Error response:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
     
     const data = await response.json();
+    console.log('💾 MeetingHistoryApi: Successfully saved meeting:', data);
     return data;
   } catch (error) {
-    console.error('Error saving meeting to history:', error);
+    console.error('💾 MeetingHistoryApi: Error saving meeting to history:', error);
+    console.error('💾 MeetingHistoryApi: Error details:', {
+      message: error.message,
+      stack: error.stack,
+      meetingId: meetingData?.id
+    });
     return null;
   }
 };

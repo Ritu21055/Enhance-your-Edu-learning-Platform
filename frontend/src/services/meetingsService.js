@@ -52,10 +52,20 @@ const storeMeeting = async (meeting) => {
     
     // Also save to backend
     try {
-      await saveMeetingToHistory(meeting);
-      console.log(`✅ Meeting ${meeting.id} saved to backend history`);
+      console.log(`💾 Attempting to save meeting ${meeting.id} to backend...`);
+      const backendResult = await saveMeetingToHistory(meeting);
+      if (backendResult) {
+        console.log(`✅ Meeting ${meeting.id} saved to backend history successfully`);
+      } else {
+        console.warn(`⚠️ Backend save returned null for meeting ${meeting.id}`);
+      }
     } catch (backendError) {
       console.warn(`⚠️ Failed to save meeting ${meeting.id} to backend:`, backendError);
+      console.warn(`⚠️ Backend error details:`, {
+        message: backendError.message,
+        stack: backendError.stack,
+        meetingId: meeting.id
+      });
       // Don't fail the whole operation if backend save fails
     }
     

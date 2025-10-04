@@ -143,6 +143,16 @@ const MeetingLobby = () => {
         console.log('🔍 Lobby: Setting isWaiting to false');
         setIsWaiting(false);
         setHasJoined(true);
+        
+        // Store meeting in history for participants too
+        const currentUsername = usernameRef.current || username;
+        console.log('🔍 Lobby: Creating meeting for participant with username:', currentUsername);
+        
+        const meeting = createMeeting(meetingId, `Meeting ${meetingId}`, [currentUsername]);
+        storeMeeting(meeting).catch(error => {
+          console.error('Failed to store participant meeting:', error);
+        });
+        
         // Connection timeout removed
         console.log('🔍 Lobby: Participant approved, navigating to meeting');
         console.log('🔍 Lobby: Username being sent:', username);
