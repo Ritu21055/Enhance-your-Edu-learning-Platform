@@ -169,9 +169,20 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     // Handle screen share stop
     socket.on('screen-share-stop', (data) => {
       console.log('🖥️ Screen Share: Received screen-share-stop', data);
+      console.log('🖥️ Screen Share: PARTICIPANT RECEIVED SCREEN SHARE STOP EVENT!');
+      console.log('🖥️ Screen Share: Stop data structure analysis:', {
+        hasData: !!data,
+        dataType: typeof data,
+        dataKeys: data ? Object.keys(data) : 'no data',
+        hasParticipantId: data && !!data.participantId,
+        participantIdValue: data?.participantId,
+        fullData: data,
+        dataStringified: JSON.stringify(data, null, 2)
+      });
       
       // Check if data and participantId exist before filtering
       if (data && data.participantId) {
+        console.log('🖥️ Screen Share: Removing participant from screen share list', data.participantId);
         setScreenShareParticipants(prev => 
           prev.filter(p => p && p.id !== data.participantId)
         );
@@ -183,6 +194,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         }
       } else {
         console.warn('🖥️ Screen Share: Invalid screen-share-stop data', data);
+        console.warn('🖥️ Screen Share: Expected data.participantId but got:', data?.participantId);
       }
     });
 
