@@ -258,5 +258,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-10-28T22:18:02.143Z"
+  },
+  "ZOT950": {
+    "title": "Meeting ZOT950",
+    "createdAt": "2025-10-28T22:20:53.846Z",
+    "endedAt": "2025-10-28T22:20:50.848Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-10-28T22:20:50.860Z"
   }
 }

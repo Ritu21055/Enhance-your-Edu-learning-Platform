@@ -366,6 +366,24 @@ const UltraSimpleVideo = ({
         console.log('🎥 UltraSimpleVideo: FORCE setting local video stream');
         localVideoRef.current.srcObject = localStream;
         localVideoRef.current.play().catch(() => {});
+        
+        // Force video to be visible
+        localVideoRef.current.style.display = 'block';
+        localVideoRef.current.style.visibility = 'visible';
+        localVideoRef.current.style.opacity = '1';
+        localVideoRef.current.style.position = 'absolute';
+        localVideoRef.current.style.top = '0';
+        localVideoRef.current.style.left = '0';
+        localVideoRef.current.style.zIndex = '3';
+        localVideoRef.current.style.width = '100%';
+        localVideoRef.current.style.height = '100%';
+        localVideoRef.current.style.objectFit = 'cover';
+        localVideoRef.current.style.backgroundColor = 'transparent';
+        localVideoRef.current.style.border = 'none';
+        localVideoRef.current.style.margin = '0';
+        localVideoRef.current.style.padding = '0';
+        
+        console.log('🎥 UltraSimpleVideo: Video element forced to be visible');
       }
     };
 
@@ -620,7 +638,11 @@ const UltraSimpleVideo = ({
         {/* Local Video */}
         <Box 
           key="local-video"
-          className={`video-item ${totalVideos > 2 ? 'video-item-scrollable' : ''} ${totalVideos === 1 ? 'single-video' : ''} ${isHost ? 'host-video' : ''}`}>
+          className={`video-item ${totalVideos > 2 ? 'video-item-scrollable' : ''} ${totalVideos === 1 ? 'single-video' : ''} ${isHost ? 'host-video' : ''}`}
+          style={{
+            backgroundColor: '#ff0000', // Bright red background to test if container is visible
+            minHeight: '200px'
+          }}>
           <video
             ref={localVideoRef}
             autoPlay
@@ -681,6 +703,12 @@ const UltraSimpleVideo = ({
             <div>Stream Tracks: {localStream?.getTracks?.()?.length || 0}</div>
             <div>Video Element: {localVideoRef?.current ? 'YES' : 'NO'}</div>
             <div>Video srcObject: {localVideoRef?.current?.srcObject ? 'YES' : 'NO'}</div>
+            <div>Video Display: {localVideoRef?.current?.style?.display || 'N/A'}</div>
+            <div>Video Visibility: {localVideoRef?.current?.style?.visibility || 'N/A'}</div>
+            <div>Video Opacity: {localVideoRef?.current?.style?.opacity || 'N/A'}</div>
+            <div>Video Width: {localVideoRef?.current?.style?.width || 'N/A'}</div>
+            <div>Video Height: {localVideoRef?.current?.style?.height || 'N/A'}</div>
+            <div>Video Z-Index: {localVideoRef?.current?.style?.zIndex || 'N/A'}</div>
           </div>
           
           <Typography 
