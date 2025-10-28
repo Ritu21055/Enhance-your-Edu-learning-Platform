@@ -198,5 +198,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-10-28T21:42:15.998Z"
+  },
+  "VSN194": {
+    "title": "Meeting VSN194",
+    "createdAt": "2025-10-28T21:45:24.188Z",
+    "endedAt": "2025-10-28T21:45:21.173Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-10-28T21:45:21.178Z"
   }
 }

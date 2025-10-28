@@ -835,6 +835,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
     await applyAudioConstraints(stream, participantId);
     
     const peer = new SimplePeer(peerConfig);
+    
+    // Store the peer immediately
+    peersRef.current[participantId] = peer;
 
     // Ensure audio track is properly added to the peer connection
     peer.on('connect', () => {
@@ -963,8 +966,6 @@ const useUltraSimplePeer = (meetingId, userName) => {
     peer.on('error', (error) => {
       console.error('Peer error:', error);
     });
-
-    peersRef.current[participantId] = peer;
   }, [localStream]);
 
   const isConnectionActive = useCallback((participantId) => {
