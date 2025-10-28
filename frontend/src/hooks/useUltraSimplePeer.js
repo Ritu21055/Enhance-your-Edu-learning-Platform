@@ -796,21 +796,19 @@ const useUltraSimplePeer = (meetingId, userName) => {
     
     const peerConfig = {
       initiator: shouldBeInitiator,
-      trickle: false,
+      trickle: true,
+      stream: stream,
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' }
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
         ],
         iceCandidatePoolSize: 10,
         bundlePolicy: 'max-bundle',
         rtcpMuxPolicy: 'require'
-      },
-      sdpTransform: (sdp) => {
-        return sdp
-          .replace(/a=fmtp:111 minptime=10;useinbandfec=1/g, 'a=fmtp:111 minptime=10;useinbandfec=1;stereo=0')
-          .replace(/a=fmtp:126 minptime=10;useinbandfec=1/g, 'a=fmtp:126 minptime=10;useinbandfec=1;stereo=0');
       }
     };
     
@@ -839,11 +837,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     // Store the peer immediately
     peersRef.current[participantId] = peer;
     
-    // Add stream immediately after peer creation
-    if (stream) {
-      peer.addStream(stream);
-      console.log(`ðŸ"— CREATE-PEER: Added stream to peer for ${participantId} immediately`);
-    }
+    // Stream is already passed in constructor
 
     // Ensure audio track is properly added to the peer connection
     peer.on('connect', () => {
@@ -1235,20 +1229,20 @@ const useUltraSimplePeer = (meetingId, userName) => {
       
       const peer = new SimplePeer({
         initiator: false,
-        trickle: false,
+        trickle: true,
+        stream: localStream,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
           ]
         }
       });
       
-      // Add stream immediately after peer creation
-      if (localStream) {
-        peer.addStream(localStream);
-        console.log(`ðŸ"— HANDLE-SIGNAL: Added local stream to peer for ${from} immediately`);
-      }
+      // Stream is already passed in constructor
 
       peer.on('signal', (signalData) => {
         console.log('ðŸ“¡ UltraSimplePeer: Sending signal to:', from);
