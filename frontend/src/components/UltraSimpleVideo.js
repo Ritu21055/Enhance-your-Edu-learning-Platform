@@ -325,74 +325,40 @@ const UltraSimpleVideo = ({
         el.style.display = 'block';
         el.style.visibility = 'visible';
         el.style.opacity = '1';
-        
-        // Assign stream if available
-        const stream = remoteStreams[participantId];
-        if (stream && stream.active && stream.getTracks().length > 0) {
-          el.srcObject = stream;
-          el.play().catch(() => {});
-        }
       }
     };
-  }, [remoteStreams]);
+  }, []);
 
   // MINIMAL: Simple audio element creation - NO CLEANUP, NO MANIPULATION
   const createAudioElement = useCallback((participantId) => {
     return (el) => {
       if (el && participantId) {
         remoteAudioRefs.current[participantId] = el;
-        
-        // Assign stream if available
-        const stream = remoteStreams[participantId];
-        if (stream && stream.active && stream.getTracks().length > 0) {
-          el.srcObject = stream;
-          el.play().catch(() => {});
-        }
       }
     };
-  }, [remoteStreams]);
+  }, []);
 
   // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Local video effect running:', {
-      hasLocalStream: !!localStream,
-      hasLocalVideoRef: !!localVideoRef.current,
-      streamActive: localStream?.active,
-      streamTracks: localStream?.getTracks()?.length
-    });
-    
     if (localStream && localVideoRef.current) {
-      console.log('🎥 UltraSimpleVideo: Setting up local video');
       localVideoRef.current.srcObject = localStream;
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
       localVideoRef.current.style.opacity = '1';
       localVideoRef.current.play().catch(() => {});
-      console.log('🎥 UltraSimpleVideo: Local video setup complete');
     }
   }, [localStream]);
 
   // CONSOLIDATED: Single effect for remote streams - NO DUPLICATE PROCESSING
   useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Remote streams effect running, streams:', Object.keys(remoteStreams));
-    
     Object.keys(remoteStreams).forEach(participantId => {
       const videoElement = remoteVideoRefs.current[participantId];
       const audioElement = remoteAudioRefs.current[participantId];
       const stream = remoteStreams[participantId];
       
-      console.log(`🎥 UltraSimpleVideo: Processing ${participantId}:`, {
-        hasVideoElement: !!videoElement,
-        hasAudioElement: !!audioElement,
-        hasStream: !!stream,
-        streamActive: stream?.active,
-        streamTracks: stream?.getTracks()?.length
-      });
-      
       if (stream && stream.active && stream.getTracks().length > 0) {
-        // Always update video element to ensure it shows the stream
-        if (videoElement) {
-          console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
+        // Only update video element if it doesn't have the stream
+        if (videoElement && videoElement.srcObject !== stream) {
           videoElement.srcObject = stream;
           videoElement.style.display = 'block';
           videoElement.style.visibility = 'visible';
@@ -400,9 +366,8 @@ const UltraSimpleVideo = ({
           videoElement.play().catch(() => {});
         }
         
-        // Always update audio element to ensure it plays the stream
-        if (audioElement) {
-          console.log(`🔊 UltraSimpleVideo: Assigning stream to audio element for ${participantId}`);
+        // Only update audio element if it doesn't have the stream
+        if (audioElement && audioElement.srcObject !== stream) {
           audioElement.srcObject = stream;
           audioElement.play().catch(() => {});
         }
@@ -428,8 +393,6 @@ const UltraSimpleVideo = ({
   // CLEANUP: Clean up video elements when component unmounts
   useEffect(() => {
     return () => {
-      console.log('🧹 UltraSimpleVideo: Cleaning up video elements');
-      
       // Clean up video elements
       Object.values(remoteVideoRefs.current).forEach(video => {
         if (video && video.srcObject) {
@@ -689,10 +652,10 @@ const UltraSimpleVideo = ({
                   data-video-enabled={participant.videoEnabled}
                   data-audio-enabled={participant.audioEnabled}
                   style={{
-                    display: participant.videoEnabled ? 'block' : 'none',
-                    visibility: participant.videoEnabled ? 'visible' : 'hidden',
-                    opacity: participant.videoEnabled ? 1 : 0,
-                    pointerEvents: participant.videoEnabled ? 'auto' : 'none'
+                    display: 'block',
+                    visibility: 'visible',
+                    opacity: 1,
+                    pointerEvents: 'auto'
                   }}
                 />
                 
@@ -822,12 +785,6 @@ const UltraSimpleVideo = ({
                     )}
                   </Box>
                   
-                  {/* Debug info for media state */}
-                  {console.log(`🎥 UltraSimpleVideo: Participant ${participant.name} media state:`, {
-                    audioEnabled: participant.audioEnabled,
-                    videoEnabled: participant.videoEnabled,
-                    id: participant.id
-                  })}
                 </Box>
               </Box>
             ))}
