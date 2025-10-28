@@ -342,53 +342,43 @@ const UltraSimpleVideo = ({
 
   // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
+    console.log('🎥 UltraSimpleVideo: Local video effect triggered');
+    console.log('🎥 UltraSimpleVideo: localStream:', !!localStream);
+    console.log('🎥 UltraSimpleVideo: localVideoRef.current:', !!localVideoRef.current);
+    console.log('🎥 UltraSimpleVideo: stream tracks:', localStream?.getTracks?.()?.length);
+    
     if (localStream && localVideoRef.current && localStream.getTracks && localStream.getTracks().length > 0) {
       console.log('🎥 UltraSimpleVideo: Setting local video stream');
       localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.style.display = 'block';
-      localVideoRef.current.style.visibility = 'visible';
-      localVideoRef.current.style.opacity = '1';
-      localVideoRef.current.style.position = 'relative';
-      localVideoRef.current.style.zIndex = '1';
-      localVideoRef.current.style.width = '100%';
-      localVideoRef.current.style.height = '100%';
-      localVideoRef.current.style.objectFit = 'cover';
-      localVideoRef.current.play().catch(() => {});
+      localVideoRef.current.play().catch((err) => {
+        console.log('🎥 UltraSimpleVideo: Play error:', err);
+      });
       console.log('🎥 UltraSimpleVideo: Local video stream set successfully');
     } else {
       console.log('🎥 UltraSimpleVideo: Local video not set - stream:', !!localStream, 'ref:', !!localVideoRef.current, 'tracks:', localStream?.getTracks?.()?.length);
     }
   }, [localStream]);
 
-  // Additional effect to ensure local video gets stream even with timing issues
+  // Additional effect to force local video stream assignment
   useEffect(() => {
-    const checkLocalVideo = () => {
-      if (localStream && localVideoRef.current && localStream.getTracks && localStream.getTracks().length > 0) {
-        if (!localVideoRef.current.srcObject || localVideoRef.current.srcObject !== localStream) {
-          console.log('🎥 UltraSimpleVideo: Re-setting local video stream due to timing issue');
-          localVideoRef.current.srcObject = localStream;
-          localVideoRef.current.style.display = 'block';
-          localVideoRef.current.style.visibility = 'visible';
-          localVideoRef.current.style.opacity = '1';
-          localVideoRef.current.play().catch(() => {});
-        }
+    const forceSetLocalVideo = () => {
+      if (localStream && localVideoRef.current) {
+        console.log('🎥 UltraSimpleVideo: FORCE setting local video stream');
+        localVideoRef.current.srcObject = localStream;
+        localVideoRef.current.play().catch(() => {});
       }
     };
 
-    // Check immediately
-    checkLocalVideo();
+    // Try immediately
+    forceSetLocalVideo();
     
-    // Check again after a short delay to handle timing issues
-    const timeoutId = setTimeout(checkLocalVideo, 100);
+    // Try after a delay
+    const timeoutId = setTimeout(forceSetLocalVideo, 500);
     
-    // Also check periodically to ensure video stays connected
-    const intervalId = setInterval(checkLocalVideo, 2000);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      clearInterval(intervalId);
-    };
+    return () => clearTimeout(timeoutId);
   }, [localStream]);
+
+  // Removed problematic periodic checking that was causing blinking
 
   // CONSOLIDATED: Single effect for remote streams - NO DUPLICATE PROCESSING
   useEffect(() => {
@@ -398,21 +388,13 @@ const UltraSimpleVideo = ({
       const stream = remoteStreams[participantId];
       
       if (stream && stream.getTracks && stream.getTracks().length > 0) {
-        // Always update video element to ensure it shows the stream
+        // Update video element
         if (videoElement) {
           videoElement.srcObject = stream;
-          videoElement.style.display = 'block';
-          videoElement.style.visibility = 'visible';
-          videoElement.style.opacity = '1';
-          videoElement.style.position = 'relative';
-          videoElement.style.zIndex = '1';
-          videoElement.style.width = '100%';
-          videoElement.style.height = '100%';
-          videoElement.style.objectFit = 'cover';
           videoElement.play().catch(() => {});
         }
         
-        // Always update audio element to ensure it plays the stream
+        // Update audio element
         if (audioElement) {
           audioElement.srcObject = stream;
           audioElement.play().catch(() => {});
@@ -637,39 +619,10 @@ const UltraSimpleVideo = ({
         style={getGridLayout(totalVideos)}>
         {/* Local Video */}
         <Box 
-          key={`local-video-${totalVideos}`}
+          key="local-video"
           className={`video-item ${totalVideos > 2 ? 'video-item-scrollable' : ''} ${totalVideos === 1 ? 'single-video' : ''} ${isHost ? 'host-video' : ''}`}>
           <video
-            ref={(el) => {
-              if (el) {
-                localVideoRef.current = el;
-                console.log('🎥 UltraSimpleVideo: Video element ref set');
-                
-                // Force set the stream immediately
-                if (localStream && localStream.getTracks && localStream.getTracks().length > 0) {
-                  console.log('🎥 UltraSimpleVideo: FORCE setting stream in ref callback');
-                  el.srcObject = localStream;
-                  el.style.display = 'block';
-                  el.style.visibility = 'visible';
-                  el.style.opacity = '1';
-                  el.style.position = 'relative';
-                  el.style.zIndex = '1';
-                  el.style.width = '100%';
-                  el.style.height = '100%';
-                  el.style.objectFit = 'cover';
-                  el.play().catch((err) => {
-                    console.log('🎥 UltraSimpleVideo: Play error:', err);
-                  });
-                  console.log('🎥 UltraSimpleVideo: Stream force set successfully');
-                } else {
-                  console.log('🎥 UltraSimpleVideo: No stream available in ref callback');
-                }
-                
-                if (handleLocalVideoRef) {
-                  handleLocalVideoRef(el);
-                }
-              }
-            }}
+            ref={localVideoRef}
             autoPlay
             playsInline
             muted
@@ -707,6 +660,24 @@ const UltraSimpleVideo = ({
             />
           )}
           
+          {/* Debug info */}
+          <div style={{
+            position: 'absolute',
+            top: '10px',
+            left: '10px',
+            background: 'rgba(0,0,0,0.8)',
+            color: 'white',
+            padding: '10px',
+            zIndex: 20,
+            fontSize: '12px'
+          }}>
+            <div>Local Stream: {localStream ? 'YES' : 'NO'}</div>
+            <div>Local Video Ref: {localVideoRef ? 'YES' : 'NO'}</div>
+            <div>Stream Tracks: {localStream?.getTracks?.()?.length || 0}</div>
+            <div>Video Element: {localVideoRef?.current ? 'YES' : 'NO'}</div>
+            <div>Video srcObject: {localVideoRef?.current?.srcObject ? 'YES' : 'NO'}</div>
+          </div>
+          
           <Typography 
             variant="body2" 
             className={`participant-name ${isHost ? 'host' : 'participant'}`}
@@ -736,7 +707,7 @@ const UltraSimpleVideo = ({
         {/* Remote Videos - Now integrated into main grid */}
             {otherParticipants.map(participant => (
               <Box 
-                key={`${participant.id}-${participant.audioEnabled}-${participant.videoEnabled}`}
+                key={participant.id}
                 className={`video-item ${totalVideos > 2 ? 'video-item-scrollable' : ''} ${participant.isHost ? 'host-video' : ''}`}>
                 
                 {/* Remove participant button - completely removed to maintain perfect video layout */}
