@@ -603,20 +603,182 @@ const UltraSimpleVideo = ({
   // Expose debug function to window for manual testing
   useEffect(() => {
     window.debugVideoStatus = debugVideoStatus;
+    window.initializeMedia = initializeMedia;
     window.forceLocalVideo = () => {
       console.log('🔧 Force Local Video: Manually setting local video stream');
+      console.log('🔧 Force Local Video: localStream available:', !!localStream);
+      console.log('🔧 Force Local Video: localVideoRef available:', !!localVideoRef.current);
+      console.log('🔧 Force Local Video: localStream details:', localStream ? {
+        active: localStream.active,
+        id: localStream.id,
+        tracks: localStream.getTracks().length,
+        videoTracks: localStream.getVideoTracks().length
+      } : 'No stream');
+      
+      // Method 1: Try with localVideoRef if available
       if (localStream && localVideoRef.current) {
         const videoElement = localVideoRef.current;
+        console.log('🔧 Force Local Video: Video element found:', {
+          tagName: videoElement.tagName,
+          currentSrc: videoElement.currentSrc,
+          hasSrcObject: !!videoElement.srcObject,
+          paused: videoElement.paused,
+          videoWidth: videoElement.videoWidth,
+          videoHeight: videoElement.videoHeight
+        });
+        
+        // Clear existing stream first
+        videoElement.srcObject = null;
+        
+        // Set the new stream
         videoElement.srcObject = localStream;
+        
+        // Force styling to make sure it's visible
+        videoElement.style.display = 'block';
+        videoElement.style.visibility = 'visible';
+        videoElement.style.opacity = '1';
+        videoElement.style.position = 'absolute';
+        videoElement.style.top = '0';
+        videoElement.style.left = '0';
+        videoElement.style.zIndex = '3';
+        videoElement.style.width = '100%';
+        videoElement.style.height = '100%';
+        videoElement.style.objectFit = 'cover';
+        videoElement.style.transform = 'scaleX(-1)';
+        videoElement.style.backgroundColor = 'transparent';
+        videoElement.style.border = 'none';
+        videoElement.style.margin = '0';
+        videoElement.style.padding = '0';
+        
+        // Force load and play
         videoElement.load();
-        videoElement.play().catch(console.warn);
+        videoElement.play().then(() => {
+          console.log('🔧 Force Local Video: Video playing successfully');
+        }).catch((err) => {
+          console.error('🔧 Force Local Video: Play failed:', err);
+        });
+        
         console.log('🔧 Force Local Video: Stream set successfully');
       } else {
         console.log('🔧 Force Local Video: No stream or video element available');
+        console.log('🔧 Force Local Video: localStream:', localStream);
+        console.log('🔧 Force Local Video: localVideoRef.current:', localVideoRef.current);
+        
+        // Method 2: Try to find any video element in the DOM and force stream assignment
+        const allVideos = document.querySelectorAll('video');
+        console.log('🔧 Force Local Video: Found video elements in DOM:', allVideos.length);
+        
+        if (localStream && allVideos.length > 0) {
+          console.log('🔧 Force Local Video: Attempting to assign stream to all video elements');
+          allVideos.forEach((video, index) => {
+            console.log(`🔧 Force Local Video: Processing video ${index}:`, {
+              hasSrcObject: !!video.srcObject,
+              paused: video.paused,
+              muted: video.muted,
+              autoplay: video.autoplay,
+              playsInline: video.playsInline
+            });
+            
+            // Clear and set stream
+            video.srcObject = null;
+            video.srcObject = localStream;
+            
+            // Force styling
+            video.style.display = 'block';
+            video.style.visibility = 'visible';
+            video.style.opacity = '1';
+            video.style.position = 'absolute';
+            video.style.top = '0';
+            video.style.left = '0';
+            video.style.zIndex = '3';
+            video.style.width = '100%';
+            video.style.height = '100%';
+            video.style.objectFit = 'cover';
+            video.style.transform = 'scaleX(-1)';
+            video.style.backgroundColor = 'transparent';
+            video.style.border = 'none';
+            video.style.margin = '0';
+            video.style.padding = '0';
+            
+            // Force play
+            video.load();
+            video.play().then(() => {
+              console.log(`🔧 Force Local Video: Video ${index} playing successfully`);
+            }).catch((err) => {
+              console.error(`🔧 Force Local Video: Video ${index} play failed:`, err);
+            });
+          });
+        }
+        
+        // Method 3: Try to reinitialize media if no stream
+        if (!localStream) {
+          console.log('🔧 Force Local Video: No local stream, attempting to reinitialize media');
+          if (window.initializeMedia) {
+            window.initializeMedia().then((newStream) => {
+              console.log('🔧 Force Local Video: Media reinitialized, new stream:', !!newStream);
+              if (newStream) {
+                // Try again with the new stream
+                setTimeout(() => {
+                  window.forceLocalVideo();
+                }, 1000);
+              }
+            }).catch((err) => {
+              console.error('🔧 Force Local Video: Media reinitialization failed:', err);
+            });
+          } else {
+            console.log('🔧 Force Local Video: initializeMedia function not available');
+          }
+        }
+        
+        // Method 4: Create a new video element if none exist
+        if (allVideos.length === 0) {
+          console.log('🔧 Force Local Video: No video elements found, creating new one');
+          const newVideo = document.createElement('video');
+          newVideo.autoplay = true;
+          newVideo.playsInline = true;
+          newVideo.muted = true;
+          newVideo.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            visibility: visible;
+            opacity: 1;
+            z-index: 3;
+            transform: scaleX(-1);
+            background-color: transparent;
+            border: none;
+            margin: 0;
+            padding: 0;
+          `;
+          
+          // Add to the main video area
+          const mainVideoArea = document.querySelector('.main-video-area');
+          if (mainVideoArea) {
+            mainVideoArea.appendChild(newVideo);
+            console.log('🔧 Force Local Video: New video element created and added to DOM');
+            
+            if (localStream) {
+              newVideo.srcObject = localStream;
+              newVideo.load();
+              newVideo.play().then(() => {
+                console.log('🔧 Force Local Video: New video element playing successfully');
+              }).catch((err) => {
+                console.error('🔧 Force Local Video: New video element play failed:', err);
+              });
+            }
+          } else {
+            console.log('🔧 Force Local Video: Could not find main video area to add new video element');
+          }
+        }
       }
     };
     return () => {
       delete window.debugVideoStatus;
+      delete window.initializeMedia;
       delete window.forceLocalVideo;
     };
   }, [debugVideoStatus, localStream]);
