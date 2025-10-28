@@ -158,15 +158,7 @@ const MeetingRoom = () => {
   } = useFatigueDetection(sentimentData, isHost, socket);
 
   // Screen Sharing (New Implementation)
-  console.log('🖥️ MeetingRoom: About to call useScreenShare hook', {
-    hasSocket: !!socket,
-    socketConnected: socket?.connected,
-    meetingId,
-    userName: finalUserName,
-    isHost
-  });
   const screenShareHook = useScreenShare(socket, meetingId, finalUserName, isHost);
-  console.log('🖥️ MeetingRoom: useScreenShare hook called, result:', screenShareHook);
   
   const {
     isScreenSharing: isNewScreenSharing,
@@ -179,16 +171,7 @@ const MeetingRoom = () => {
     setScreenShareError: setNewScreenShareError
   } = screenShareHook;
 
-  // Debug fatigue detection
-  console.log('🧠 Fatigue Detection Debug:', {
-    isHost,
-    hasSentimentData: !!sentimentData,
-    fatigueAlert: fatigueAlert,
-    hasFatigueAlert: !!fatigueAlert,
-    isFatigueAnalyzing,
-    isWarmupActive,
-    fatigueHistory: fatigueHistory?.length || 0
-  });
+  // Debug fatigue detection - logging removed to prevent console spam
 
   // DISABLED: Immediate fatigue analysis when participants join (was too aggressive)
   // useEffect(() => {

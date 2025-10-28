@@ -323,10 +323,24 @@ const UltraSimpleVideo = ({
   const createVideoElement = useCallback((participantId) => {
     return (el) => {
       if (el && participantId) {
+        console.log(`🎥 UltraSimpleVideo: Creating video element for ${participantId}`);
         remoteVideoRefs.current[participantId] = el;
         el.style.display = 'block';
         el.style.visibility = 'visible';
         el.style.opacity = '1';
+        el.style.position = 'absolute';
+        el.style.top = '0';
+        el.style.left = '0';
+        el.style.width = '100%';
+        el.style.height = '100%';
+        el.style.objectFit = 'cover';
+        el.style.transform = 'scaleX(-1)';
+        el.style.zIndex = '1';
+        el.style.backgroundColor = 'transparent';
+        el.style.border = 'none';
+        el.style.margin = '0';
+        el.style.padding = '0';
+        console.log(`🎥 UltraSimpleVideo: Video element created for ${participantId}`);
       }
     };
   }, []);
@@ -342,20 +356,44 @@ const UltraSimpleVideo = ({
 
   // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Local video effect triggered');
-    console.log('🎥 UltraSimpleVideo: localStream:', !!localStream);
-    console.log('🎥 UltraSimpleVideo: localVideoRef.current:', !!localVideoRef.current);
-    console.log('🎥 UltraSimpleVideo: stream tracks:', localStream?.getTracks?.()?.length);
-    
     if (localStream && localVideoRef.current && localStream.getTracks && localStream.getTracks().length > 0) {
       console.log('🎥 UltraSimpleVideo: Setting local video stream');
-      localVideoRef.current.srcObject = localStream;
-      localVideoRef.current.play().catch((err) => {
-        console.log('🎥 UltraSimpleVideo: Play error:', err);
+      
+      // Ensure video element is properly configured
+      const videoElement = localVideoRef.current;
+      
+      // Clear any existing stream first
+      videoElement.srcObject = null;
+      
+      // Set the stream
+      videoElement.srcObject = localStream;
+      
+      // Force video to be visible and properly styled
+      videoElement.style.display = 'block';
+      videoElement.style.visibility = 'visible';
+      videoElement.style.opacity = '1';
+      videoElement.style.position = 'absolute';
+      videoElement.style.top = '0';
+      videoElement.style.left = '0';
+      videoElement.style.zIndex = '3';
+      videoElement.style.width = '100%';
+      videoElement.style.height = '100%';
+      videoElement.style.objectFit = 'cover';
+      videoElement.style.transform = 'scaleX(-1)'; // Fix mirroring
+      videoElement.style.backgroundColor = 'transparent';
+      videoElement.style.border = 'none';
+      videoElement.style.margin = '0';
+      videoElement.style.padding = '0';
+      
+      // Force load and play
+      videoElement.load();
+      videoElement.play().catch((err) => {
+        console.warn('Video play error:', err);
       });
+      
       console.log('🎥 UltraSimpleVideo: Local video stream set successfully');
     } else {
-      console.log('🎥 UltraSimpleVideo: Local video not set - stream:', !!localStream, 'ref:', !!localVideoRef.current, 'tracks:', localStream?.getTracks?.()?.length);
+      console.log('🎥 UltraSimpleVideo: Cannot set local video - stream:', !!localStream, 'ref:', !!localVideoRef.current, 'tracks:', localStream?.getTracks?.()?.length);
     }
   }, [localStream]);
 
@@ -410,23 +448,70 @@ const UltraSimpleVideo = ({
 
   // CONSOLIDATED: Single effect for remote streams - NO DUPLICATE PROCESSING
   useEffect(() => {
+    console.log('🎥 UltraSimpleVideo: Processing remote streams:', Object.keys(remoteStreams));
+    
     Object.keys(remoteStreams).forEach(participantId => {
       const videoElement = remoteVideoRefs.current[participantId];
       const audioElement = remoteAudioRefs.current[participantId];
       const stream = remoteStreams[participantId];
       
+      console.log(`🎥 UltraSimpleVideo: Processing stream for ${participantId}:`, {
+        hasStream: !!stream,
+        streamActive: stream?.active,
+        streamTracks: stream?.getTracks?.()?.length,
+        hasVideoElement: !!videoElement,
+        hasAudioElement: !!audioElement
+      });
+      
       if (stream && stream.getTracks && stream.getTracks().length > 0) {
         // Update video element
         if (videoElement) {
+          console.log(`🎥 UltraSimpleVideo: Setting video stream for ${participantId}`);
+          
+          // Clear existing stream first
+          videoElement.srcObject = null;
+          
+          // Set the stream
           videoElement.srcObject = stream;
-          videoElement.play().catch(() => {});
+          
+          // Ensure video is properly styled and visible
+          videoElement.style.display = 'block';
+          videoElement.style.visibility = 'visible';
+          videoElement.style.opacity = '1';
+          videoElement.style.position = 'absolute';
+          videoElement.style.top = '0';
+          videoElement.style.left = '0';
+          videoElement.style.width = '100%';
+          videoElement.style.height = '100%';
+          videoElement.style.objectFit = 'cover';
+          videoElement.style.transform = 'scaleX(-1)'; // Fix mirroring
+          videoElement.style.zIndex = '1';
+          videoElement.style.backgroundColor = 'transparent';
+          videoElement.style.border = 'none';
+          videoElement.style.margin = '0';
+          videoElement.style.padding = '0';
+          
+          // Force load and play
+          videoElement.load();
+          videoElement.play().catch((err) => {
+            console.warn(`Video play error for ${participantId}:`, err);
+          });
+          
+          console.log(`🎥 UltraSimpleVideo: Video stream set for ${participantId}`);
+        } else {
+          console.log(`🎥 UltraSimpleVideo: No video element found for ${participantId}`);
         }
         
         // Update audio element
         if (audioElement) {
+          console.log(`🎥 UltraSimpleVideo: Setting audio stream for ${participantId}`);
           audioElement.srcObject = stream;
-          audioElement.play().catch(() => {});
+          audioElement.play().catch((err) => {
+            console.warn(`Audio play error for ${participantId}:`, err);
+          });
         }
+      } else {
+        console.log(`🎥 UltraSimpleVideo: Invalid stream for ${participantId}`);
       }
     });
   }, [remoteStreams]);
@@ -458,11 +543,47 @@ const UltraSimpleVideo = ({
     };
   }, []);
 
-  // DISABLED: Memoize participants - causing excessive re-renders
-  // const memoizedParticipants = useMemo(() => {
-  //   console.log('🔄 UltraSimpleVideo: Memoizing participants');
-  //   return participants;
-  // }, [participants.map(p => `${p.id}-${p.audioEnabled}-${p.videoEnabled}`).join(',')]);
+  // Debug function to check video status
+  const debugVideoStatus = useCallback(() => {
+    console.log('🔍 UltraSimpleVideo: Video Status Debug');
+    console.log('🔍 Local stream:', {
+      hasStream: !!localStream,
+      streamActive: localStream?.active,
+      streamTracks: localStream?.getTracks?.()?.length,
+      videoTracks: localStream?.getVideoTracks?.()?.length,
+      audioTracks: localStream?.getAudioTracks?.()?.length
+    });
+    console.log('🔍 Local video element:', {
+      hasRef: !!localVideoRef.current,
+      hasSrcObject: !!localVideoRef.current?.srcObject,
+      videoDisplay: localVideoRef.current?.style?.display,
+      videoVisibility: localVideoRef.current?.style?.visibility,
+      videoOpacity: localVideoRef.current?.style?.opacity
+    });
+    console.log('🔍 Remote streams:', Object.keys(remoteStreams).map(id => ({
+      participantId: id,
+      hasStream: !!remoteStreams[id],
+      streamActive: remoteStreams[id]?.active,
+      streamTracks: remoteStreams[id]?.getTracks?.()?.length,
+      hasVideoElement: !!remoteVideoRefs.current[id],
+      videoElementSrcObject: !!remoteVideoRefs.current[id]?.srcObject
+    })));
+    console.log('🔍 Participants:', participants.map(p => ({
+      id: p.id,
+      name: p.name,
+      isHost: p.isHost,
+      videoEnabled: p.videoEnabled,
+      audioEnabled: p.audioEnabled
+    })));
+  }, [localStream, remoteStreams, participants]);
+
+  // Expose debug function to window for manual testing
+  useEffect(() => {
+    window.debugVideoStatus = debugVideoStatus;
+    return () => {
+      delete window.debugVideoStatus;
+    };
+  }, [debugVideoStatus]);
 
   // Throttle re-renders to prevent excessive updates
   const reRenderTimeout = useRef(null);
@@ -658,12 +779,6 @@ const UltraSimpleVideo = ({
             autoPlay
             playsInline
             muted
-            className="video-element"
-            onLoadedData={() => console.log('🎥 Video loadeddata event fired')}
-            onCanPlay={() => console.log('🎥 Video canplay event fired')}
-            onPlay={() => console.log('🎥 Video play event fired')}
-            onPlaying={() => console.log('🎥 Video playing event fired')}
-            onError={(e) => console.log('🎥 Video error event fired:', e)}
             style={{
               position: 'absolute',
               top: 0,
@@ -676,9 +791,10 @@ const UltraSimpleVideo = ({
               visibility: 'visible',
               opacity: 1,
               backgroundColor: 'transparent',
-              border: 'none',
+              border: '2px solid #4CAF50',
               margin: 0,
-              padding: 0
+              padding: 0,
+              transform: 'scaleX(-1)' // Fix mirroring by flipping horizontally
             }}
           />
           
@@ -720,6 +836,25 @@ const UltraSimpleVideo = ({
                 backgroundColor: '#000',
                 transform: 'none',
                 objectFit: 'cover'
+              }}
+            />
+          )}
+          
+          {/* Ultra-simple test video - completely basic */}
+          {localStream && (
+            <video
+              srcObject={localStream}
+              autoPlay
+              muted
+              style={{
+                position: 'fixed',
+                top: '50px',
+                right: '50px',
+                width: '200px',
+                height: '150px',
+                zIndex: 9999,
+                border: '5px solid green',
+                backgroundColor: 'yellow'
               }}
             />
           )}
@@ -793,10 +928,18 @@ const UltraSimpleVideo = ({
                   data-video-enabled={participant.videoEnabled}
                   data-audio-enabled={participant.audioEnabled}
                   style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
                     display: 'block',
                     visibility: 'visible',
                     opacity: 1,
-                    pointerEvents: 'auto'
+                    pointerEvents: 'auto',
+                    zIndex: 1,
+                    transform: 'scaleX(-1)' // Fix mirroring for remote participants too
                   }}
                 />
                 

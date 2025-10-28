@@ -15,10 +15,7 @@ import {
 import { addParticipant, updateMeetingStatus } from '../services/meetingsService';
 
 const useUltraSimplePeer = (meetingId, userName) => {
-  console.log('🎯 UltraSimplePeer: Initializing with meetingId:', meetingId, 'userName:', userName);
-  console.log('🎯 UltraSimplePeer: userName type:', typeof userName);
-  console.log('🎯 UltraSimplePeer: userName length:', userName?.length);
-  console.log('🎯 UltraSimplePeer: userName trimmed:', userName?.trim());
+  // Debug logging reduced to prevent console spam
   
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState({});
