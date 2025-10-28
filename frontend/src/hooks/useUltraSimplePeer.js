@@ -720,6 +720,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       }
       
       setLocalStream(stream);
+      console.log('🎥 Local stream set in state:', stream.id, 'tracks:', stream.getTracks().length);
       
       // Initialize audio using audioUtils
       await initializeAudioStream(stream, setMicrophoneStatus);
@@ -732,6 +733,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
         localVideoRef.current.style.opacity = '1';
         localVideoRef.current.play().catch(() => {});
         console.log('🎥 Local video element updated with stream');
+      } else {
+        console.log('🎥 Local video ref not available yet, will be set by component');
       }
       
       return stream;
@@ -753,6 +756,18 @@ const useUltraSimplePeer = (meetingId, userName) => {
       return null;
     }
   }, []);
+
+  // Callback to handle local video ref changes
+  const handleLocalVideoRef = useCallback((ref) => {
+    if (ref && localStream) {
+      console.log('🎥 Local video ref callback - setting stream');
+      ref.srcObject = localStream;
+      ref.style.display = 'block';
+      ref.style.visibility = 'visible';
+      ref.style.opacity = '1';
+      ref.play().catch(() => {});
+    }
+  }, [localStream]);
 
   // Create peer connection
   const createPeerConnection = useCallback(async (participantId, stream = localStream) => {
@@ -904,8 +919,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       console.log(`ðŸŽ¥ STREAM: Video tracks: ${stream.getVideoTracks().length}`);
       console.log(`ðŸŽ¥ STREAM: Audio tracks: ${stream.getAudioTracks().length}`);
 
-      // CRITICAL: Call handleStreamReception to fix audio issues
-     handleStreamReception(stream, participantId, participantsRef.current);
+      // Process stream directly without handleStreamReception interference
       
       const isScreenShare = stream.getVideoTracks().some(track => 
         track.label && (
@@ -924,8 +938,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
           return newStreams;
         });
         
-        // CRITICAL: Call handleStreamReception to fix audio issues
-        handleStreamReception(stream, participantId, participantsRef.current);
+        // Process stream directly without handleStreamReception interference
         setForceRender(prev => prev + 1);
         return;
       }
@@ -933,9 +946,18 @@ const useUltraSimplePeer = (meetingId, userName) => {
       console.log(`ðŸŽ¥ STREAM: Adding video stream from ${participantId}`);
       setRemoteStreams(prev => {
         if (stream && stream.getTracks && stream.getTracks().length > 0) {
-          stream.getTracks().forEach(track => {
+          // Ensure video tracks are enabled but don't force audio tracks
+          stream.getVideoTracks().forEach(track => {
             if (track.readyState === 'live') {
               track.enabled = true;
+            }
+          });
+          
+          // Don't force audio tracks - let them be controlled independently
+          stream.getAudioTracks().forEach(track => {
+            // Only enable if they're already enabled, don't force enable
+            if (track.readyState === 'live' && track.enabled) {
+              // Keep current state
             }
           });
           
@@ -1270,96 +1292,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
           streamEnded: stream.ended
         });
         
-        // CRITICAL: Call handleStreamReception to fix audio issues
-        handleStreamReception(stream, from, participantsRef.current);
+        // Process stream directly without handleStreamReception interference
         
-        // CRITICAL: Force stream to be active if it's not
-        if (!stream.active) {
-          console.log('ðŸ”§ UltraSimplePeer: Stream not active in handleSignal, attempting to reactivate...');
-          stream.getTracks().forEach(track => {
-            if (track.readyState === 'live') {
-              track.enabled = true;
-              console.log(`ðŸ”§ UltraSimplePeer: Reactivated ${track.kind} track in handleSignal`);
-            }
-          });
-        }
-        
-        // Force the stream to be active and ensure audio tracks are properly configured
-        stream.getTracks().forEach(track => {
-          console.log('ðŸŽ¥ UltraSimplePeer: Track details in handleSignal:', {
-            kind: track.kind,
-            enabled: track.enabled,
-            readyState: track.readyState,
-            muted: track.muted
-          });
-          
-          // Ensure track is enabled and not muted
-          if (track.readyState === 'live') {
-            track.enabled = true;
-            // Note: muted property is read-only in newer browsers
-            
-            // Special handling for audio tracks to ensure smooth audio
-            if (track.kind === 'audio') {
-              console.log('ðŸŽ¤ UltraSimplePeer: Configuring audio track in handleSignal');
-              
-              // Apply enhanced audio constraints to prevent echo
-              try {
-                track.applyConstraints({
-                echoCancellation: true,
-                noiseSuppression: true,
-                  autoGainControl: true
-                }).then(() => {
-                  console.log('ðŸŽ¤ UltraSimplePeer: Enhanced audio constraints applied in handleSignal');
-                  
-                  // Test audio flow to ensure it's working
-                  try {
-                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const source = audioContext.createMediaStreamSource(stream);
-                    const analyser = audioContext.createAnalyser();
-                    source.connect(analyser);
-                    
-                    // Check if audio is actually flowing
-                    const bufferLength = analyser.frequencyBinCount;
-                    const dataArray = new Uint8Array(bufferLength);
-                    analyser.getByteFrequencyData(dataArray);
-                    
-                    const hasAudio = dataArray.some(value => value > 0);
-                    console.log('ðŸŽ¤ UltraSimplePeer: HandleSignal audio flow test:', hasAudio ? 'Audio detected' : 'No audio detected');
-                    
-                    // Clean up
-                    source.disconnect();
-                    audioContext.close();
-                  } catch (audioTestError) {
-                    console.log('ðŸŽ¤ UltraSimplePeer: HandleSignal audio test failed:', audioTestError);
-                  }
-                }).catch(error => {
-                  console.log('ðŸŽ¤ UltraSimplePeer: Could not apply enhanced audio constraints in handleSignal:', error);
-                  
-                  // Fallback to enhanced constraints
-                  const basicConstraints = {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                    googEchoCancellation: true,
-                    googNoiseSuppression: true,
-                    googAutoGainControl: true,
-                    googHighpassFilter: true,
-                    googTypingNoiseDetection: true,
-                    googAudioMirroring: false
-                  };
-                  
-                  track.applyConstraints(basicConstraints).then(() => {
-                    console.log('ðŸŽ¤ UltraSimplePeer: Basic audio constraints applied as fallback in handleSignal');
-                  }).catch(fallbackError => {
-                    console.log('ðŸŽ¤ UltraSimplePeer: Could not apply basic audio constraints in handleSignal:', fallbackError);
-                  });
-                });
-              } catch (error) {
-                console.log('ðŸŽ¤ UltraSimplePeer: Error applying audio constraints in handleSignal:', error);
-              }
-            }
-          }
-        });
+        // Don't force track states - let them be controlled independently
         
         // Check if this is a screen share stream
         const isScreenShare = stream.getVideoTracks().some(track => 
@@ -1396,6 +1331,21 @@ const useUltraSimplePeer = (meetingId, userName) => {
         
         setRemoteStreams(prev => {
           if (stream && stream.getTracks && stream.getTracks().length > 0) {
+            // Ensure video tracks are enabled but don't force audio tracks
+            stream.getVideoTracks().forEach(track => {
+              if (track.readyState === 'live') {
+                track.enabled = true;
+              }
+            });
+            
+            // Don't force audio tracks - let them be controlled independently
+            stream.getAudioTracks().forEach(track => {
+              // Only enable if they're already enabled, don't force enable
+              if (track.readyState === 'live' && track.enabled) {
+                // Keep current state
+              }
+            });
+            
             const newStreams = {
               ...prev,
               [from]: stream
@@ -2203,6 +2153,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
     updateLocalStream, // Expose the method
     fixAudioIssue, // Expose the audio fix function
     debugConnectionStatus, // Expose the debug function
+    handleLocalVideoRef, // Expose the local video ref callback
     // Participant management
     pendingApprovals,
     showPendingApprovals,

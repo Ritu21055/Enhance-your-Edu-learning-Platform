@@ -72,7 +72,9 @@ const UltraSimpleVideo = ({
   // Participant management
   onRemoveParticipant,
   // Debug function
-  debugConnectionStatus
+  debugConnectionStatus,
+  // Local video ref callback
+  handleLocalVideoRef
 }) => {
   const remoteVideoRefs = useRef({});
   const remoteAudioRefs = useRef({});
@@ -341,6 +343,7 @@ const UltraSimpleVideo = ({
   // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
     if (localStream && localVideoRef.current && localStream.getTracks && localStream.getTracks().length > 0) {
+      console.log('🎥 UltraSimpleVideo: Setting local video stream');
       localVideoRef.current.srcObject = localStream;
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
@@ -351,7 +354,34 @@ const UltraSimpleVideo = ({
       localVideoRef.current.style.height = '100%';
       localVideoRef.current.style.objectFit = 'cover';
       localVideoRef.current.play().catch(() => {});
+      console.log('🎥 UltraSimpleVideo: Local video stream set successfully');
+    } else {
+      console.log('🎥 UltraSimpleVideo: Local video not set - stream:', !!localStream, 'ref:', !!localVideoRef.current, 'tracks:', localStream?.getTracks?.()?.length);
     }
+  }, [localStream]);
+
+  // Additional effect to ensure local video gets stream even with timing issues
+  useEffect(() => {
+    const checkLocalVideo = () => {
+      if (localStream && localVideoRef.current && localStream.getTracks && localStream.getTracks().length > 0) {
+        if (!localVideoRef.current.srcObject || localVideoRef.current.srcObject !== localStream) {
+          console.log('🎥 UltraSimpleVideo: Re-setting local video stream due to timing issue');
+          localVideoRef.current.srcObject = localStream;
+          localVideoRef.current.style.display = 'block';
+          localVideoRef.current.style.visibility = 'visible';
+          localVideoRef.current.style.opacity = '1';
+          localVideoRef.current.play().catch(() => {});
+        }
+      }
+    };
+
+    // Check immediately
+    checkLocalVideo();
+    
+    // Check again after a short delay to handle timing issues
+    const timeoutId = setTimeout(checkLocalVideo, 100);
+    
+    return () => clearTimeout(timeoutId);
   }, [localStream]);
 
   // CONSOLIDATED: Single effect for remote streams - NO DUPLICATE PROCESSING
@@ -604,7 +634,7 @@ const UltraSimpleVideo = ({
           key={`local-video-${totalVideos}`}
           className={`video-item ${totalVideos > 2 ? 'video-item-scrollable' : ''} ${totalVideos === 1 ? 'single-video' : ''} ${isHost ? 'host-video' : ''}`}>
           <video
-            ref={localVideoRef}
+            ref={handleLocalVideoRef || localVideoRef}
             autoPlay
             playsInline
             muted
