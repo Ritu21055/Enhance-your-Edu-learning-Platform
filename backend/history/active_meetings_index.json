@@ -148,5 +148,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-10-28T21:30:31.622Z"
+  },
+  "EPT915": {
+    "title": "Meeting EPT915",
+    "createdAt": "2025-10-28T21:32:26.623Z",
+    "endedAt": "2025-10-28T21:32:23.586Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-10-28T21:32:23.588Z"
   }
 }

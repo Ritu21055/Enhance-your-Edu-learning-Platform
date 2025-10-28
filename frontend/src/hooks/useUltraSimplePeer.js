@@ -1381,8 +1381,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
         }
         
         setRemoteStreams(prev => {
-          // Only update if stream is actually active
-          if (stream && stream.active) {
+          if (stream && stream.getTracks && stream.getTracks().length > 0) {
             const newStreams = {
               ...prev,
               [from]: stream
@@ -1390,7 +1389,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
             console.log('ðŸŽ¥ UltraSimplePeer: Updated remote streams in handleSignal:', Object.keys(newStreams));
             return newStreams;
           } else {
-            console.log('ðŸŽ¥ UltraSimplePeer: Stream not active in handleSignal, keeping existing stream');
+            console.log('ðŸŽ¥ UltraSimplePeer: Invalid stream in handleSignal, keeping existing stream');
             return prev;
           }
         });
