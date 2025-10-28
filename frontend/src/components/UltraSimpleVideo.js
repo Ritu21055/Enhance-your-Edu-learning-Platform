@@ -325,18 +325,32 @@ const UltraSimpleVideo = ({
         el.style.display = 'block';
         el.style.visibility = 'visible';
         el.style.opacity = '1';
+        
+        // Immediately try to assign stream if available
+        const stream = remoteStreams[participantId];
+        if (stream && stream.active && stream.getTracks().length > 0) {
+          el.srcObject = stream;
+          el.play().catch(() => {});
+        }
       }
     };
-  }, []);
+  }, [remoteStreams]);
 
   // MINIMAL: Simple audio element creation - NO CLEANUP, NO MANIPULATION
   const createAudioElement = useCallback((participantId) => {
     return (el) => {
       if (el && participantId) {
         remoteAudioRefs.current[participantId] = el;
+        
+        // Immediately try to assign stream if available
+        const stream = remoteStreams[participantId];
+        if (stream && stream.active && stream.getTracks().length > 0) {
+          el.srcObject = stream;
+          el.play().catch(() => {});
+        }
       }
     };
-  }, []);
+  }, [remoteStreams]);
 
   // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
@@ -357,8 +371,8 @@ const UltraSimpleVideo = ({
       const stream = remoteStreams[participantId];
       
       if (stream && stream.active && stream.getTracks().length > 0) {
-        // Only update video element if it doesn't have the stream
-        if (videoElement && videoElement.srcObject !== stream) {
+        // Always update video element to ensure it shows the stream
+        if (videoElement) {
           videoElement.srcObject = stream;
           videoElement.style.display = 'block';
           videoElement.style.visibility = 'visible';
@@ -366,8 +380,8 @@ const UltraSimpleVideo = ({
           videoElement.play().catch(() => {});
         }
         
-        // Only update audio element if it doesn't have the stream
-        if (audioElement && audioElement.srcObject !== stream) {
+        // Always update audio element to ensure it plays the stream
+        if (audioElement) {
           audioElement.srcObject = stream;
           audioElement.play().catch(() => {});
         }
@@ -604,7 +618,10 @@ const UltraSimpleVideo = ({
               zIndex: 1,
               width: '100%',
               height: '100%',
-              objectFit: 'cover'
+              objectFit: 'cover',
+              display: 'block',
+              visibility: 'visible',
+              opacity: 1
             }}
           />
           <Typography 
