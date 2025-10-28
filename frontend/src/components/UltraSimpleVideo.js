@@ -345,6 +345,11 @@ const UltraSimpleVideo = ({
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
       localVideoRef.current.style.opacity = '1';
+      localVideoRef.current.style.position = 'relative';
+      localVideoRef.current.style.zIndex = '1';
+      localVideoRef.current.style.width = '100%';
+      localVideoRef.current.style.height = '100%';
+      localVideoRef.current.style.objectFit = 'cover';
       localVideoRef.current.play().catch(() => {});
     }
   }, [localStream]);
@@ -363,6 +368,11 @@ const UltraSimpleVideo = ({
           videoElement.style.display = 'block';
           videoElement.style.visibility = 'visible';
           videoElement.style.opacity = '1';
+          videoElement.style.position = 'relative';
+          videoElement.style.zIndex = '1';
+          videoElement.style.width = '100%';
+          videoElement.style.height = '100%';
+          videoElement.style.objectFit = 'cover';
           videoElement.play().catch(() => {});
         }
         

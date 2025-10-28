@@ -927,20 +927,23 @@ const useUltraSimplePeer = (meetingId, userName) => {
       
       console.log(`ðŸŽ¥ STREAM: Adding video stream from ${participantId}`);
       setRemoteStreams(prev => {
-        if (stream && stream.getTracks) {
+        if (stream && stream.getTracks && stream.getTracks().length > 0) {
           stream.getTracks().forEach(track => {
             if (track.readyState === 'live') {
               track.enabled = true;
             }
           });
-        }
-        
+          
           const newStreams = {
             ...prev,
             [participantId]: stream
           };
-        console.log(`ðŸŽ¥ STREAM: Updated remote streams:`, Object.keys(newStreams));
+          console.log(`ðŸŽ¥ STREAM: Updated remote streams:`, Object.keys(newStreams));
           return newStreams;
+        } else {
+          console.log(`ðŸŽ¥ STREAM: Invalid stream from ${participantId}, keeping existing streams`);
+          return prev;
+        }
       });
     });
 
