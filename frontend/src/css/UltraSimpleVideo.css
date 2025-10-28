@@ -129,10 +129,15 @@
   border-radius: 0;
 }
 
-/* CAMERA VIDEO - Removed mirroring to fix black video issue */
+/* CAMERA VIDEO - Use transform but with better browser support */
 .video-element:not([data-screen-share="true"]),
 video:not([data-screen-share="true"]) {
-  /* Removed transform: scaleX(-1) - causing black video issue */
+  /* Mirror camera feeds like a mirror - using transform with better support */
+  transform: scaleX(-1);
+  -webkit-transform: scaleX(-1);
+  -moz-transform: scaleX(-1);
+  -ms-transform: scaleX(-1);
+  -o-transform: scaleX(-1);
   
   /* CRITICAL: Force proper sizing to remove black bars */
   object-fit: cover !important;
@@ -143,6 +148,11 @@ video:not([data-screen-share="true"]) {
   /* CRITICAL: Remove black background */
   background: transparent !important;
   border-radius: 0 !important;
+  
+  /* CRITICAL: Force hardware acceleration to prevent black screen */
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* SCREEN SHARE VIDEO - Should NOT be mirrored (scaleX(1)) */
