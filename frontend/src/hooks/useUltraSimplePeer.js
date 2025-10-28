@@ -776,12 +776,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
       }
     }
     
-    // Ensure stream is active and has tracks
-    if (!stream || !stream.active || stream.getTracks().length === 0) {
-      console.log(`ðŸ”— CREATE-PEER: Stream is not valid, trying to reinitialize...`);
+    // Ensure stream has tracks
+    if (!stream || !stream.getTracks || stream.getTracks().length === 0) {
+      console.log(`ðŸ"— CREATE-PEER: Stream has no tracks, trying to reinitialize...`);
       const newStream = await initializeMedia();
       if (!newStream) {
-        console.log(`ðŸ”— CREATE-PEER: Failed to initialize stream, cannot create connection`);
+        console.log(`ðŸ"— CREATE-PEER: Failed to initialize stream, cannot create connection`);
         return;
       }
       stream = newStream;
@@ -1019,19 +1019,19 @@ const useUltraSimplePeer = (meetingId, userName) => {
       setLocalStream(currentStream);
     }
     
-    // Ensure stream is active and has tracks
-    if (!currentStream || !currentStream.active || currentStream.getTracks().length === 0) {
-      console.log('ðŸ”— CREATE-ALL: Stream is not active or has no tracks, reinitializing...');
+    // Ensure stream has tracks
+    if (!currentStream || !currentStream.getTracks || currentStream.getTracks().length === 0) {
+      console.log('ðŸ"— CREATE-ALL: Stream has no tracks, reinitializing...');
       currentStream = await initializeMedia();
       if (!currentStream) {
-        console.log('ðŸ”— CREATE-ALL: Failed to reinitialize stream');
+        console.log('ðŸ"— CREATE-ALL: Failed to reinitialize stream');
         return;
       }
       setLocalStream(currentStream);
     }
     
-    if (isHostRef.current && (!currentStream || !currentStream.active || currentStream.getTracks().length === 0)) {
-      console.log('ðŸ”— CREATE-ALL: Host has no valid stream');
+    if (isHostRef.current && (!currentStream || !currentStream.getTracks || currentStream.getTracks().length === 0)) {
+      console.log('ðŸ"— CREATE-ALL: Host has no valid stream');
       return;
     }
     

@@ -158,5 +158,25 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-10-28T21:32:23.588Z"
+  },
+  "FJF986": {
+    "title": "Meeting FJF986",
+    "createdAt": "2025-10-28T21:35:51.737Z",
+    "endedAt": "2025-10-28T21:35:48.727Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-10-28T21:35:48.733Z"
+  },
+  "GDZ452": {
+    "title": "MEETING",
+    "createdAt": "2025-10-28T21:35:29.524Z",
+    "endedAt": "2025-10-28T21:35:26.508Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-10-28T21:35:26.511Z"
   }
 }
