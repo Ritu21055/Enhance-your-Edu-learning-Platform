@@ -1227,6 +1227,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
       const peer = new SimplePeer({
         initiator: false,
         trickle: false,
+        stream: localStream,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -1402,10 +1403,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
         console.log('ðŸ” CRITICAL DEBUG: Local stream available:', !!localStream);
         console.log('ðŸ” CRITICAL DEBUG: Local stream active:', localStream?.active);
         
-        // Add the local stream to the peer connection
-        if (localStream && localStream.active) {
-          peer.addStream(localStream);
-        }
+        // Stream is already added via constructor
       });
 
       peer.on('close', () => {

@@ -340,7 +340,7 @@ const UltraSimpleVideo = ({
 
   // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
-    if (localStream && localVideoRef.current) {
+    if (localStream && localVideoRef.current && localStream.getTracks && localStream.getTracks().length > 0) {
       localVideoRef.current.srcObject = localStream;
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
@@ -356,7 +356,7 @@ const UltraSimpleVideo = ({
       const audioElement = remoteAudioRefs.current[participantId];
       const stream = remoteStreams[participantId];
       
-      if (stream && stream.active && stream.getTracks().length > 0) {
+      if (stream && stream.getTracks && stream.getTracks().length > 0) {
         // Always update video element to ensure it shows the stream
         if (videoElement) {
           videoElement.srcObject = stream;
