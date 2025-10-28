@@ -381,7 +381,13 @@ const UltraSimpleVideo = ({
     // Check again after a short delay to handle timing issues
     const timeoutId = setTimeout(checkLocalVideo, 100);
     
-    return () => clearTimeout(timeoutId);
+    // Also check periodically to ensure video stays connected
+    const intervalId = setInterval(checkLocalVideo, 2000);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      clearInterval(intervalId);
+    };
   }, [localStream]);
 
   // CONSOLIDATED: Single effect for remote streams - NO DUPLICATE PROCESSING
@@ -634,7 +640,36 @@ const UltraSimpleVideo = ({
           key={`local-video-${totalVideos}`}
           className={`video-item ${totalVideos > 2 ? 'video-item-scrollable' : ''} ${totalVideos === 1 ? 'single-video' : ''} ${isHost ? 'host-video' : ''}`}>
           <video
-            ref={handleLocalVideoRef || localVideoRef}
+            ref={(el) => {
+              if (el) {
+                localVideoRef.current = el;
+                console.log('🎥 UltraSimpleVideo: Video element ref set');
+                
+                // Force set the stream immediately
+                if (localStream && localStream.getTracks && localStream.getTracks().length > 0) {
+                  console.log('🎥 UltraSimpleVideo: FORCE setting stream in ref callback');
+                  el.srcObject = localStream;
+                  el.style.display = 'block';
+                  el.style.visibility = 'visible';
+                  el.style.opacity = '1';
+                  el.style.position = 'relative';
+                  el.style.zIndex = '1';
+                  el.style.width = '100%';
+                  el.style.height = '100%';
+                  el.style.objectFit = 'cover';
+                  el.play().catch((err) => {
+                    console.log('🎥 UltraSimpleVideo: Play error:', err);
+                  });
+                  console.log('🎥 UltraSimpleVideo: Stream force set successfully');
+                } else {
+                  console.log('🎥 UltraSimpleVideo: No stream available in ref callback');
+                }
+                
+                if (handleLocalVideoRef) {
+                  handleLocalVideoRef(el);
+                }
+              }
+            }}
             autoPlay
             playsInline
             muted
@@ -647,9 +682,31 @@ const UltraSimpleVideo = ({
               objectFit: 'cover',
               display: 'block',
               visibility: 'visible',
-              opacity: 1
+              opacity: 1,
+              backgroundColor: '#000'
             }}
           />
+          
+          {/* Fallback video element for testing */}
+          {localStream && (
+            <video
+              srcObject={localStream}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                width: '150px',
+                height: '100px',
+                zIndex: 10,
+                border: '2px solid red',
+                backgroundColor: '#000'
+              }}
+            />
+          )}
+          
           <Typography 
             variant="body2" 
             className={`participant-name ${isHost ? 'host' : 'participant'}`}
