@@ -1,0 +1,40 @@
+{
+  "meeting": {
+    "id": "AOC070",
+    "title": "Meeting AOC070",
+    "participants": 1,
+    "createdAt": "2025-10-28T21:48:10.871Z",
+    "endedAt": "2025-10-28T21:48:07.875Z",
+    "duration": 0,
+    "status": "completed"
+  },
+  "highlights": {
+    "total": 0,
+    "data": [],
+    "summary": {
+      "totalHighlights": 0,
+      "byType": {},
+      "byPriority": {},
+      "byParticipant": {},
+      "timeline": []
+    }
+  },
+  "recording": null,
+  "highlightReel": null,
+  "transcript": {
+    "totalEntries": 0,
+    "data": [],
+    "fullTranscript": ""
+  },
+  "sentiment": null,
+  "metadata": {
+    "savedAt": "2025-10-28T21:48:07.875Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": true,
+      "questionGeneration": true,
+      "sentimentAnalysis": false,
+      "transcription": false
+    }
+  }
+}

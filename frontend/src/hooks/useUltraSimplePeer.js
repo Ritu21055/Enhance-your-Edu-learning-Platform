@@ -838,6 +838,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
     
     // Store the peer immediately
     peersRef.current[participantId] = peer;
+    
+    // Add stream immediately after peer creation
+    if (stream) {
+      peer.addStream(stream);
+      console.log(`ðŸ"— CREATE-PEER: Added stream to peer for ${participantId} immediately`);
+    }
 
     // Ensure audio track is properly added to the peer connection
     peer.on('connect', () => {
@@ -951,10 +957,6 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
     peer.on('connect', () => {
       console.log(`âœ… CONNECT: Connected to ${participantId}`);
-      if (stream) {
-        peer.addStream(stream);
-        console.log(`ðŸ"— CONNECT: Added stream to peer for ${participantId}`);
-      }
     });
 
     peer.on('close', () => {
@@ -1241,6 +1243,12 @@ const useUltraSimplePeer = (meetingId, userName) => {
           ]
         }
       });
+      
+      // Add stream immediately after peer creation
+      if (localStream) {
+        peer.addStream(localStream);
+        console.log(`ðŸ"— HANDLE-SIGNAL: Added local stream to peer for ${from} immediately`);
+      }
 
       peer.on('signal', (signalData) => {
         console.log('ðŸ“¡ UltraSimplePeer: Sending signal to:', from);
@@ -1408,10 +1416,7 @@ const useUltraSimplePeer = (meetingId, userName) => {
         console.log('ðŸ” CRITICAL DEBUG: Local stream available:', !!localStream);
         console.log('ðŸ” CRITICAL DEBUG: Local stream active:', localStream?.active);
         
-        if (localStream) {
-          peer.addStream(localStream);
-          console.log(`ðŸ"— CONNECT: Added local stream to peer for ${from}`);
-        }
+        // Stream already added immediately after peer creation
       });
 
       peer.on('close', () => {
