@@ -839,22 +839,17 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
     // Ensure audio track is properly added to the peer connection
     peer.on('connect', () => {
-      console.log(`ðŸ”— CREATE-PEER: Connected to ${participantId}, ensuring audio track is added`);
+      console.log(`ðŸ"— CREATE-PEER: Connected to ${participantId}, ensuring audio track is added`);
       
-      // Force add the stream to ensure both video and audio are transmitted
+      // Stream is already added during peer creation, just verify it's working
       if (stream && stream.getTracks().length > 0) {
+        console.log(`ðŸ"— CREATE-PEER: Stream already added during peer creation for ${participantId}`);
+        
         try {
-          peer.addStream(stream);
-          console.log(`ðŸ”— CREATE-PEER: Successfully added stream with audio to peer for ${participantId}`);
-
-          
-          // CRITICAL: Ensure host audio transmission
-                // Audio function calls moved to audioUtils.js
-          
           // Double-check that audio track is enabled
           const audioTracks = stream.getAudioTracks();
-          audioTracks.forEach((track, index) => {
-            if (!track.enabled) {
+        audioTracks.forEach((track, index) => {
+          if (!track.enabled) {
               track.enabled = true;
               console.log(`ðŸ”§ CREATE-PEER: Force enabled audio track ${index} for ${participantId}`);
             }

@@ -325,32 +325,18 @@ const UltraSimpleVideo = ({
         el.style.display = 'block';
         el.style.visibility = 'visible';
         el.style.opacity = '1';
-        
-        // Immediately try to assign stream if available
-        const stream = remoteStreams[participantId];
-        if (stream && stream.active && stream.getTracks().length > 0) {
-          el.srcObject = stream;
-          el.play().catch(() => {});
-        }
       }
     };
-  }, [remoteStreams]);
+  }, []);
 
   // MINIMAL: Simple audio element creation - NO CLEANUP, NO MANIPULATION
   const createAudioElement = useCallback((participantId) => {
     return (el) => {
       if (el && participantId) {
         remoteAudioRefs.current[participantId] = el;
-        
-        // Immediately try to assign stream if available
-        const stream = remoteStreams[participantId];
-        if (stream && stream.active && stream.getTracks().length > 0) {
-          el.srcObject = stream;
-          el.play().catch(() => {});
-        }
       }
     };
-  }, [remoteStreams]);
+  }, []);
 
   // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
