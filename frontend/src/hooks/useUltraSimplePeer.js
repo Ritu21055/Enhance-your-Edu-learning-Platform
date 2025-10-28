@@ -1227,7 +1227,6 @@ const useUltraSimplePeer = (meetingId, userName) => {
       const peer = new SimplePeer({
         initiator: false,
         trickle: false,
-        stream: localStream,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -1403,17 +1402,9 @@ const useUltraSimplePeer = (meetingId, userName) => {
         console.log('ðŸ” CRITICAL DEBUG: Local stream available:', !!localStream);
         console.log('ðŸ” CRITICAL DEBUG: Local stream active:', localStream?.active);
         
-        // Stream sharing is already handled by SimplePeer constructor
-        // No need to add tracks again as this causes duplication errors
+        // Add the local stream to the peer connection
         if (localStream && localStream.active) {
-          console.log('ðŸ”— UltraSimplePeer: Stream already shared via SimplePeer constructor for:', from);
-          console.log('ðŸ”— UltraSimplePeer: Stream details:', {
-            streamId: localStream.id,
-            streamActive: localStream.active,
-            trackCount: localStream.getTracks().length,
-            videoTracks: localStream.getVideoTracks().length,
-            audioTracks: localStream.getAudioTracks().length
-          });
+          peer.addStream(localStream);
         }
       });
 

@@ -118,5 +118,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-10-28T21:17:36.226Z"
+  },
+  "KMG385": {
+    "title": "Meeting KMG385",
+    "createdAt": "2025-10-28T21:23:19.183Z",
+    "endedAt": "2025-10-28T21:23:16.147Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-10-28T21:23:16.150Z"
   }
 }
