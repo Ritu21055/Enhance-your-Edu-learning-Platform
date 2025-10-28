@@ -1,0 +1,40 @@
+{
+  "meeting": {
+    "id": "TRY535",
+    "title": "ritu",
+    "participants": 1,
+    "createdAt": "2025-10-28T22:54:40.767Z",
+    "endedAt": "2025-10-28T22:54:40.838Z",
+    "duration": 0,
+    "status": "completed"
+  },
+  "highlights": {
+    "total": 0,
+    "data": [],
+    "summary": {
+      "totalHighlights": 0,
+      "byType": {},
+      "byPriority": {},
+      "byParticipant": {},
+      "timeline": []
+    }
+  },
+  "recording": null,
+  "highlightReel": null,
+  "transcript": {
+    "totalEntries": 0,
+    "data": [],
+    "fullTranscript": ""
+  },
+  "sentiment": null,
+  "metadata": {
+    "savedAt": "2025-10-28T22:54:40.838Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": true,
+      "questionGeneration": true,
+      "sentimentAnalysis": false,
+      "transcription": false
+    }
+  }
+}
