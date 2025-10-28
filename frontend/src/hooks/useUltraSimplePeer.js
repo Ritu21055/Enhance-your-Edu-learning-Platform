@@ -724,9 +724,16 @@ const useUltraSimplePeer = (meetingId, userName) => {
       // Initialize audio using audioUtils
       await initializeAudioStream(stream, setMicrophoneStatus);
       
+      // Ensure local video element gets the stream
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
+        localVideoRef.current.style.display = 'block';
+        localVideoRef.current.style.visibility = 'visible';
+        localVideoRef.current.style.opacity = '1';
+        localVideoRef.current.play().catch(() => {});
+        console.log('🎥 Local video element updated with stream');
       }
+      
       return stream;
     } catch (error) {
       if (error.name === 'NotAllowedError') {

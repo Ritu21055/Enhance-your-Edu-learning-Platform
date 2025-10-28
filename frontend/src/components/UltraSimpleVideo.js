@@ -329,13 +329,14 @@ const UltraSimpleVideo = ({
         el.style.visibility = 'visible';
         el.style.opacity = '1';
         
-        // Only assign stream if it's available and different
+        // Always assign stream if it's available
         if (remoteStreams[participantId]) {
           const stream = remoteStreams[participantId];
-          if (stream && stream.active && stream.getTracks().length > 0 && el.srcObject !== stream) {
+          if (stream && stream.active && stream.getTracks().length > 0) {
             console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
             el.srcObject = stream;
-            if (el) el.play().catch(() => {}); // Silent fail
+            el.play().catch(() => {}); // Silent fail
+            console.log(`🎥 UltraSimpleVideo: Video element created and stream assigned for ${participantId}`);
           }
         }
       }
@@ -351,8 +352,9 @@ const UltraSimpleVideo = ({
             const stream = remoteStreams[participantId];
             if (stream && stream.active && stream.getTracks().length > 0) {
               el.srcObject = stream;
-            if (el) el.play().catch(() => {});
-          }
+              el.play().catch(() => {});
+              console.log(`🔊 UltraSimpleVideo: Audio element created and stream assigned for ${participantId}`);
+            }
         }
       }
     };
@@ -366,6 +368,8 @@ const UltraSimpleVideo = ({
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
       localVideoRef.current.style.opacity = '1';
+      localVideoRef.current.play().catch(() => {});
+      console.log('🎥 UltraSimpleVideo: Local video setup complete');
     }
   }, [localStream]);
 
@@ -381,20 +385,23 @@ const UltraSimpleVideo = ({
         const stream = remoteStreams[participantId];
         
         if (stream && stream.active && stream.getTracks().length > 0) {
-          // Only update if stream is different to prevent unnecessary re-renders
-          if (videoElement && videoElement.srcObject !== stream) {
+          // Always update video element to ensure it shows the stream
+          if (videoElement) {
             console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
             videoElement.srcObject = stream;
             videoElement.style.display = 'block';
             videoElement.style.visibility = 'visible';
             videoElement.style.opacity = '1';
             videoElement.play().catch(() => {});
+            console.log(`🎥 UltraSimpleVideo: Video element updated for ${participantId}`);
           }
           
-          if (audioElement && audioElement.srcObject !== stream) {
+          // Always update audio element to ensure it plays the stream
+          if (audioElement) {
             console.log(`🔊 UltraSimpleVideo: Assigning stream to audio element for ${participantId}`);
             audioElement.srcObject = stream;
             audioElement.play().catch(() => {});
+            console.log(`🔊 UltraSimpleVideo: Audio element updated for ${participantId}`);
           }
         }
       });
