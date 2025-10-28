@@ -797,7 +797,6 @@ const useUltraSimplePeer = (meetingId, userName) => {
     const peerConfig = {
       initiator: shouldBeInitiator,
       trickle: true,
-      stream: stream,
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -811,6 +810,14 @@ const useUltraSimplePeer = (meetingId, userName) => {
         rtcpMuxPolicy: 'require'
       }
     };
+    
+    const peer = new SimplePeer(peerConfig);
+    
+    // Add stream after peer creation for better reliability
+    if (stream) {
+      peer.addStream(stream);
+      console.log(`ðŸ"— CREATE-PEER: Added stream to peer for ${participantId} after creation`);
+    }
     
     if (isLargeGroup && stream) {
       const videoTrack = stream.getVideoTracks()[0];
@@ -832,12 +839,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
     // Apply audio constraints using audioUtils
     await applyAudioConstraints(stream, participantId);
     
-    const peer = new SimplePeer(peerConfig);
-    
     // Store the peer immediately
     peersRef.current[participantId] = peer;
-    
-    // Stream is already passed in constructor
 
     // Ensure audio track is properly added to the peer connection
     peer.on('connect', () => {
@@ -1230,7 +1233,6 @@ const useUltraSimplePeer = (meetingId, userName) => {
       const peer = new SimplePeer({
         initiator: false,
         trickle: true,
-        stream: localStream,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -1242,7 +1244,11 @@ const useUltraSimplePeer = (meetingId, userName) => {
         }
       });
       
-      // Stream is already passed in constructor
+      // Add stream after peer creation for better reliability
+      if (localStream) {
+        peer.addStream(localStream);
+        console.log(`ðŸ"— HANDLE-SIGNAL: Added stream to peer for ${from} after creation`);
+      }
 
       peer.on('signal', (signalData) => {
         console.log('ðŸ“¡ UltraSimplePeer: Sending signal to:', from);
