@@ -308,5 +308,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-10-28T22:42:27.334Z"
+  },
+  "IUC126": {
+    "title": "Meeting IUC126",
+    "createdAt": "2025-10-28T22:44:41.584Z",
+    "endedAt": "2025-10-28T22:44:38.677Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-10-28T22:44:38.707Z"
   }
 }

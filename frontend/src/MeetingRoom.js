@@ -999,45 +999,49 @@ const MeetingRoom = () => {
       })}
 
       <Box className="video-main-area">
-        {isWaitingForApproval ? (
-          <Box className="waiting-approval-container">
-            <Typography variant="h4" color="primary" gutterBottom>
-              ⏳ Waiting for Host Approval
-            </Typography>
-            <Typography variant="body1" color="text.secondary" align="center">
-              You have requested to join the meeting. Please wait for the host to approve your request.
-            </Typography>
-            <Box className="loading-spinner loading-spinner-with-margin">
-              <div className="spinner"></div>
+        {/* Always show video component, but with waiting overlay if needed */}
+        <UltraSimpleVideo
+          userName={finalUserName}
+          isHost={isHost}
+          localVideoRef={localVideoRef}
+          participants={participants}
+          remoteStreams={remoteStreams}
+          localStream={localStream}
+          currentUserId={socket?.id}
+          forceConnection={forceConnection}
+          createConnectionsToAllParticipants={createConnectionsToAllParticipants}
+          initializeMedia={initializeMedia}
+          // Screen sharing props
+          screenStream={screenStream}
+          remoteScreenStreams={remoteScreenStreams}
+          forceRender={forceRender}
+          // Participant management
+          onRemoveParticipant={handleRemoveParticipant}
+        />
+        
+        {/* Waiting approval overlay */}
+        {isWaitingForApproval && (
+          <Box className="waiting-approval-overlay">
+            <Box className="waiting-approval-content">
+              <Typography variant="h4" color="primary" gutterBottom>
+                ⏳ Waiting for Host Approval
+              </Typography>
+              <Typography variant="body1" color="text.secondary" align="center">
+                You have requested to join the meeting. Please wait for the host to approve your request.
+              </Typography>
+              <Box className="loading-spinner loading-spinner-with-margin">
+                <div className="spinner"></div>
+              </Box>
+              <Button
+                variant="contained"
+                color="primary"
+                className="button-with-margin"
+                onClick={() => console.log('Request approval - SimplePeer handles this automatically')}
+              >
+                Request Approval Again
+              </Button>
             </Box>
-            <Button
-              variant="contained"
-              color="primary"
-              className="button-with-margin"
-              onClick={() => console.log('Request approval - SimplePeer handles this automatically')}
-            >
-              Request Approval Again
-            </Button>
           </Box>
-        ) : (
-          <UltraSimpleVideo
-            userName={finalUserName}
-            isHost={isHost}
-            localVideoRef={localVideoRef}
-            participants={participants}
-            remoteStreams={remoteStreams}
-            localStream={localStream}
-            currentUserId={socket?.id}
-            forceConnection={forceConnection}
-            createConnectionsToAllParticipants={createConnectionsToAllParticipants}
-            initializeMedia={initializeMedia}
-            // Screen sharing props
-            screenStream={screenStream}
-            remoteScreenStreams={remoteScreenStreams}
-            forceRender={forceRender}
-            // Participant management
-            onRemoveParticipant={handleRemoveParticipant}
-          />
         )}
       </Box>
 
