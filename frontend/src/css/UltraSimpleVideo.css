@@ -114,7 +114,7 @@
   border-radius: var(--radius-md);
   display: block;
   background: #000;
-  transform: scaleX(-1); /* Mirror the video horizontally to fix camera flip */
+  /* Removed transform: scaleX(-1) - causing black video issue */
   position: absolute;
   top: 0;
   left: 0;
@@ -129,15 +129,10 @@
   border-radius: 0;
 }
 
-/* CAMERA VIDEO - Should be mirrored like a mirror (scaleX(-1)) */
+/* CAMERA VIDEO - Removed mirroring to fix black video issue */
 .video-element:not([data-screen-share="true"]),
 video:not([data-screen-share="true"]) {
-  /* CRITICAL: Mirror camera feeds like a mirror */
-  transform: scaleX(-1) !important;
-  -webkit-transform: scaleX(-1) !important;
-  -moz-transform: scaleX(-1) !important;
-  -ms-transform: scaleX(-1) !important;
-  -o-transform: scaleX(-1) !important;
+  /* Removed transform: scaleX(-1) - causing black video issue */
   
   /* CRITICAL: Force proper sizing to remove black bars */
   object-fit: cover !important;

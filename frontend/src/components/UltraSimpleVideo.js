@@ -628,15 +628,20 @@ const UltraSimpleVideo = ({
             muted
             className="video-element"
             style={{
-              position: 'relative',
-              zIndex: 1,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              zIndex: 3,
               width: '100%',
               height: '100%',
               objectFit: 'cover',
               display: 'block',
               visibility: 'visible',
               opacity: 1,
-              backgroundColor: '#000'
+              backgroundColor: 'transparent',
+              border: 'none',
+              margin: 0,
+              padding: 0
             }}
           />
           
