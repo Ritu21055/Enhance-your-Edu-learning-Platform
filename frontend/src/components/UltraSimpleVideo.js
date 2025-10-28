@@ -318,26 +318,19 @@ const UltraSimpleVideo = ({
   // }, [otherParticipants]);
 
   // Stable video element creation callback to prevent recreation
-  // SIMPLE: Video element creation without aggressive intervals
   const createVideoElement = useCallback((participantId) => {
     return (el) => {
       if (el && participantId) {
         remoteVideoRefs.current[participantId] = el;
-        
-        // Force video element to be visible
         el.style.display = 'block';
         el.style.visibility = 'visible';
         el.style.opacity = '1';
         
-        // Always assign stream if it's available
-        if (remoteStreams[participantId]) {
-          const stream = remoteStreams[participantId];
-          if (stream && stream.active && stream.getTracks().length > 0) {
-            console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
-            el.srcObject = stream;
-            el.play().catch(() => {}); // Silent fail
-            console.log(`🎥 UltraSimpleVideo: Video element created and stream assigned for ${participantId}`);
-          }
+        // Assign stream if available
+        const stream = remoteStreams[participantId];
+        if (stream && stream.active && stream.getTracks().length > 0) {
+          el.srcObject = stream;
+          el.play().catch(() => {});
         }
       }
     };
@@ -348,13 +341,12 @@ const UltraSimpleVideo = ({
     return (el) => {
       if (el && participantId) {
         remoteAudioRefs.current[participantId] = el;
-        if (remoteStreams[participantId]) {
-            const stream = remoteStreams[participantId];
-            if (stream && stream.active && stream.getTracks().length > 0) {
-              el.srcObject = stream;
-              el.play().catch(() => {});
-              console.log(`🔊 UltraSimpleVideo: Audio element created and stream assigned for ${participantId}`);
-            }
+        
+        // Assign stream if available
+        const stream = remoteStreams[participantId];
+        if (stream && stream.active && stream.getTracks().length > 0) {
+          el.srcObject = stream;
+          el.play().catch(() => {});
         }
       }
     };
@@ -362,8 +354,15 @@ const UltraSimpleVideo = ({
 
   // MINIMAL: Single effect for local video - NO OTHER EFFECTS
   useEffect(() => {
+    console.log('🎥 UltraSimpleVideo: Local video effect running:', {
+      hasLocalStream: !!localStream,
+      hasLocalVideoRef: !!localVideoRef.current,
+      streamActive: localStream?.active,
+      streamTracks: localStream?.getTracks()?.length
+    });
+    
     if (localStream && localVideoRef.current) {
-      console.log('🎥 UltraSimpleVideo: Setting up local video - MINIMAL APPROACH');
+      console.log('🎥 UltraSimpleVideo: Setting up local video');
       localVideoRef.current.srcObject = localStream;
       localVideoRef.current.style.display = 'block';
       localVideoRef.current.style.visibility = 'visible';
@@ -375,39 +374,40 @@ const UltraSimpleVideo = ({
 
   // CONSOLIDATED: Single effect for remote streams - NO DUPLICATE PROCESSING
   useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Remote streams updated:', Object.keys(remoteStreams));
+    console.log('🎥 UltraSimpleVideo: Remote streams effect running, streams:', Object.keys(remoteStreams));
     
-    // Use debouncing to prevent excessive processing
-    const timeoutId = setTimeout(() => {
-      Object.keys(remoteStreams).forEach(participantId => {
-        const videoElement = remoteVideoRefs.current[participantId];
-        const audioElement = remoteAudioRefs.current[participantId];
-        const stream = remoteStreams[participantId];
-        
-        if (stream && stream.active && stream.getTracks().length > 0) {
-          // Always update video element to ensure it shows the stream
-          if (videoElement) {
-            console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
-            videoElement.srcObject = stream;
-            videoElement.style.display = 'block';
-            videoElement.style.visibility = 'visible';
-            videoElement.style.opacity = '1';
-            videoElement.play().catch(() => {});
-            console.log(`🎥 UltraSimpleVideo: Video element updated for ${participantId}`);
-          }
-          
-          // Always update audio element to ensure it plays the stream
-          if (audioElement) {
-            console.log(`🔊 UltraSimpleVideo: Assigning stream to audio element for ${participantId}`);
-            audioElement.srcObject = stream;
-            audioElement.play().catch(() => {});
-            console.log(`🔊 UltraSimpleVideo: Audio element updated for ${participantId}`);
-          }
-        }
+    Object.keys(remoteStreams).forEach(participantId => {
+      const videoElement = remoteVideoRefs.current[participantId];
+      const audioElement = remoteAudioRefs.current[participantId];
+      const stream = remoteStreams[participantId];
+      
+      console.log(`🎥 UltraSimpleVideo: Processing ${participantId}:`, {
+        hasVideoElement: !!videoElement,
+        hasAudioElement: !!audioElement,
+        hasStream: !!stream,
+        streamActive: stream?.active,
+        streamTracks: stream?.getTracks()?.length
       });
-    }, 100); // Small delay to prevent excessive updates
-    
-    return () => clearTimeout(timeoutId);
+      
+      if (stream && stream.active && stream.getTracks().length > 0) {
+        // Always update video element to ensure it shows the stream
+        if (videoElement) {
+          console.log(`🎥 UltraSimpleVideo: Assigning stream to video element for ${participantId}`);
+          videoElement.srcObject = stream;
+          videoElement.style.display = 'block';
+          videoElement.style.visibility = 'visible';
+          videoElement.style.opacity = '1';
+          videoElement.play().catch(() => {});
+        }
+        
+        // Always update audio element to ensure it plays the stream
+        if (audioElement) {
+          console.log(`🔊 UltraSimpleVideo: Assigning stream to audio element for ${participantId}`);
+          audioElement.srcObject = stream;
+          audioElement.play().catch(() => {});
+        }
+      }
+    });
   }, [remoteStreams]);
 
   // DISABLED: Ultra-aggressive protection completely removed to prevent interference
@@ -420,113 +420,6 @@ const UltraSimpleVideo = ({
 
   // REMOVED: Duplicate video visibility handling - consolidated into main effects
 
-  // GENTLE HOST VIDEO: Ensure host video is visible (with or without participants)
-  useEffect(() => {
-    console.log('🎥 UltraSimpleVideo: Gentle host video visibility check');
-    console.log('🎥 UltraSimpleVideo: Other participants count:', otherParticipants.length);
-    
-    // Only set up host video if it's missing or not properly configured
-    if (localVideoRef.current && localStream) {
-      const needsSetup = !localVideoRef.current.srcObject || 
-                        localVideoRef.current.style.display === 'none' ||
-                        localVideoRef.current.style.visibility === 'hidden';
-      
-      if (needsSetup) {
-        console.log('🎥 UltraSimpleVideo: Setting up local video (host)');
-        localVideoRef.current.srcObject = localStream;
-        localVideoRef.current.style.display = 'block';
-        localVideoRef.current.style.visibility = 'visible';
-        localVideoRef.current.style.opacity = '1';
-        localVideoRef.current.play().catch(() => {});
-      }
-    }
-  }, [otherParticipants.length, localStream]);
-
-  // GENTLE HOST VIDEO PROTECTION: Light check to ensure host video stays visible (reduced frequency)
-  useEffect(() => {
-    if (localStream) {
-      console.log('🎥 UltraSimpleVideo: Starting gentle host video protection');
-      console.log('🎥 UltraSimpleVideo: Other participants count:', otherParticipants.length);
-      
-      const forceHostVideoInterval = setInterval(() => {
-        if (localVideoRef.current && localStream) {
-          // Only check if host video is completely missing, not just hidden
-          const hasNoStream = !localVideoRef.current.srcObject;
-          
-          if (hasNoStream) {
-            console.log('🎥 UltraSimpleVideo: GENTLE - Host video missing stream, restoring');
-            localVideoRef.current.srcObject = localStream;
-            localVideoRef.current.style.display = 'block';
-            localVideoRef.current.style.visibility = 'visible';
-            localVideoRef.current.style.opacity = '1';
-            localVideoRef.current.play().catch(() => {});
-          }
-        }
-      }, 5000); // Reduced frequency: Check every 5 seconds instead of 2
-      
-      return () => {
-        console.log('🎥 UltraSimpleVideo: Stopping gentle host video protection');
-        clearInterval(forceHostVideoInterval);
-      };
-    }
-  }, [otherParticipants.length, localStream]);
-
-  // EMERGENCY: Global function to force host video visibility
-  useEffect(() => {
-    // Expose global function for emergency host video fix
-    window.forceHostVideoVisible = () => {
-      console.log('🚨 EMERGENCY: Forcing host video to be visible...');
-      console.log('🎥 UltraSimpleVideo: Other participants count:', otherParticipants.length);
-      
-      // Find all video elements in the DOM
-      const allVideos = document.querySelectorAll('video');
-      console.log('🚨 EMERGENCY: Found video elements:', allVideos.length);
-      
-      allVideos.forEach((video, index) => {
-        console.log(`🚨 EMERGENCY: Video ${index}:`, {
-          srcObject: !!video.srcObject,
-          display: video.style.display,
-          visibility: video.style.visibility,
-          opacity: video.style.opacity,
-          paused: video.paused,
-          currentTime: video.currentTime
-        });
-        
-        // Force all video elements to be visible and playing
-        video.style.display = 'block';
-        video.style.visibility = 'visible';
-        video.style.opacity = '1';
-        video.style.position = 'relative';
-        video.style.zIndex = '999';
-        
-        // Force play
-        video.play().catch(err => console.log('🚨 EMERGENCY: Play failed:', err));
-      });
-      
-      // Also force through refs
-    Object.keys(remoteVideoRefs.current).forEach(participantId => {
-        const videoElement = remoteVideoRefs.current[participantId];
-      const stream = remoteStreams[participantId];
-      
-        if (videoElement && stream) {
-          console.log(`🚨 EMERGENCY: Forcing video for ${participantId}`);
-          videoElement.srcObject = stream;
-          videoElement.style.display = 'block';
-          videoElement.style.visibility = 'visible';
-          videoElement.style.opacity = '1';
-          videoElement.style.position = 'relative';
-          videoElement.style.zIndex = '999';
-          videoElement.play().catch(() => {});
-        }
-      });
-      
-      console.log('🚨 EMERGENCY: Host video force complete!');
-    };
-    
-    return () => {
-      delete window.forceHostVideoVisible;
-    };
-  }, [remoteStreams, otherParticipants.length]);
 
   // DISABLED: Nuclear option completely removed to prevent interference
   // The aggressive protection systems have been removed to prevent video blinking
