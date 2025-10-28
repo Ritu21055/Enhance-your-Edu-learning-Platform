@@ -81,6 +81,7 @@ const MeetingRoom = () => {
   const [showParticipants, setShowParticipants] = useState(false);
   const [showSentimentDashboard, setShowSentimentDashboard] = useState(false);
   const [showAudioTroubleshooter, setShowAudioTroubleshooter] = useState(false);
+  const [showVideoDebugPanel, setShowVideoDebugPanel] = useState(false);
   const [showCompatibilityTest, setShowCompatibilityTest] = useState(false);
   const [compatibilityResults, setCompatibilityResults] = useState(null);
   const [debugMenuAnchor, setDebugMenuAnchor] = useState(null);
@@ -816,6 +817,61 @@ const MeetingRoom = () => {
               />
             </MenuItem>
             
+            <MenuItem 
+              onClick={() => {
+                if (window.forceLocalVideo) {
+                  window.forceLocalVideo();
+                  alert('Force local video attempted. Check if your video is now visible.');
+                } else {
+                  alert('Force local video function not available');
+                }
+                setDebugMenuAnchor(null);
+              }}
+            >
+              <ListItemIcon>
+                📹
+              </ListItemIcon>
+              <ListItemText 
+                primary="Force Local Video"
+                secondary="Manually force local video stream assignment"
+              />
+            </MenuItem>
+            
+            <MenuItem 
+              onClick={() => {
+                if (window.debugVideoStatus) {
+                  window.debugVideoStatus();
+                  alert('Video status logged to console. Check browser console for details.');
+                } else {
+                  alert('Debug video status function not available');
+                }
+                setDebugMenuAnchor(null);
+              }}
+            >
+              <ListItemIcon>
+                🔍
+              </ListItemIcon>
+              <ListItemText 
+                primary="Debug Video Status"
+                secondary="Check video stream and element status in console"
+              />
+            </MenuItem>
+            
+            <MenuItem 
+              onClick={() => {
+                setShowVideoDebugPanel(!showVideoDebugPanel);
+                setDebugMenuAnchor(null);
+              }}
+            >
+              <ListItemIcon>
+                🛠️
+              </ListItemIcon>
+              <ListItemText 
+                primary={showVideoDebugPanel ? 'Hide Video Debug Panel' : 'Show Video Debug Panel'}
+                secondary="Toggle video debugging tools panel"
+              />
+            </MenuItem>
+            
             {isHost && (
               <MenuItem 
                 onClick={() => {
@@ -1187,6 +1243,112 @@ const MeetingRoom = () => {
           onStopScreenShare={stopNewScreenShare}
           userName={finalUserName}
         />
+      )}
+
+      {/* Video Debug Panel */}
+      {showVideoDebugPanel && (
+        <Box
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            width: '300px',
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            color: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            zIndex: 9999,
+            border: '2px solid #4CAF50',
+            fontFamily: 'monospace',
+            fontSize: '12px'
+          }}
+        >
+          <Typography variant="h6" style={{ marginBottom: '15px', color: '#4CAF50' }}>
+            🛠️ Video Debug Panel
+          </Typography>
+          
+          <Box style={{ marginBottom: '15px' }}>
+            <Typography variant="body2" style={{ marginBottom: '5px' }}>
+              <strong>Local Stream:</strong> {localStream ? '✅ Available' : '❌ Not Available'}
+            </Typography>
+            <Typography variant="body2" style={{ marginBottom: '5px' }}>
+              <strong>Video Element:</strong> {localVideoRef?.current ? '✅ Found' : '❌ Not Found'}
+            </Typography>
+            <Typography variant="body2" style={{ marginBottom: '5px' }}>
+              <strong>Remote Streams:</strong> {Object.keys(remoteStreams).length} participant(s)
+            </Typography>
+            <Typography variant="body2" style={{ marginBottom: '5px' }}>
+              <strong>Participants:</strong> {participants.length} total
+            </Typography>
+            <Typography variant="body2" style={{ marginBottom: '5px' }}>
+              <strong>Is Host:</strong> {isHost ? '✅ Yes' : '❌ No'}
+            </Typography>
+            <Typography variant="body2" style={{ marginBottom: '5px' }}>
+              <strong>Waiting for Approval:</strong> {isWaitingForApproval ? '⏳ Yes' : '✅ No'}
+            </Typography>
+          </Box>
+          
+          <Box style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              onClick={() => {
+                if (window.forceLocalVideo) {
+                  window.forceLocalVideo();
+                } else {
+                  alert('Force local video function not available');
+                }
+              }}
+              style={{ fontSize: '11px' }}
+            >
+              🔧 Force Local Video
+            </Button>
+            
+            <Button
+              variant="contained"
+              color="secondary"
+              size="small"
+              onClick={() => {
+                if (window.debugVideoStatus) {
+                  window.debugVideoStatus();
+                } else {
+                  alert('Debug video status function not available');
+                }
+              }}
+              style={{ fontSize: '11px' }}
+            >
+              🔍 Debug Video Status
+            </Button>
+            
+            <Button
+              variant="contained"
+              color="warning"
+              size="small"
+              onClick={() => {
+                if (initializeMedia) {
+                  initializeMedia();
+                  alert('Media initialization attempted');
+                } else {
+                  alert('Initialize media function not available');
+                }
+              }}
+              style={{ fontSize: '11px' }}
+            >
+              🎥 Re-initialize Media
+            </Button>
+            
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              onClick={() => setShowVideoDebugPanel(false)}
+              style={{ fontSize: '11px' }}
+            >
+              ❌ Close Panel
+            </Button>
+          </Box>
+        </Box>
       )}
 
     </Container>

@@ -441,7 +441,33 @@ const UltraSimpleVideo = ({
     // Try after a delay
     const timeoutId = setTimeout(forceSetLocalVideo, 500);
     
-    return () => clearTimeout(timeoutId);
+    // Try again after 2 seconds
+    const timeoutId2 = setTimeout(forceSetLocalVideo, 2000);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(timeoutId2);
+    };
+  }, [localStream]);
+
+  // Additional effect to continuously check and fix local video
+  useEffect(() => {
+    const checkLocalVideo = () => {
+      if (localStream && localVideoRef.current) {
+        const videoElement = localVideoRef.current;
+        if (!videoElement.srcObject || videoElement.srcObject !== localStream) {
+          console.log('🔧 UltraSimpleVideo: Fixing local video stream assignment');
+          videoElement.srcObject = localStream;
+          videoElement.load();
+          videoElement.play().catch(console.warn);
+        }
+      }
+    };
+
+    // Check every 2 seconds
+    const interval = setInterval(checkLocalVideo, 2000);
+    
+    return () => clearInterval(interval);
   }, [localStream]);
 
   // Removed problematic periodic checking that was causing blinking
@@ -580,10 +606,23 @@ const UltraSimpleVideo = ({
   // Expose debug function to window for manual testing
   useEffect(() => {
     window.debugVideoStatus = debugVideoStatus;
+    window.forceLocalVideo = () => {
+      console.log('🔧 Force Local Video: Manually setting local video stream');
+      if (localStream && localVideoRef.current) {
+        const videoElement = localVideoRef.current;
+        videoElement.srcObject = localStream;
+        videoElement.load();
+        videoElement.play().catch(console.warn);
+        console.log('🔧 Force Local Video: Stream set successfully');
+      } else {
+        console.log('🔧 Force Local Video: No stream or video element available');
+      }
+    };
     return () => {
       delete window.debugVideoStatus;
+      delete window.forceLocalVideo;
     };
-  }, [debugVideoStatus]);
+  }, [debugVideoStatus, localStream]);
 
   // Throttle re-renders to prevent excessive updates
   const reRenderTimeout = useRef(null);

@@ -1424,7 +1424,8 @@ const useUltraSimplePeer = (meetingId, userName) => {
 
   // Auto-initialize media when host or approved
   useEffect(() => {
-    if (isHost || !isWaitingForApproval) {
+    // Always initialize media for all users
+    if (true) {
       console.log('ðŸŽ¥ UltraSimplePeer: Auto-initializing media (host or approved)...');
       console.log('ðŸŽ¥ UltraSimplePeer: isHost:', isHost, 'isWaitingForApproval:', isWaitingForApproval);
       
