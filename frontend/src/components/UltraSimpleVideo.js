@@ -364,26 +364,36 @@ const UltraSimpleVideo = ({
     const forceSetLocalVideo = () => {
       if (localStream && localVideoRef.current) {
         console.log('🎥 UltraSimpleVideo: FORCE setting local video stream');
-        localVideoRef.current.srcObject = localStream;
-        localVideoRef.current.play().catch(() => {});
         
-        // Force video to be visible
-        localVideoRef.current.style.display = 'block';
-        localVideoRef.current.style.visibility = 'visible';
-        localVideoRef.current.style.opacity = '1';
-        localVideoRef.current.style.position = 'absolute';
-        localVideoRef.current.style.top = '0';
-        localVideoRef.current.style.left = '0';
-        localVideoRef.current.style.zIndex = '3';
-        localVideoRef.current.style.width = '100%';
-        localVideoRef.current.style.height = '100%';
-        localVideoRef.current.style.objectFit = 'cover';
-        localVideoRef.current.style.backgroundColor = 'transparent';
-        localVideoRef.current.style.border = 'none';
-        localVideoRef.current.style.margin = '0';
-        localVideoRef.current.style.padding = '0';
+        // Remove any existing srcObject first
+        localVideoRef.current.srcObject = null;
         
-        console.log('🎥 UltraSimpleVideo: Video element forced to be visible');
+        // Force a small delay then set the stream
+        setTimeout(() => {
+          localVideoRef.current.srcObject = localStream;
+          localVideoRef.current.load(); // Force reload
+          localVideoRef.current.play().catch((err) => {
+            console.log('🎥 UltraSimpleVideo: Play error:', err);
+          });
+          
+          // Force video to be visible
+          localVideoRef.current.style.display = 'block';
+          localVideoRef.current.style.visibility = 'visible';
+          localVideoRef.current.style.opacity = '1';
+          localVideoRef.current.style.position = 'absolute';
+          localVideoRef.current.style.top = '0';
+          localVideoRef.current.style.left = '0';
+          localVideoRef.current.style.zIndex = '3';
+          localVideoRef.current.style.width = '100%';
+          localVideoRef.current.style.height = '100%';
+          localVideoRef.current.style.objectFit = 'cover';
+          localVideoRef.current.style.backgroundColor = 'transparent';
+          localVideoRef.current.style.border = 'none';
+          localVideoRef.current.style.margin = '0';
+          localVideoRef.current.style.padding = '0';
+          
+          console.log('🎥 UltraSimpleVideo: Video element forced to be visible');
+        }, 100);
       }
     };
 
@@ -649,6 +659,11 @@ const UltraSimpleVideo = ({
             playsInline
             muted
             className="video-element"
+            onLoadedData={() => console.log('🎥 Video loadeddata event fired')}
+            onCanPlay={() => console.log('🎥 Video canplay event fired')}
+            onPlay={() => console.log('🎥 Video play event fired')}
+            onPlaying={() => console.log('🎥 Video playing event fired')}
+            onError={(e) => console.log('🎥 Video error event fired:', e)}
             style={{
               position: 'absolute',
               top: 0,
@@ -683,6 +698,28 @@ const UltraSimpleVideo = ({
                 zIndex: 10,
                 border: '2px solid red',
                 backgroundColor: '#000'
+              }}
+            />
+          )}
+          
+          {/* Simple test video - no CSS classes, minimal styling */}
+          {localStream && (
+            <video
+              srcObject={localStream}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                position: 'absolute',
+                top: '120px',
+                right: '10px',
+                width: '150px',
+                height: '100px',
+                zIndex: 10,
+                border: '2px solid blue',
+                backgroundColor: '#000',
+                transform: 'none',
+                objectFit: 'cover'
               }}
             />
           )}
