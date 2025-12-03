@@ -387,10 +387,23 @@ export default function registerMeetingHandlers(socket, io) {
         
         // CRITICAL: Check password for ALL non-host users
         // This includes users who might have been incorrectly marked as host
-        if (!finalIsActuallyHost || passwordBlocksHost) {
+        // DOUBLE CHECK: If meeting has hostId and it's not this socket, user MUST be participant
+        const isDefinitelyNotHost = hasExistingHost && meeting.hostId !== socket.id;
+        const needsPasswordCheck = !finalIsActuallyHost || passwordBlocksHost || isDefinitelyNotHost;
+        
+        if (needsPasswordCheck) {
           // Participant needs to provide password
           if (!password || password.trim() !== meeting.password.trim()) {
             console.log(`🔒 Password required for participant ${userName} (${socket.id}) - emitting meeting-password-required`);
+            console.log(`🔒 Debug info:`, {
+              finalIsActuallyHost,
+              passwordBlocksHost,
+              isDefinitelyNotHost,
+              hasExistingHost,
+              meetingHostId: meeting.hostId,
+              socketId: socket.id,
+              providedPassword: password ? 'yes' : 'no'
+            });
             socket.emit('meeting-password-required', {
               meetingId: meetingId,
               error: password ? 'Incorrect password. Please try again.' : 'This meeting requires a password.'

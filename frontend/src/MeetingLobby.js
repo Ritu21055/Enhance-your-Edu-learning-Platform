@@ -60,24 +60,68 @@ const MeetingLobby = () => {
     console.log('🔍 Lobby: Current hostname:', window.location.hostname);
     console.log('🔍 Lobby: Current protocol:', window.location.protocol);
     
-    const newSocket = io(backendUrl);
+    // Test backend connection first
+    testBackendConnection().then(result => {
+      if (!result.success) {
+        console.error('❌ Backend connection test failed:', result.error);
+        setError(`Cannot connect to server at ${backendUrl}. Please check your network connection.`);
+        return;
+      }
+      console.log('✅ Backend connection test passed');
+    });
+    
+    const newSocket = io(backendUrl, {
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
+    });
     setSocket(newSocket);
 
+    let connectionTimeout;
+    
     newSocket.on('connect', () => {
       console.log('✅ Lobby: Connected to server at:', backendUrl);
+      console.log('✅ Lobby: Socket ID:', newSocket.id);
       setIsConnected(true);
+      setError(''); // Clear any previous errors
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
     });
 
     newSocket.on('connect_error', (error) => {
       console.error('❌ Lobby: Connection error:', error);
       console.error('❌ Lobby: Failed to connect to:', backendUrl);
-      setError(`Failed to connect to server: ${error.message}`);
+      console.error('❌ Lobby: Error details:', {
+        message: error.message,
+        description: error.description,
+        context: error.context,
+        type: error.type
+      });
+      setIsConnected(false);
+      setError(`Failed to connect to server at ${backendUrl}. Please ensure the server is running and accessible. Error: ${error.message}`);
     });
 
     newSocket.on('disconnect', (reason) => {
       console.log('⚠️ Lobby: Disconnected from server:', reason);
       setIsConnected(false);
+      if (reason === 'io server disconnect') {
+        // Server disconnected, try to reconnect
+        setError('Disconnected from server. Attempting to reconnect...');
+      }
     });
+    
+    // Set a connection timeout
+    connectionTimeout = setTimeout(() => {
+      if (!newSocket.connected) {
+        console.error('❌ Lobby: Connection timeout - socket not connected after 10 seconds');
+        setError(`Connection timeout. Cannot reach server at ${backendUrl}. Please check your network connection and ensure the server is running.`);
+        setIsConnected(false);
+      }
+    }, 10000);
 
     // REMOVED: Connection timeout was causing unnecessary errors
 
@@ -128,9 +172,11 @@ const MeetingLobby = () => {
     newSocket.on('meeting-password-required', (data) => {
       console.log('🔒 Password required event received:', data);
       console.log('🔒 Setting showPasswordDialog to true');
+      console.log('🔒 Current state before update:', { showPasswordDialog, hasJoined, isHost });
       setShowPasswordDialog(true);
       setError(data.error || 'This meeting requires a password');
       setHasJoined(false);
+      console.log('🔒 Password dialog should now be open');
     });
 
     // NOTE: Password verification is now handled directly in PasswordDialog onSubmit
@@ -179,6 +225,22 @@ const MeetingLobby = () => {
       return;
     }
 
+    // Check if socket is connected
+    if (!socket) {
+      setError('Socket not initialized. Please wait a moment and try again.');
+      return;
+    }
+    
+    if (!socket.connected) {
+      setError(`Not connected to server. Please wait for connection to ${socket.io?.uri || 'server'}. 
+        If this persists, check:
+        1. Backend server is running on host laptop
+        2. Both laptops are on the same network
+        3. Firewall allows connections`);
+      setHasJoined(false);
+      return;
+    }
+
     // If joining as host, require meeting title
     const titleForValidation = meetingTitleRef.current || meetingTitle;
     console.log('🔍 Lobby: Checking meeting title for host:', { isHost, meetingTitle: titleForValidation, trimmed: titleForValidation.trim() });
@@ -202,7 +264,9 @@ const MeetingLobby = () => {
       meetingId, 
       userName: trimmedUsername,
       meetingTitle: meetingTitleToSend,
-      isHost
+      isHost,
+      socketConnected: socket?.connected,
+      participantPassword: participantPassword ? 'provided' : 'not provided'
     });
     console.log('🔍 Lobby: Username value:', username);
     console.log('🔍 Lobby: Username ref value:', usernameRef.current);
