@@ -149,9 +149,24 @@ const useVideoCall = (meetingId, userName) => {
       // Both host and participant need media to establish connections
       if (!isInitializedRef.current || !streamRef.current) {
         console.log('🎥 Initializing media for meeting connection...');
+        console.log('🎥 User type:', hostStatus ? 'Host' : 'Participant');
         try {
-          await initializeMedia();
+          const stream = await initializeMedia();
           console.log('✅ Media initialized successfully');
+          console.log('✅ Stream details:', {
+            streamId: stream?.id,
+            active: stream?.active,
+            videoTracks: stream?.getVideoTracks().length,
+            audioTracks: stream?.getAudioTracks().length,
+            videoEnabled: stream?.getVideoTracks()[0]?.enabled,
+            audioEnabled: stream?.getAudioTracks()[0]?.enabled
+          });
+          
+          // CRITICAL: Ensure local stream state is updated
+          if (stream && stream !== streamRef.current) {
+            console.log('🔄 Updating local stream state');
+            setLocalStream(stream);
+          }
           
           // CRITICAL: Process any signals that arrived before media was ready
           if (earlySignalQueueRef.current.length > 0) {
@@ -816,9 +831,16 @@ const useVideoCall = (meetingId, userName) => {
   const initializeMedia = useCallback(async () => {
     try {
       if (isInitializedRef.current && streamRef.current) {
+        console.log('🎥 Media already initialized, returning existing stream');
+        // CRITICAL: Ensure state is updated even if stream already exists
+        if (streamRef.current && !localStream) {
+          console.log('🔄 Updating local stream state from existing stream');
+          setLocalStream(streamRef.current);
+        }
         return streamRef.current;
       }
       
+      console.log('🎥 Requesting user media...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
@@ -832,16 +854,30 @@ const useVideoCall = (meetingId, userName) => {
         }
       });
 
+      console.log('✅ User media obtained:', {
+        streamId: stream.id,
+        active: stream.active,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length
+      });
+
       streamRef.current = stream;
       setLocalStream(stream);
       isInitializedRef.current = true;
+      
+      console.log('✅ Media initialization complete, local stream state updated');
 
       return stream;
     } catch (error) {
-      console.error('VideoCall: Failed to initialize media', error);
+      console.error('❌ VideoCall: Failed to initialize media', error);
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        constraint: error.constraint
+      });
       throw error;
     }
-  }, [meetingId]);
+  }, [meetingId, localStream]);
 
   // Create Peer Connection
   const createPeerConnection = useCallback((participantId, initiator) => {
