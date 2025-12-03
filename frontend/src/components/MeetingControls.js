@@ -6,13 +6,8 @@ import {
   Button
 } from '@mui/material';
 import {
-  Mic,
-  MicOff,
   Videocam,
   VideocamOff,
-  ScreenShare,
-  StopScreenShare,
-  Chat,
   People,
   CallEnd,
   Star,
@@ -20,6 +15,9 @@ import {
   Stop,
   Psychology
 } from '@mui/icons-material';
+import ChatButton from './ChatButton';
+import AudioButton from './AudioButton';
+import ScreenShareButton from './ScreenShareButton';
 
 const MeetingControls = ({
   isAudioEnabled,
@@ -39,7 +37,9 @@ const MeetingControls = ({
   onToggleRecording,
   // AI Question Generation props
   isQuestionGenerationActive,
-  onToggleQuestionGeneration
+  onToggleQuestionGeneration,
+  // Additional props for isolated buttons
+  localStream
 }) => {
   return (
     <Paper 
@@ -54,14 +54,12 @@ const MeetingControls = ({
         justifyContent="center"
         sx={{ width: '100%' }}
       >
-        {/* Audio Control */}
-        <IconButton
-          onClick={onToggleAudio}
-          className={`control-button ${isAudioEnabled ? 'audio-enabled' : 'audio-disabled'}`}
-          title={isAudioEnabled ? 'Mute Audio' : 'Unmute Audio'}
-        >
-          {isAudioEnabled ? <Mic /> : <MicOff />}
-        </IconButton>
+        {/* Audio Control - Isolated Component */}
+        <AudioButton
+          isAudioEnabled={isAudioEnabled}
+          onToggleAudio={onToggleAudio}
+          localStream={localStream}
+        />
         
         {/* Video Control */}
         <IconButton
@@ -72,23 +70,19 @@ const MeetingControls = ({
           {isVideoEnabled ? <Videocam /> : <VideocamOff />}
         </IconButton>
         
-        {/* Screen Share Control */}
-        <IconButton
-          onClick={onToggleScreenShare}
-          className={`control-button ${isScreenSharing ? 'screen-sharing' : 'screen-share-inactive'}`}
-          title={isScreenSharing ? 'Stop Screen Share' : 'Start Screen Share'}
-        >
-          {isScreenSharing ? <StopScreenShare /> : <ScreenShare />}
-        </IconButton>
+        {/* Screen Share Control - Isolated Component */}
+        <ScreenShareButton
+          isScreenSharing={isScreenSharing}
+          onToggleScreenShare={onToggleScreenShare}
+          localStream={localStream}
+        />
         
-        {/* Chat Control */}
-        <IconButton
-          onClick={onToggleChat}
-          className={`control-button chat-toggle ${showChat ? 'active' : ''}`}
-          title="Toggle Chat"
-        >
-          <Chat />
-        </IconButton>
+        {/* Chat Control - Isolated Component */}
+        {/* Chat Control - Simple toggle, no video interaction */}
+        <ChatButton
+          showChat={showChat}
+          onToggleChat={onToggleChat}
+        />
         
         {/* Participants Control */}
         <IconButton

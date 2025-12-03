@@ -193,6 +193,80 @@ class MediaProcessor {
   }
 
   /**
+   * Check if a media file has video and/or audio streams
+   * @param {string} inputPath - Input media file path
+   * @returns {Promise<Object>} Object with hasVideo and hasAudio flags
+   */
+  async checkMediaStreams(inputPath) {
+    return new Promise((resolve, reject) => {
+      const ffprobe = spawn('ffprobe', [
+        '-v', 'error',
+        '-select_streams', 'v:0',
+        '-show_entries', 'stream=codec_type',
+        '-of', 'default=noprint_wrappers=1',
+        inputPath
+      ]);
+
+      let hasVideo = false;
+      let hasAudio = false;
+      let errorOutput = '';
+
+      ffprobe.stdout.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('codec_type=video')) {
+          hasVideo = true;
+        }
+      });
+
+      ffprobe.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      ffprobe.on('close', (code) => {
+        // Check audio stream
+        const ffprobeAudio = spawn('ffprobe', [
+          '-v', 'error',
+          '-select_streams', 'a:0',
+          '-show_entries', 'stream=codec_type',
+          '-of', 'default=noprint_wrappers=1',
+          inputPath
+        ]);
+
+        let audioOutput = '';
+        ffprobeAudio.stdout.on('data', (data) => {
+          audioOutput += data.toString();
+        });
+
+        ffprobeAudio.on('close', (audioCode) => {
+          if (audioOutput.includes('codec_type=audio')) {
+            hasAudio = true;
+          }
+
+          // If both checks failed, try a simpler check
+          if (!hasVideo && !hasAudio && code === 0 && audioCode === 0) {
+            // Default to both available if probe succeeded but found nothing (might be a probe issue)
+            console.log('⚠️ Could not detect streams, assuming both available');
+            hasVideo = true;
+            hasAudio = true;
+          }
+
+          resolve({ hasVideo, hasAudio });
+        });
+
+        ffprobeAudio.on('error', () => {
+          // If ffprobe fails, assume both are available
+          resolve({ hasVideo: true, hasAudio: true });
+        });
+      });
+
+      ffprobe.on('error', () => {
+        // If ffprobe fails, assume both are available
+        resolve({ hasVideo: true, hasAudio: true });
+      });
+    });
+  }
+
+  /**
    * Extract video segment with context-aware processing and intelligent audio/video handling
    * @param {string} inputPath - Input video file path
    * @param {string} outputPath - Output clip file path
@@ -201,63 +275,242 @@ class MediaProcessor {
    * @param {Object} highlight - Highlight object with context
    */
   async extractVideoSegmentWithContext(inputPath, outputPath, startTime, duration, highlight) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Check what streams are actually available in the recording
+        const streamInfo = await this.checkMediaStreams(inputPath);
+        const recordingHasVideo = streamInfo.hasVideo;
+        const recordingHasAudio = streamInfo.hasAudio;
+
+        console.log(`📹 Stream detection for segment: video=${recordingHasVideo}, audio=${recordingHasAudio}`);
+
+        // Use recording stream info, but respect highlight flags if explicitly set
+        const hasVideo = highlight.hasVideo === false ? false : recordingHasVideo;
+        const hasAudio = highlight.hasAudio === false ? false : recordingHasAudio;
+
       // Create overlay text for the highlight
       const overlayText = this.createHighlightOverlay(highlight);
-      
-      // Check if input has video and audio
-      const hasVideo = highlight.hasVideo !== false; // Default to true if not specified
-      const hasAudio = highlight.hasAudio !== false; // Default to true if not specified
       
       // Enhanced overlay with participant information
       const participantInfo = highlight.participantId ? `Participant: ${highlight.participantId}` : 'Meeting Discussion';
       const highlightType = highlight.type || 'Important Moment';
       
-      let ffmpegArgs = [
+        // Build FFmpeg command based on available streams
+        let ffmpegArgs = [];
+        
+        if (hasVideo && recordingHasVideo && hasAudio && recordingHasAudio) {
+          // Both video and audio available - use both
+          ffmpegArgs = [
         '-i', inputPath,
         '-ss', startTime.toString(),
         '-t', duration.toString(),
+            '-map', '0:v', // Map video stream
+            '-map', '0:a?', // Map audio stream (optional)
+            '-c:v', 'libx264',
+            '-vf', this.createEnhancedHighlightOverlay(highlight, overlayText, participantInfo, highlightType),
+            '-c:a', 'aac',
         '-preset', 'fast',
         '-crf', '23',
         '-movflags', '+faststart',
-        '-avoid_negative_ts', 'make_zero'
-      ];
-      
-      // Handle video encoding with enhanced overlays
-      if (hasVideo) {
-        ffmpegArgs.push('-c:v', 'libx264');
-        // Add comprehensive video overlay with participant info
-        ffmpegArgs.push('-vf', this.createEnhancedHighlightOverlay(highlight, overlayText, participantInfo, highlightType));
+            '-avoid_negative_ts', 'make_zero',
+            '-y', outputPath
+          ];
+        } else if (hasVideo && recordingHasVideo && !hasAudio) {
+          // Video-only: use video with silent audio track
+          ffmpegArgs = [
+            '-i', inputPath,
+            '-ss', startTime.toString(),
+            '-t', duration.toString(),
+            '-f', 'lavfi',
+            '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
+            '-map', '0:v', // Map video stream
+            '-map', '1:a', // Map silent audio
+            '-c:v', 'libx264',
+            '-vf', this.createEnhancedHighlightOverlay(highlight, overlayText, participantInfo, highlightType),
+            '-c:a', 'aac',
+            '-preset', 'fast',
+            '-crf', '23',
+            '-movflags', '+faststart',
+            '-shortest', // Ensure output duration matches shortest input
+            '-y', outputPath
+          ];
+        } else if (hasAudio && recordingHasAudio && !hasVideo) {
+          // Audio-only: create video with audio
+          // Extract just the overlay filters (without the color filter since we're providing it separately)
+          const overlayFilters = this.createAudioOnlyOverlay(highlight, overlayText, participantInfo, highlightType)
+            .replace('color=c=#2c3e50:size=1280x720,', ''); // Remove color filter as it's provided by lavfi
+          
+          ffmpegArgs = [
+            '-f', 'lavfi',
+            '-i', `color=c=#2c3e50:size=1280x720:duration=${duration}:rate=30`,
+            '-ss', startTime.toString(),
+            '-i', inputPath,
+            '-t', duration.toString(),
+            '-filter_complex', `[0:v]${overlayFilters}[v]`, // Apply overlay to color background
+            '-map', '[v]', // Map processed video
+            '-map', '1:a?', // Map audio from recording
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-preset', 'fast',
+            '-crf', '23',
+            '-movflags', '+faststart',
+            '-shortest', // Ensure output duration matches shortest input
+            '-y', outputPath
+          ];
       } else {
-        // Audio-only: create video with audio waveform visualization and participant info
-        ffmpegArgs.push('-c:v', 'libx264');
-        ffmpegArgs.push('-vf', this.createAudioOnlyOverlay(highlight, overlayText, participantInfo, highlightType));
+          // Fallback: neither video nor audio (shouldn't happen, but handle gracefully)
+          ffmpegArgs = [
+            '-f', 'lavfi',
+            '-i', `color=c=#2c3e50:size=1280x720:duration=${duration}:rate=30`,
+            '-f', 'lavfi',
+            '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
+            '-map', '0:v',
+            '-map', '1:a',
+            '-c:v', 'libx264',
+            '-vf', this.createAudioOnlyOverlay(highlight, overlayText, participantInfo, highlightType),
+            '-c:a', 'aac',
+            '-preset', 'fast',
+            '-crf', '23',
+            '-movflags', '+faststart',
+            '-shortest',
+            '-y', outputPath
+          ];
       }
       
-      // Handle audio encoding
-      if (hasAudio) {
-        ffmpegArgs.push('-c:a', 'aac');
+        const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+
+        let errorOutput = '';
+
+        ffmpeg.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+
+        ffmpeg.on('close', (code) => {
+          if (code === 0) {
+            const streamType = hasVideo && recordingHasVideo && hasAudio && recordingHasAudio ? 'video+audio' :
+                              hasAudio && recordingHasAudio ? 'audio-only' :
+                              hasVideo && recordingHasVideo ? 'video-only' : 'fallback';
+            console.log(`✅ Extracted segment (${streamType}): ${startTime}s to ${startTime + duration}s`);
+            resolve();
       } else {
-        // Video-only: add silent audio track
-        ffmpegArgs.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-c:a', 'aac');
+            // Try fallback method if initial extraction fails
+            console.log('⚠️ Primary extraction failed, trying fallback method...');
+            this.extractSegmentFallback(inputPath, outputPath, startTime, duration, highlight, recordingHasVideo, recordingHasAudio)
+              .then(resolve)
+              .catch(reject);
+          }
+        });
+
+        ffmpeg.on('error', (error) => {
+          reject(new Error(`FFmpeg spawn error: ${error.message}`));
+        });
+      } catch (error) {
+        reject(error);
       }
-      
-      ffmpegArgs.push('-y', outputPath);
+    });
+  }
+
+  /**
+   * Fallback method for extracting segments when primary method fails
+   * @param {string} inputPath - Input file path
+   * @param {string} outputPath - Output file path
+   * @param {number} startTime - Start time in seconds
+   * @param {number} duration - Duration in seconds
+   * @param {Object} highlight - Highlight object
+   * @param {boolean} hasVideo - Whether video stream exists
+   * @param {boolean} hasAudio - Whether audio stream exists
+   */
+  async extractSegmentFallback(inputPath, outputPath, startTime, duration, highlight, hasVideo, hasAudio) {
+    return new Promise((resolve, reject) => {
+      const overlayText = this.createHighlightOverlay(highlight);
+      const participantInfo = highlight.participantId ? `Participant: ${highlight.participantId}` : 'Meeting Discussion';
+      const highlightType = highlight.type || 'Important Moment';
+
+      let ffmpegArgs = [];
+
+      if (hasVideo && hasAudio) {
+        // Both available - simpler extraction
+        ffmpegArgs = [
+          '-ss', startTime.toString(),
+          '-i', inputPath,
+          '-t', duration.toString(),
+          '-c:v', 'libx264',
+          '-c:a', 'aac',
+          '-preset', 'fast',
+          '-crf', '23',
+          '-movflags', '+faststart',
+          '-y', outputPath
+        ];
+      } else if (hasVideo && !hasAudio) {
+        // Video-only: use video with silent audio
+        ffmpegArgs = [
+          '-ss', startTime.toString(),
+          '-i', inputPath,
+          '-t', duration.toString(),
+          '-f', 'lavfi',
+          '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
+          '-map', '0:v',
+          '-map', '1:a',
+          '-c:v', 'libx264',
+          '-c:a', 'aac',
+          '-preset', 'fast',
+          '-crf', '23',
+          '-shortest',
+          '-y', outputPath
+        ];
+      } else if (hasAudio && !hasVideo) {
+        // Audio-only: create video with audio
+        const overlayFilters = this.createAudioOnlyOverlay(highlight, overlayText, participantInfo, highlightType)
+          .replace('color=c=#2c3e50:size=1280x720,', ''); // Remove color filter as it's provided by lavfi
+        
+        ffmpegArgs = [
+          '-f', 'lavfi',
+          '-i', `color=c=#2c3e50:size=1280x720:duration=${duration}:rate=30`,
+          '-ss', startTime.toString(),
+          '-i', inputPath,
+          '-t', duration.toString(),
+          '-filter_complex', `[0:v]${overlayFilters}[v]`,
+          '-map', '[v]',
+          '-map', '1:a?',
+          '-c:v', 'libx264',
+          '-c:a', 'aac',
+          '-preset', 'fast',
+          '-crf', '23',
+          '-shortest',
+          '-y', outputPath
+        ];
+      } else {
+        // Neither available - create placeholder
+        ffmpegArgs = [
+          '-f', 'lavfi',
+          '-i', `color=c=#2c3e50:size=1280x720:duration=${duration}:rate=30`,
+          '-f', 'lavfi',
+          '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
+          '-map', '0:v',
+          '-map', '1:a',
+          '-c:v', 'libx264',
+          '-vf', this.createAudioOnlyOverlay(highlight, overlayText, participantInfo, highlightType),
+          '-c:a', 'aac',
+          '-preset', 'fast',
+          '-crf', '23',
+          '-shortest',
+          '-y', outputPath
+        ];
+      }
       
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
 
       let errorOutput = '';
-
       ffmpeg.stderr.on('data', (data) => {
         errorOutput += data.toString();
       });
 
       ffmpeg.on('close', (code) => {
         if (code === 0) {
-          console.log(`✅ Extracted segment: ${hasVideo ? 'video+audio' : 'audio-only'} - ${startTime}s to ${startTime + duration}s`);
+          console.log(`✅ Extracted segment (fallback): ${startTime}s to ${startTime + duration}s`);
           resolve();
         } else {
-          reject(new Error(`FFmpeg extraction failed with code ${code}: ${errorOutput}`));
+          reject(new Error(`FFmpeg fallback extraction failed with code ${code}: ${errorOutput}`));
         }
       });
 
@@ -273,21 +526,28 @@ class MediaProcessor {
    * @returns {string} Overlay text
    */
   createHighlightOverlay(highlight) {
-    const typeEmojis = {
-      'decision': '🎯',
-      'problem': '⚠️',
-      'solution': '💡',
-      'action': '✅',
-      'urgent': '🚨',
-      'emotional': '😊',
-      'discussion': '💬'
+    // Remove emojis for FFmpeg compatibility
+    const typeLabels = {
+      'decision': '[DECISION]',
+      'problem': '[PROBLEM]',
+      'solution': '[SOLUTION]',
+      'action': '[ACTION]',
+      'urgent': '[URGENT]',
+      'emotional': '[EMOTIONAL]',
+      'discussion': '[DISCUSSION]'
     };
     
-    const emoji = typeEmojis[highlight.type] || '⭐';
+    const label = typeLabels[highlight.type] || '[HIGHLIGHT]';
     const priority = highlight.priority === 'high' ? 'HIGH PRIORITY' : 
                     highlight.priority === 'medium' ? 'MEDIUM PRIORITY' : 'LOW PRIORITY';
     
-    return `${emoji} ${priority} - ${highlight.description || highlight.type.toUpperCase()}`;
+    // Simplify description - remove newlines and limit length
+    const description = (highlight.description || highlight.type.toUpperCase())
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .substring(0, 50); // Limit length
+    
+    return `${label} ${priority} - ${description}`;
   }
 
   /**
@@ -302,11 +562,45 @@ class MediaProcessor {
     const timestamp = new Date(highlight.timestamp).toLocaleTimeString();
     const confidence = highlight.importanceScore ? Math.round(highlight.importanceScore * 100) : 0;
     
-    return `drawtext=text='${highlightType}':fontsize=24:fontcolor=white:x=20:y=20:box=1:boxcolor=black@0.8,` +
-           `drawtext=text='${participantInfo}':fontsize=18:fontcolor=white:x=20:y=60:box=1:boxcolor=black@0.6,` +
-           `drawtext=text='${overlayText}':fontsize=16:fontcolor=white:x=20:y=100:box=1:boxcolor=black@0.4,` +
-           `drawtext=text='Time: ${timestamp}':fontsize=14:fontcolor=white:x=20:y=140:box=1:boxcolor=black@0.4,` +
-           `drawtext=text='Confidence: ${confidence}%':fontsize=14:fontcolor=white:x=20:y=170:box=1:boxcolor=black@0.4`;
+    // Escape text for FFmpeg drawtext filter
+    // FFmpeg drawtext requires text to be wrapped in quotes, and internal quotes/backslashes must be escaped
+    const escapeText = (text) => {
+      if (!text) return '';
+      // Remove or replace problematic characters for FFmpeg
+      return String(text)
+        .replace(/\\/g, '\\\\')  // Escape backslashes first
+        .replace(/'/g, "\\'")     // Escape single quotes
+        .replace(/%/g, '%%')      // Escape percent signs (FFmpeg special)
+        .replace(/:/g, '-')       // Replace colons with hyphens (colons break FFmpeg syntax)
+        .replace(/\[/g, '(')      // Replace brackets
+        .replace(/\]/g, ')');     // Replace brackets
+    };
+    
+    // Simple text escaping for FFmpeg - remove problematic characters
+    const escapeTextForFFmpeg = (text) => {
+      if (!text) return '';
+      return String(text)
+        .replace(/\\/g, '')      // Remove backslashes
+        .replace(/"/g, "'")       // Replace double quotes with single
+        .replace(/%/g, 'pct')     // Replace percent signs
+        .replace(/:/g, '-')       // Replace colons with hyphens
+        .replace(/\n/g, ' ')      // Replace newlines with spaces
+        .replace(/\s+/g, ' ')     // Normalize whitespace
+        .trim()
+        .substring(0, 50);        // Limit length
+    };
+    
+    const safeType = escapeTextForFFmpeg(highlightType);
+    const safeParticipant = escapeTextForFFmpeg(participantInfo);
+    const safeOverlay = escapeTextForFFmpeg(overlayText);
+    const safeTimestamp = escapeTextForFFmpeg(`Time ${timestamp.replace(/:/g, '-')}`);
+    const safeConfidence = escapeTextForFFmpeg(`Confidence ${confidence}pct`);
+    
+    return `drawtext=text='${safeType}':fontsize=24:fontcolor=white:x=20:y=20:box=1:boxcolor=black@0.8,` +
+           `drawtext=text='${safeParticipant}':fontsize=18:fontcolor=white:x=20:y=60:box=1:boxcolor=black@0.6,` +
+           `drawtext=text='${safeOverlay}':fontsize=16:fontcolor=white:x=20:y=100:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='${safeTimestamp}':fontsize=14:fontcolor=white:x=20:y=140:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='${safeConfidence}':fontsize=14:fontcolor=white:x=20:y=170:box=1:boxcolor=black@0.4`;
   }
 
   /**
@@ -321,13 +615,33 @@ class MediaProcessor {
     const timestamp = new Date(highlight.timestamp).toLocaleTimeString();
     const confidence = highlight.importanceScore ? Math.round(highlight.importanceScore * 100) : 0;
     
+    // Simple text escaping for FFmpeg - remove problematic characters
+    const escapeTextForFFmpeg = (text) => {
+      if (!text) return '';
+      return String(text)
+        .replace(/\\/g, '')      // Remove backslashes
+        .replace(/"/g, "'")       // Replace double quotes with single
+        .replace(/%/g, 'pct')     // Replace percent signs
+        .replace(/:/g, '-')       // Replace colons with hyphens
+        .replace(/\n/g, ' ')      // Replace newlines with spaces
+        .replace(/\s+/g, ' ')     // Normalize whitespace
+        .trim()
+        .substring(0, 50);        // Limit length
+    };
+    
+    const safeType = escapeTextForFFmpeg(highlightType);
+    const safeParticipant = escapeTextForFFmpeg(participantInfo);
+    const safeOverlay = escapeTextForFFmpeg(overlayText);
+    const safeTimestamp = escapeTextForFFmpeg(`Time ${timestamp.replace(/:/g, '-')}`);
+    const safeConfidence = escapeTextForFFmpeg(`Confidence ${confidence}pct`);
+    
     return `color=c=#2c3e50:size=1280x720,` +
-           `drawtext=text='${highlightType}':fontsize=28:fontcolor=white:x=(w-text_w)/2:y=100:box=1:boxcolor=black@0.8,` +
-           `drawtext=text='${participantInfo}':fontsize=20:fontcolor=white:x=(w-text_w)/2:y=150:box=1:boxcolor=black@0.6,` +
+           `drawtext=text='${safeType}':fontsize=28:fontcolor=white:x=(w-text_w)/2:y=100:box=1:boxcolor=black@0.8,` +
+           `drawtext=text='${safeParticipant}':fontsize=20:fontcolor=white:x=(w-text_w)/2:y=150:box=1:boxcolor=black@0.6,` +
            `drawtext=text='Audio Discussion':fontsize=18:fontcolor=white:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.6,` +
-           `drawtext=text='${overlayText}':fontsize=16:fontcolor=white:x=(w-text_w)/2:y=250:box=1:boxcolor=black@0.4,` +
-           `drawtext=text='Time: ${timestamp}':fontsize=14:fontcolor=white:x=(w-text_w)/2:y=290:box=1:boxcolor=black@0.4,` +
-           `drawtext=text='Confidence: ${confidence}%':fontsize=14:fontcolor=white:x=(w-text_w)/2:y=320:box=1:boxcolor=black@0.4`;
+           `drawtext=text='${safeOverlay}':fontsize=16:fontcolor=white:x=(w-text_w)/2:y=250:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='${safeTimestamp}':fontsize=14:fontcolor=white:x=(w-text_w)/2:y=290:box=1:boxcolor=black@0.4,` +
+           `drawtext=text='${safeConfidence}':fontsize=14:fontcolor=white:x=(w-text_w)/2:y=320:box=1:boxcolor=black@0.4`;
   }
 
   /**
@@ -340,12 +654,28 @@ class MediaProcessor {
     return new Promise((resolve, reject) => {
       const transitionText = `Next: ${nextHighlight.description || nextHighlight.type}`;
       
+      // Simple text escaping for FFmpeg
+      const escapeTextForFFmpeg = (text) => {
+        if (!text) return '';
+        return String(text)
+          .replace(/\\/g, '')      // Remove backslashes
+          .replace(/"/g, "'")       // Replace double quotes with single
+          .replace(/%/g, 'pct')     // Replace percent signs
+          .replace(/:/g, '-')       // Replace colons with hyphens
+          .replace(/\n/g, ' ')      // Replace newlines with spaces
+          .replace(/\s+/g, ' ')     // Normalize whitespace
+          .trim()
+          .substring(0, 50);        // Limit length
+      };
+      
+      const safeText = escapeTextForFFmpeg(transitionText);
+      
       const ffmpeg = spawn('ffmpeg', [
         '-f', 'lavfi',
         '-i', 'color=c=#2c3e50:size=1280x720:duration=2:rate=30',
         '-f', 'lavfi',
         '-i', 'sine=frequency=800:duration=2',
-        '-vf', `drawtext=text='${transitionText}':fontsize=24:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.8`,
+        '-vf', `drawtext=text='${safeText}':fontsize=24:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.8`,
         '-c:v', 'libx264',
         '-c:a', 'aac',
         '-preset', 'fast',

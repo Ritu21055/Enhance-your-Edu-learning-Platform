@@ -15,6 +15,8 @@ import io from 'socket.io-client';
 import { getBackendUrl, testBackendConnection } from './config/network';
 import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
+import PasswordDialog from './components/PasswordDialog';
+import { validatePassword } from './services/meetingPasswordService';
 import './css/MeetingLobby.css';
 
 const MeetingLobby = () => {
@@ -23,13 +25,16 @@ const MeetingLobby = () => {
   
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [isWaiting, setIsWaiting] = useState(false);
   const [meetingInfo, setMeetingInfo] = useState(null);
   const [username, setUsername] = useState('');
   const [meetingTitle, setMeetingTitle] = useState('');
   const [isHost, setIsHost] = useState(false);
   const [error, setError] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
+  const [hostPassword, setHostPassword] = useState('');
+  const [hostPasswordError, setHostPasswordError] = useState('');
+  const [participantPassword, setParticipantPassword] = useState('');
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   
   // Use ref to store username persistently
   const usernameRef = useRef('');
@@ -42,6 +47,11 @@ const MeetingLobby = () => {
   useEffect(() => {
     meetingTitleRef.current = meetingTitle;
   }, [meetingTitle]);
+
+  // Debug: Log password dialog state changes
+  useEffect(() => {
+    console.log('🔒 Password dialog state changed:', { showPasswordDialog, hasJoined, isHost });
+  }, [showPasswordDialog, hasJoined, isHost]);
 
   useEffect(() => {
     // Initialize socket connection
@@ -79,98 +89,62 @@ const MeetingLobby = () => {
     };
 
     newSocket.on('meeting-joined', (data) => {
-      console.log('🔍 Lobby: Meeting joined received:', data);
-      console.log('🔍 Lobby: isHost from server:', data.isHost);
-      console.log('🔍 Lobby: Current state before meeting-joined:', { isWaiting, isConnected, hasJoined });
+      // CRITICAL: Verify host status by checking if socket ID matches hostId
+      const actualHostId = data.meeting?.hostId;
+      const isActuallyHost = actualHostId === newSocket.id;
+      
       setMeetingInfo(data);
       
-      if (data.isHost) {
-        // If user is host, set host state and clear waiting state
+      const currentUsername = usernameRef.current || username;
+      
+      if (!currentUsername || currentUsername.trim() === '') {
+        setError('Username is required to join the meeting');
+        return;
+      }
+      
+      const finalUsername = currentUsername.trim();
+      localStorage.setItem(`approved_${meetingId}`, 'true');
+      
+      const titleForStorage = meetingTitleRef.current || meetingTitle;
+      const finalMeetingTitle = titleForStorage.trim() || `Meeting ${meetingId}`;
+      
+      const meeting = createMeeting(meetingId, finalMeetingTitle, [finalUsername]);
+      storeMeeting(meeting).catch(error => {
+        console.error('Failed to store meeting:', error);
+      });
+      
+      // Host navigates directly, participants join directly (password already verified if required)
+      if (isActuallyHost) {
         setIsHost(true);
-        setIsWaiting(false); // Clear waiting state for hosts
-        
-        // Use ref to get the most current username value
-        const currentUsername = usernameRef.current || username;
-        console.log('🔍 Lobby: Host detected, navigating with username:', currentUsername);
-        console.log('🔍 Lobby: Username from ref:', usernameRef.current);
-        console.log('🔍 Lobby: Username from state:', username);
-        console.log('🔍 Lobby: Username length:', currentUsername?.length);
-        
-        // Ensure username is not empty
-        if (!currentUsername || currentUsername.trim() === '') {
-          console.error('❌ Lobby: Username is empty, cannot navigate!');
-          setError('Username is required to join as host');
-          return;
-        }
-        
-        // Double-check username before navigation
-        const finalUsername = currentUsername.trim();
-        console.log('🔍 Lobby: Final username for navigation:', finalUsername);
-        
-        localStorage.setItem(`approved_${meetingId}`, 'true');
-        
-        // Store meeting in history with proper title
-        const titleForStorage = meetingTitleRef.current || meetingTitle;
-        console.log('🔍 Lobby: Creating meeting with title:', titleForStorage);
-        console.log('🔍 Lobby: Meeting title trimmed:', titleForStorage.trim());
-        console.log('🔍 Lobby: Meeting title length:', titleForStorage.trim().length);
-        
-        const finalMeetingTitle = titleForStorage.trim() || `Meeting ${meetingId}`;
-        console.log('🔍 Lobby: Final meeting title:', finalMeetingTitle);
-        
-        const meeting = createMeeting(meetingId, finalMeetingTitle, [finalUsername]);
-        storeMeeting(meeting).catch(error => {
-          console.error('Failed to store meeting:', error);
-        });
-        
         navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true&host=true`);
       } else {
-        // If user is participant, set waiting state
-        console.log('🔍 Lobby: Participant detected, setting waiting state');
         setIsHost(false);
-        setIsWaiting(true);
-        setHasJoined(true);
-        console.log('🔍 Lobby: Participant state set - isWaiting: true, hasJoined: true');
-        console.log('🔍 Lobby: Participant will now wait for approval');
+        // Participant navigates to meeting room (password was already verified if meeting had one)
+        navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true`);
       }
     });
 
-    newSocket.on('participant-approved', (data) => {
-      console.log('🔍 Lobby: Participant approved received:', data);
-      console.log('🔍 Lobby: Current state before approval:', { isWaiting, isConnected, hasJoined });
-      
-      if (data.approved) {
-        console.log('🔍 Lobby: Setting isWaiting to false');
-        setIsWaiting(false);
-        setHasJoined(true);
-        
-        // Store meeting in history for participants too
-        const currentUsername = usernameRef.current || username;
-        console.log('🔍 Lobby: Creating meeting for participant with username:', currentUsername);
-        
-        const meeting = createMeeting(meetingId, `Meeting ${meetingId}`, [currentUsername]);
-        storeMeeting(meeting).catch(error => {
-          console.error('Failed to store participant meeting:', error);
-        });
-        
-        // Connection timeout removed
-        console.log('🔍 Lobby: Participant approved, navigating to meeting');
-        console.log('🔍 Lobby: Username being sent:', username);
-        console.log('🔍 Lobby: Username type:', typeof username);
-        console.log('🔍 Lobby: Username length:', username?.length);
-        console.log('🔍 Lobby: Username ref value:', usernameRef.current);
-        console.log('🔍 Lobby: Navigation URL:', `/meeting/${meetingId}?user=${usernameRef.current}&approved=true`);
-        navigate(`/meeting/${meetingId}?user=${usernameRef.current}&approved=true`);
-      } else {
-        console.log('🔍 Lobby: Approval data shows not approved:', data);
-      }
-    });
-
-    newSocket.on('participant-rejected', (data) => {
-      console.log('Participant rejected received:', data);
-      setIsWaiting(false);
+    // Handle password required
+    newSocket.on('meeting-password-required', (data) => {
+      console.log('🔒 Password required event received:', data);
+      console.log('🔒 Setting showPasswordDialog to true');
+      setShowPasswordDialog(true);
+      setError(data.error || 'This meeting requires a password');
       setHasJoined(false);
-      setError('Your request to join the meeting was rejected by the host.');
+    });
+
+    // NOTE: Password verification is now handled directly in PasswordDialog onSubmit
+    // This handler is kept for backward compatibility but may not be used
+    newSocket.on('meeting-password-verified', (data) => {
+      console.log('✅ Password verified event received (may not be used):', data);
+      // Password verification is now handled directly in PasswordDialog onSubmit
+      // which retries join-meeting with the password
+    });
+
+    // Handle password error
+    newSocket.on('meeting-password-error', (data) => {
+      console.log('❌ Password error:', data);
+      setError(data.error || 'Password verification failed');
     });
 
     newSocket.on('meeting-not-found', () => {
@@ -234,11 +208,38 @@ const MeetingLobby = () => {
     console.log('🔍 Lobby: Username ref value:', usernameRef.current);
     console.log('🔍 Lobby: Meeting title to send:', meetingTitleToSend);
     
+    // Validate host password if provided
+    if (isHost && hostPassword.trim() !== '') {
+      const validation = validatePassword(hostPassword);
+      if (!validation.isValid) {
+        setHostPasswordError(validation.error);
+        setError(validation.error);
+        setHasJoined(false);
+        return;
+      }
+    }
+    
+    // CRITICAL: Store host password in sessionStorage for useVideoCall hook
+    // This ensures the host can reclaim their meeting when they reconnect
+    if (isHost && hostPassword.trim() !== '') {
+      sessionStorage.setItem(`meeting_host_password_${meetingId}`, hostPassword.trim());
+      console.log('🔒 Stored host password in sessionStorage for meeting:', meetingId);
+    } else if (isHost) {
+      // Even if password is empty, store null to indicate host is setting password (even if empty)
+      sessionStorage.setItem(`meeting_host_password_${meetingId}`, '');
+      console.log('🔒 Stored empty host password in sessionStorage (host setting no password)');
+    }
+    
     socket.emit('join-meeting', { 
       meetingId, 
       userName: trimmedUsername,
-      meetingTitle: meetingTitleToSend
-      // Backend will determine if user becomes host based on being first participant
+      meetingTitle: meetingTitleToSend,
+      isHost: isHost,
+      setPassword: isHost ? (hostPassword.trim() || null) : undefined, // Host sets password
+      // CRITICAL: Participants should NOT send password on first join
+      // Password will be requested by backend if meeting has one
+      // Only send password if it was already verified (from password dialog)
+      password: !isHost ? (participantPassword.trim() || undefined) : undefined // Participant provides password (only if already verified)
     });
   };
 
@@ -307,6 +308,29 @@ const MeetingLobby = () => {
                     placeholder="e.g., Weekly Team Standup, Project Review"
                     inputProps={{ maxLength: 50 }}
                   />
+                  
+                  {/* Password Input for Host */}
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1, color: '#7c3aed', fontWeight: 500 }}>
+                      🔒 Set Meeting Password (Optional but Recommended)
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      type="password"
+                      label="Meeting Password"
+                      value={hostPassword}
+                      onChange={(e) => {
+                        setHostPassword(e.target.value);
+                        setHostPasswordError('');
+                        setError('');
+                      }}
+                      error={!!hostPasswordError}
+                      helperText={hostPasswordError || 'Participants will need this password to join. Leave empty for no password.'}
+                      className="lobby-textfield"
+                      placeholder="Enter password (min 4 characters) or leave empty"
+                      inputProps={{ maxLength: 50 }}
+                    />
+                  </Box>
                 </Box>
               )}
 
@@ -341,33 +365,14 @@ const MeetingLobby = () => {
           ) : null}
 
 
-          {hasJoined ? (isWaiting ? (
-            // Waiting for Approval
-            <>
-              <Box className="lobby-waiting-container">
-                <CircularProgress size={24} />
-                <Typography variant="body1" className="lobby-waiting-text">
-                  Waiting for host approval...
-                </Typography>
-              </Box>
-
-              <Chip
-                label="Waiting for Approval"
-                className="lobby-waiting-chip"
-              />
-
-              <Typography variant="body2" className="lobby-waiting-description">
-                The host will review your request and approve you to join the meeting.
-              </Typography>
-            </>
-          ) : (
+          {hasJoined ? (
             // Connecting to Meeting
             <Typography variant="body1" className="lobby-connecting-text">
               Connecting to meeting...
             </Typography>
-          )) : null}
+          ) : null}
 
-          {isHost && hasJoined && !isWaiting && (
+          {isHost && hasJoined && (
             <Chip
               label="👑 You are the meeting host"
               className="lobby-host-chip"
@@ -415,6 +420,42 @@ const MeetingLobby = () => {
           )}
         </CardContent>
       </Card>
+      
+      {/* Password Dialog for Participants */}
+      <PasswordDialog
+        open={showPasswordDialog}
+        onClose={() => {
+          setShowPasswordDialog(false);
+          setHasJoined(false);
+          setParticipantPassword('');
+          setError('');
+        }}
+        onSubmit={(inputPassword) => {
+          // Store password and retry join-meeting with password
+          setParticipantPassword(inputPassword);
+          setError('');
+          
+          if (socket) {
+            const currentUsername = usernameRef.current || username;
+            // Store verified password in sessionStorage for useVideoCall hook
+            sessionStorage.setItem(`meeting_password_${meetingId}`, inputPassword);
+            console.log('🔒 Stored verified password in sessionStorage for meeting:', meetingId);
+            
+            // Retry join-meeting with password
+            // CRITICAL: Always send isHost: false when password is provided
+            // Password verification means user is a participant, not host
+            socket.emit('join-meeting', {
+              meetingId,
+              userName: currentUsername,
+              meetingTitle: null, // Participants don't set meeting title
+              isHost: false, // Password verification = participant, not host
+              password: inputPassword // Send the verified password
+            });
+          }
+        }}
+        error={error}
+        meetingId={meetingId}
+      />
       </Box>
   );
 };

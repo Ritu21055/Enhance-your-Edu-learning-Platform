@@ -2,8 +2,9 @@
 // This service handles audio transcription and question generation
 
 import speech from '@google-cloud/speech';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Google Gemini removed - using only Ollama + rule-based fallback
+// Using Google Gemini 2.5 Flash (fallback to gemini-1.5-flash if not available)
 
 class LLMService {
   constructor() {
@@ -21,6 +22,11 @@ class LLMService {
       lastRequestTime: null
     };
     
+    // Gemini configuration
+    this.geminiApiKey = process.env.GEMINI_API_KEY || null;
+    this.geminiModel = 'models/gemini-2.5-flash'; // Use Gemini 2.5 Flash (latest fast model)
+    this.geminiClient = null;
+    
     // Initialize Speech-to-Text client
     this.initializeSpeechClient();
     
@@ -35,14 +41,14 @@ class LLMService {
       await this.initializeLLM();
       console.log('🤖 LLM initialization completed:', this.llmType);
       
-      // Test Ollama if it's being used
-      if (this.llmType === 'ollama') {
-        console.log('🤖 LLM: Testing Ollama connection...');
-        const testResult = await this.testOllamaConnection();
+      // Test Gemini if it's being used
+      if (this.llmType === 'gemini') {
+        console.log('🤖 LLM: Testing Gemini connection...');
+        const testResult = await this.testGeminiConnection();
         if (testResult) {
-          console.log('✅ Ollama is working correctly');
+          console.log('✅ Gemini is working correctly');
         } else {
-          console.log('⚠️ Ollama test failed, but will continue with fallback');
+          console.log('⚠️ Gemini test failed, but will continue with fallback');
         }
       }
     } catch (error) {
@@ -52,34 +58,31 @@ class LLMService {
     }
   }
 
-  // Re-initialize LLM when meeting starts (to ensure Ollama is available)
+  // Re-initialize LLM when meeting starts (to ensure Gemini is available)
   async reinitializeForMeeting(meetingId) {
     try {
       console.log(`🤖 Re-initializing LLM for meeting ${meetingId}...`);
-      
-      // Clear cache to force fresh check
-      this._ollamaCache = null;
       
       // Re-initialize LLM
       await this.initializeLLM();
       console.log(`🤖 LLM re-initialization completed for meeting ${meetingId}:`, this.llmType);
       
-      // Test Ollama if it's being used
-      if (this.llmType === 'ollama') {
-        console.log(`🤖 Testing Ollama connection for meeting ${meetingId}...`);
-        const testResult = await this.testOllamaConnection();
+      // Test Gemini if it's being used
+      if (this.llmType === 'gemini') {
+        console.log(`🤖 Testing Gemini connection for meeting ${meetingId}...`);
+        const testResult = await this.testGeminiConnection();
         if (testResult) {
-          console.log(`✅ Ollama is working correctly for meeting ${meetingId}`);
+          console.log(`✅ Gemini is working correctly for meeting ${meetingId}`);
           return true;
         } else {
-          console.log(`⚠️ Ollama test failed for meeting ${meetingId}, but keeping Ollama enabled`);
-          // Keep Ollama enabled even if test fails - it might work during actual use
-          console.log(`🤖 Ollama will be retried during question generation for meeting ${meetingId}`);
-          return true; // Return true to enable AI features, Ollama will be retried
+          console.log(`⚠️ Gemini test failed for meeting ${meetingId}, but keeping Gemini enabled`);
+          // Keep Gemini enabled even if test fails - it might work during actual use
+          console.log(`🤖 Gemini will be retried during question generation for meeting ${meetingId}`);
+          return true; // Return true to enable AI features, Gemini will be retried
         }
       }
       
-      // If not Ollama, still return true to enable basic AI features
+      // If not Gemini, still return true to enable basic AI features
       console.log(`🤖 AI features enabled for meeting ${meetingId} with ${this.llmType}`);
       return true;
     } catch (error) {
@@ -89,65 +92,57 @@ class LLMService {
     }
   }
 
-  // Test Ollama connection and model availability
-  async testOllamaConnection() {
+  // Test Gemini connection and model availability
+  async testGeminiConnection() {
     try {
-      console.log('🤖 Ollama: Testing connection and model...');
+      console.log('🤖 Gemini: Testing connection and model...');
       
-      // First, check if Ollama is responding
-      const healthCheck = await fetch('http://localhost:11434/api/tags', {
-        method: 'GET',
-        timeout: 3000
-      });
-      
-      if (!healthCheck.ok) {
-        console.log('🤖 Ollama: Health check failed, Ollama not responding');
+      if (!this.geminiApiKey) {
+        console.log('🤖 Gemini: API key not configured');
         return false;
       }
       
-      console.log('🤖 Ollama: Health check passed, testing model...');
+      if (!this.geminiClient) {
+        this.geminiClient = new GoogleGenerativeAI(this.geminiApiKey);
+      }
       
-      // Test with a simple prompt - use a more lenient approach
-      const testPrompt = "Hi";
+      // Try to get the model with timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
-      const response = await fetch('http://localhost:11434/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: this.ollamaModel,
-          prompt: testPrompt,
-          stream: false,
-          options: {
-            temperature: 0.1,
-            num_predict: 3
-          }
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('🤖 Ollama: Test successful, model is working');
-        return true;
-      } else {
-        console.error('🤖 Ollama: Test failed with status:', response.status);
-        // Don't fail completely, just log the error
-        console.log('🤖 Ollama: Will retry during actual question generation');
-        return true; // Return true to allow retry during actual use
+      try {
+        // Use gemini-2.5-flash (latest fast model)
+        const model = this.geminiClient.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
+        this.geminiModel = 'models/gemini-2.5-flash';
+        
+        // Test with a simple prompt
+        const testResult = await Promise.race([
+          model.generateContent('Hi'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+        ]);
+        
+        clearTimeout(timeoutId);
+        
+        if (testResult && testResult.response) {
+          console.log('🤖 Gemini: Test successful, model is working');
+          return true;
+        } else {
+          console.error('🤖 Gemini: Test failed - no response');
+          return false;
+        }
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.message === 'Timeout' || error.name === 'AbortError') {
+          console.error('🤖 Gemini: Test timed out after 10 seconds');
+        } else {
+          console.error('🤖 Gemini: Test failed:', error.message);
+        }
+        // gemini-pro should work, so if it fails, return false
+        return false;
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.error('🤖 Ollama: Test timed out after 10 seconds');
-      } else {
-      console.error('🤖 Ollama: Test failed:', error.message);
-      }
-      // Don't fail completely, allow retry during actual use
-      console.log('🤖 Ollama: Will retry during actual question generation');
-      return true;
+      console.error('🤖 Gemini: Test failed:', error.message);
+      return false;
     }
   }
 
@@ -155,7 +150,8 @@ class LLMService {
   getLLMStatus() {
     return {
       llmType: this.llmType,
-      ollamaModel: this.ollamaModel,
+      geminiModel: this.geminiModel,
+      hasApiKey: !!this.geminiApiKey,
       isInitialized: !!this.llmType,
       performanceStats: this.performanceStats
     };
@@ -183,12 +179,20 @@ class LLMService {
 
   // Initialize LLM with fallback options
   async initializeLLM() {
-    // Option 1: Ollama (Local - FREE)
-    if (await this.isOllamaAvailable()) {
-      this.llmType = 'ollama';
-      this.ollamaModel = 'llama3.2:3b'; // Fast, free model
-      console.log('🤖 Using Ollama (Local LLM) for question generation');
-      return;
+    // Option 1: Google Gemini 2.5 Flash
+    if (this.geminiApiKey) {
+      try {
+        this.geminiClient = new GoogleGenerativeAI(this.geminiApiKey);
+        // Use gemini-2.5-flash (latest fast model)
+        const model = this.geminiClient.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
+        this.geminiModel = 'models/gemini-2.5-flash';
+        this.llmType = 'gemini';
+        console.log('🤖 Using Google Gemini 2.5 Flash for question generation');
+        return;
+      } catch (error) {
+        console.error('🤖 Gemini initialization failed:', error.message);
+        // Fall through to rule-based
+      }
     }
 
     // Option 2: Fallback to rule-based (always available)
@@ -196,60 +200,6 @@ class LLMService {
     console.log('🤖 Using rule-based question generation (fallback)');
   }
 
-  // Check if Ollama is available (with caching)
-  async isOllamaAvailable() {
-    // Cache the result for 30 seconds to avoid repeated checks
-    if (this._ollamaCache && Date.now() - this._ollamaCache.timestamp < 30000) {
-      return this._ollamaCache.available;
-    }
-
-    try {
-      console.log('🤖 Ollama: Checking if Ollama is available...');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      
-      const response = await fetch('http://localhost:11434/api/tags', {
-        method: 'GET',
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      const available = response.ok;
-      
-      if (available) {
-        const data = await response.json();
-        console.log('🤖 Ollama: Available models:', data.models?.map(m => m.name) || []);
-        
-        // Check if our preferred model is available
-        const hasModel = data.models?.some(m => m.name === this.ollamaModel);
-        if (!hasModel) {
-          console.log(`🤖 Ollama: Model ${this.ollamaModel} not found, using first available model`);
-          if (data.models && data.models.length > 0) {
-            this.ollamaModel = data.models[0].name;
-            console.log(`🤖 Ollama: Using model: ${this.ollamaModel}`);
-          }
-        }
-      }
-      
-      // Cache the result
-      this._ollamaCache = {
-        available,
-        timestamp: Date.now()
-      };
-      
-      console.log('🤖 Ollama: Available:', available);
-      return available;
-    } catch (error) {
-      console.log('🤖 Ollama: Not available:', error.message);
-      
-      // Cache negative result for shorter time
-      this._ollamaCache = {
-        available: false,
-        timestamp: Date.now()
-      };
-      return false;
-    }
-  }
 
   // Real-time audio transcription using Google Cloud Speech-to-Text
   async getTranscription(audioStream, meetingId) {
@@ -360,14 +310,14 @@ class LLMService {
       let confidence;
 
       // Try different LLM options based on availability
-      if (this.llmType === 'ollama') {
+      if (this.llmType === 'gemini') {
         try {
-        const result = await this.generateWithOllama(transcriptContext, topics, sentiment);
+        const result = await this.generateWithGemini(transcriptContext, topics, sentiment);
         generatedQuestion = result.question;
-        modelName = 'ollama-llama3.2';
-        confidence = 0.85;
+        modelName = this.geminiModel;
+        confidence = 0.9;
         } catch (error) {
-          console.log('🤖 Ollama failed, falling back to rule-based:', error.message);
+          console.log('🤖 Gemini failed, falling back to rule-based:', error.message);
           const result = this.generateWithRuleBased(topics, sentiment, transcriptContext);
           generatedQuestion = result.question;
           modelName = 'rule-based-fallback';
@@ -423,14 +373,18 @@ class LLMService {
     }
   }
 
-  // Generate question using Ollama (Local LLM - FREE)
-  async generateWithOllama(transcriptContext, topics, sentiment) {
-    console.log('🤖 Ollama: Generating question with context:', {
+  // Generate question using Google Gemini 2.5 Flash (or 1.5 Flash fallback)
+  async generateWithGemini(transcriptContext, topics, sentiment) {
+    console.log('🤖 Gemini: Generating question with context:', {
       transcriptLength: transcriptContext?.length || 0,
       topicsCount: topics?.length || 0,
       sentiment: sentiment,
-      model: this.ollamaModel
+      model: this.geminiModel
     });
+
+    if (!this.geminiClient || !this.geminiApiKey) {
+      throw new Error('Gemini API key not configured');
+    }
 
     // Detect language from transcript context
     const detectedLanguage = this.detectLanguageFromContext(transcriptContext);
@@ -462,52 +416,43 @@ INSTRUCTIONS:
 Generate only the question, no explanations.`;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30 seconds
-      
-      console.log('🤖 Ollama: Sending request to Ollama API...');
-      
-      const response = await fetch('http://localhost:11434/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: this.ollamaModel,
-          prompt: prompt,
-          stream: false,
-          options: {
-            temperature: 0.3, // Lower temperature for more focused responses
-            num_predict: 30, // Shorter responses for faster generation
-            top_p: 0.9,
-            repeat_penalty: 1.1
-          }
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-      
-      console.log('🤖 Ollama: Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('🤖 Ollama: API error response:', errorText);
-        throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+      // Get the model (try primary model, fallback if needed)
+      let model;
+      try {
+        model = this.geminiClient.getGenerativeModel({ model: this.geminiModel });
+      } catch (e) {
+        // If gemini-pro fails, throw the error
+        throw e;
       }
       
-      const data = await response.json();
-      console.log('🤖 Ollama: Generated question:', data.response);
+      console.log('🤖 Gemini: Sending request to Gemini API...');
       
-      return { question: data.response.trim() };
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      const result = await Promise.race([
+        model.generateContent(prompt),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 30000))
+      ]);
+      
+      clearTimeout(timeoutId);
+      
+      if (!result || !result.response) {
+        throw new Error('Gemini API returned no response');
+      }
+      
+      const responseText = result.response.text();
+      console.log('🤖 Gemini: Generated question:', responseText);
+      
+      return { question: responseText.trim() };
     } catch (error) {
-      console.error('🤖 Ollama: Error generating question:', error);
-      if (error.name === 'AbortError') {
-        throw new Error('Ollama request timeout');
+      console.error('🤖 Gemini: Error generating question:', error);
+      if (error.message === 'Timeout' || error.name === 'AbortError') {
+        throw new Error('Gemini request timeout');
       }
       throw error;
     }
   }
-
-  // Google Gemini method removed - using only Ollama + rule-based fallback
 
   /**
    * Detect language from transcript context
@@ -858,6 +803,188 @@ Generate only the question, no explanations.`;
         : '0%',
       llmType: this.llmType,
       activeMeetings: this.transcriptHistory.size
+    };
+  }
+
+  // Generate meeting summary using Gemini
+  async generateMeetingSummary(meetingId, transcriptContext = null) {
+    try {
+      console.log(`📝 Generating meeting summary for meeting: ${meetingId}`);
+      
+      // Get full transcript if not provided
+      if (!transcriptContext) {
+        transcriptContext = this.getRecentTranscriptContext(meetingId, 999); // Get all transcripts
+      }
+      
+      if (!transcriptContext || transcriptContext.length < 50) {
+        console.log('⚠️ Insufficient transcript content for summary generation');
+        return {
+          summary: 'Insufficient transcript content to generate a meaningful summary.',
+          keyPoints: [],
+          actionItems: [],
+          decisions: [],
+          timestamp: Date.now(),
+          confidence: 0.3
+        };
+      }
+      
+      // Analyze transcript for structured data
+      const topics = this.detectTopics(transcriptContext);
+      const sentiment = this.analyzeSentiment(transcriptContext);
+      const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
+      
+      let summary;
+      let keyPoints;
+      let actionItems;
+      let decisions;
+      
+      if (this.llmType === 'gemini' && this.geminiClient && this.geminiApiKey) {
+        try {
+          // Use Gemini to generate comprehensive summary
+          const result = await this.generateSummaryWithGemini(transcriptContext, topics, sentiment, conversationAnalysis);
+          summary = result.summary;
+          keyPoints = result.keyPoints || [];
+          actionItems = result.actionItems || [];
+          decisions = result.decisions || [];
+        } catch (error) {
+          console.log('🤖 Gemini summary generation failed, using rule-based:', error.message);
+          const result = this.generateRuleBasedSummary(transcriptContext, topics, sentiment, conversationAnalysis);
+          summary = result.summary;
+          keyPoints = result.keyPoints;
+          actionItems = result.actionItems;
+          decisions = result.decisions;
+        }
+      } else {
+        // Use rule-based summary
+        const result = this.generateRuleBasedSummary(transcriptContext, topics, sentiment, conversationAnalysis);
+        summary = result.summary;
+        keyPoints = result.keyPoints;
+        actionItems = result.actionItems;
+        decisions = result.decisions;
+      }
+      
+      console.log('✅ Meeting summary generated successfully');
+      
+      return {
+        summary,
+        keyPoints,
+        actionItems,
+        decisions,
+        topics: topics.map(t => t.topic),
+        sentiment,
+        timestamp: Date.now(),
+        confidence: this.llmType === 'gemini' ? 0.9 : 0.6,
+        model: this.llmType === 'gemini' ? this.geminiModel : 'rule-based'
+      };
+      
+    } catch (error) {
+      console.error('❌ Meeting summary generation failed:', error);
+      throw error;
+    }
+  }
+  
+  // Generate summary using Gemini
+  async generateSummaryWithGemini(transcriptContext, topics, sentiment, conversationAnalysis) {
+    if (!this.geminiClient || !this.geminiApiKey) {
+      throw new Error('Gemini API key not configured');
+    }
+    
+    const prompt = `You are an intelligent meeting assistant. Analyze this meeting transcript and generate a comprehensive summary.
+
+MEETING TRANSCRIPT:
+"${transcriptContext}"
+
+ANALYSIS:
+- Main Topics: ${topics.map(t => t.topic).join(', ')}
+- Sentiment: ${sentiment}
+- Key Points: ${conversationAnalysis.keyPoints.join(', ')}
+- Unresolved Issues: ${conversationAnalysis.unresolvedIssues.join(', ')}
+- Recent Focus: ${conversationAnalysis.recentFocus}
+
+INSTRUCTIONS:
+1. Generate a concise but comprehensive summary of the meeting (2-3 paragraphs)
+2. Extract 3-5 key points discussed
+3. Identify any action items mentioned
+4. Note any decisions made
+5. Be specific and reference actual content from the transcript
+
+FORMAT YOUR RESPONSE AS JSON:
+{
+  "summary": "Brief meeting summary here",
+  "keyPoints": ["Point 1", "Point 2", "Point 3"],
+  "actionItems": ["Action 1", "Action 2"],
+  "decisions": ["Decision 1", "Decision 2"]
+}
+
+Return ONLY valid JSON, no additional text.`;
+    
+    try {
+      const model = this.geminiClient.getGenerativeModel({ model: this.geminiModel });
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+      
+      // Parse JSON response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          summary: parsed.summary || 'Summary generated successfully.',
+          keyPoints: parsed.keyPoints || [],
+          actionItems: parsed.actionItems || [],
+          decisions: parsed.decisions || []
+        };
+      } else {
+        // Fallback: treat entire response as summary
+        return {
+          summary: responseText.trim(),
+          keyPoints: conversationAnalysis.keyPoints.slice(0, 5),
+          actionItems: [],
+          decisions: []
+        };
+      }
+    } catch (error) {
+      console.error('🤖 Gemini summary generation failed:', error);
+      throw error;
+    }
+  }
+  
+  // Generate rule-based summary
+  generateRuleBasedSummary(transcriptContext, topics, sentiment, conversationAnalysis) {
+    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const keyPoints = conversationAnalysis.keyPoints.slice(0, 5);
+    
+    // Extract action items (sentences with action words)
+    const actionItems = [];
+    sentences.forEach(sentence => {
+      const lowerSentence = sentence.toLowerCase();
+      if (lowerSentence.includes('need to') || lowerSentence.includes('should') || 
+          lowerSentence.includes('must') || lowerSentence.includes('will') ||
+          lowerSentence.includes('action') || lowerSentence.includes('task')) {
+        actionItems.push(sentence.trim());
+      }
+    });
+    
+    // Extract decisions
+    const decisions = [];
+    sentences.forEach(sentence => {
+      const lowerSentence = sentence.toLowerCase();
+      if (lowerSentence.includes('decided') || lowerSentence.includes('agreed') || 
+          lowerSentence.includes('concluded') || lowerSentence.includes('chosen')) {
+        decisions.push(sentence.trim());
+      }
+    });
+    
+    // Generate summary text
+    const summary = `This meeting discussed ${topics.map(t => t.topic).join(', ')}. ` +
+      `${conversationAnalysis.keyPoints.length > 0 ? 'Key points included: ' + conversationAnalysis.keyPoints.slice(0, 3).join(', ') + '. ' : ''}` +
+      `${conversationAnalysis.unresolvedIssues.length > 0 ? 'Unresolved issues: ' + conversationAnalysis.unresolvedIssues.slice(0, 2).join(', ') + '. ' : ''}` +
+      `The overall sentiment was ${sentiment}.`;
+    
+    return {
+      summary: summary.trim(),
+      keyPoints: keyPoints.slice(0, 5),
+      actionItems: actionItems.slice(0, 5),
+      decisions: decisions.slice(0, 5)
     };
   }
 

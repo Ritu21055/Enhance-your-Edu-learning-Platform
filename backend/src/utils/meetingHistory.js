@@ -71,6 +71,7 @@ class MeetingHistoryManager {
         highlightReel: highlightReelPath ? {
           path: highlightReelPath,
           url: `/output/${path.basename(highlightReelPath)}`,
+          filename: path.basename(highlightReelPath),
           generatedAt: new Date().toISOString(),
           highlightCount: highlights.length
         } : null,

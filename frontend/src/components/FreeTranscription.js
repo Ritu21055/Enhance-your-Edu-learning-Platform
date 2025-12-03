@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Paper,
   Typography,
   IconButton,
   Chip,
@@ -196,17 +195,15 @@ const FreeTranscription = ({
   if (!isVisible) return null;
 
   return (
-    <Paper 
-      elevation={3} 
+    <Box 
       sx={{ 
         p: 2, 
-        mb: 2, 
-        backgroundColor: '#f8f9fa',
-        border: '1px solid #e9ecef'
+        mb: 2,
+        backgroundColor: 'transparent'
       }}
     >
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-        <Typography variant="h6" color="primary">
+        <Typography variant="h6" color="primary" sx={{ fontSize: '0.9rem' }}>
           🆓 Free Live Transcription
         </Typography>
         <Box display="flex" gap={1}>
@@ -215,12 +212,14 @@ const FreeTranscription = ({
             color="success" 
             size="small" 
             variant="outlined"
+            sx={{ fontSize: '0.7rem', height: '20px' }}
           />
           <Chip 
             label="No Cloud Required" 
             color="info" 
             size="small" 
             variant="outlined"
+            sx={{ fontSize: '0.7rem', height: '20px' }}
           />
         </Box>
       </Box>
@@ -238,22 +237,8 @@ const FreeTranscription = ({
       )}
 
       <Box display="flex" alignItems="center" gap={2} mb={2}>
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel>Language</InputLabel>
-          <Select
-            value={language}
-            label="Language"
-            onChange={handleLanguageChange}
-            disabled={isListening}
-          >
-            {languages.map((lang) => (
-              <MenuItem key={lang.code} value={lang.code}>
-                {lang.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
+        {/* Language selector removed as per user request */}
+        
         <Tooltip title={isListening ? "Stop listening" : "Start listening"}>
           <IconButton
             onClick={toggleListening}
@@ -298,13 +283,13 @@ const FreeTranscription = ({
 
       <Box 
         sx={{ 
-          minHeight: 120, 
-          maxHeight: 300, 
+          minHeight: 80, 
+          maxHeight: 200, 
           overflowY: 'auto',
-          p: 2,
-          backgroundColor: 'white',
+          p: 1.5,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
           borderRadius: 1,
-          border: '1px solid #e0e0e0'
+          border: 'none'
         }}
       >
         {transcript && (
@@ -313,7 +298,7 @@ const FreeTranscription = ({
             sx={{ 
               mb: 1, 
               lineHeight: 1.6,
-              color: 'text.primary'
+              color: 'white'
             }}
           >
             {transcript}
@@ -324,9 +309,8 @@ const FreeTranscription = ({
           <Typography 
             variant="body2" 
             sx={{ 
-              color: 'text.secondary',
-              fontStyle: 'italic',
-              opacity: 0.7
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontStyle: 'italic'
             }}
           >
             {interimTranscript}
@@ -336,10 +320,10 @@ const FreeTranscription = ({
         {!transcript && !interimTranscript && (
           <Typography 
             variant="body2" 
-            color="text.secondary" 
             sx={{ 
               textAlign: 'center',
-              fontStyle: 'italic'
+              fontStyle: 'italic',
+              color: 'rgba(255, 255, 255, 0.6)'
             }}
           >
             {isListening ? 'Listening for speech...' : 'Click the microphone to start transcription'}
@@ -368,33 +352,7 @@ const FreeTranscription = ({
         </Box>
       )}
 
-      <Box mt={2} display="flex" gap={1} flexWrap="wrap">
-        <Chip 
-          label="Real-time" 
-          size="small" 
-          color="primary" 
-          variant="outlined"
-        />
-        <Chip 
-          label="Offline" 
-          size="small" 
-          color="success" 
-          variant="outlined"
-        />
-        <Chip 
-          label="No API Keys" 
-          size="small" 
-          color="info" 
-          variant="outlined"
-        />
-        <Chip 
-          label="Browser Native" 
-          size="small" 
-          color="secondary" 
-          variant="outlined"
-        />
-      </Box>
-    </Paper>
+    </Box>
   );
 };
 

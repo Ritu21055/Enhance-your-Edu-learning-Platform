@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import '../css/MeetingsHistory.css';
 import { getMeetings, getMeetingStats, clearAllMeetings } from '../services/meetingsService';
-import { getMeetingHistory } from '../services/meetingHistoryApi';
+import { getMeetingHistory, getAllMeetingHistories } from '../services/meetingHistoryApi';
 
 const MeetingsHistory = () => {
   const navigate = useNavigate();
@@ -39,35 +39,69 @@ const MeetingsHistory = () => {
   const [highlightReels, setHighlightReels] = useState(new Map());
   const [expandedMeeting, setExpandedMeeting] = useState(null);
 
-  // Load meetings data from service
+  // Load meetings data from backend API
   useEffect(() => {
-    const loadMeetings = () => {
+    const loadMeetings = async () => {
       try {
-        // Clear old test data on first load
-        const meetingsData = getMeetings();
-        if (meetingsData.length > 10) {
-          console.log('Clearing old test data...');
-          clearAllMeetings();
-          setMeetings([]);
-          setHighlightReels(new Map());
-          return;
+        console.log('📋 Loading meeting histories from backend...');
+        // Load meeting histories from backend API
+        const histories = await getAllMeetingHistories();
+        
+        if (histories && histories.length > 0) {
+          // Convert backend meeting history format to frontend meeting format
+          const meetingsData = histories.map(history => {
+            const meeting = history.meeting;
+            const highlightReel = history.highlightReel;
+            
+            // Format date and time
+            const createdAt = new Date(meeting.createdAt);
+            const endedAt = meeting.endedAt ? new Date(meeting.endedAt) : createdAt;
+            
+            return {
+              id: meeting.id,
+              title: meeting.title || `Meeting ${meeting.id}`,
+              date: meeting.createdAt,
+              time: createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+              duration: Math.round((meeting.duration || 0) / 1000 / 60), // Convert from ms to minutes
+              participants: meeting.participants?.length || 0,
+              status: meeting.status || 'completed',
+              highlightReel: highlightReel ? {
+                path: highlightReel.path,
+                url: highlightReel.url,
+                generatedAt: highlightReel.generatedAt,
+                highlightCount: highlightReel.highlightCount || history.highlights?.total || 0
+              } : null,
+              highlights: history.highlights?.total || 0,
+              recording: history.recording,
+              transcript: history.transcript?.totalEntries || 0
+            };
+          });
+          
+          setMeetings(meetingsData);
+          console.log(`✅ Loaded ${meetingsData.length} meetings from backend`);
+        } else {
+          // Fallback to local meetings if backend has no data
+          const localMeetings = getMeetings();
+          setMeetings(localMeetings);
+          console.log(`⚠️ No backend history found, using ${localMeetings.length} local meetings`);
         }
         
-        setMeetings(meetingsData);
-        
-        // Initialize empty highlight reels (no mock data)
-        setHighlightReels(new Map());
-        
       } catch (error) {
-        console.error('Error loading meetings:', error);
-        setMeetings([]);
+        console.error('❌ Error loading meeting histories:', error);
+        // Fallback to local meetings on error
+        try {
+          const localMeetings = getMeetings();
+          setMeetings(localMeetings);
+        } catch (localError) {
+          console.error('❌ Error loading local meetings:', localError);
+          setMeetings([]);
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    // Simulate loading for better UX
-    setTimeout(loadMeetings, 500);
+    loadMeetings();
   }, []);
 
   const handleBack = () => {
@@ -79,16 +113,55 @@ const MeetingsHistory = () => {
     navigate(`/lobby/${meetingId}`);
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setLoading(true);
-    setTimeout(() => {
-      // Clear all meetings and reload
-      clearAllMeetings();
-      const meetingsData = getMeetings();
-      setMeetings(meetingsData);
-      setHighlightReels(new Map()); // Clear highlight reels too
+    try {
+      // Reload from backend API
+      const histories = await getAllMeetingHistories();
+      
+      if (histories && histories.length > 0) {
+        const meetingsData = histories.map(history => {
+          const meeting = history.meeting;
+          const highlightReel = history.highlightReel;
+          const createdAt = new Date(meeting.createdAt);
+          
+          return {
+            id: meeting.id,
+            title: meeting.title || `Meeting ${meeting.id}`,
+            date: meeting.createdAt,
+            time: createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            duration: Math.round((meeting.duration || 0) / 1000 / 60),
+            participants: meeting.participants?.length || 0,
+            status: meeting.status || 'completed',
+            highlightReel: highlightReel ? {
+              path: highlightReel.path,
+              url: highlightReel.url,
+              generatedAt: highlightReel.generatedAt,
+              highlightCount: highlightReel.highlightCount || history.highlights?.total || 0
+            } : null,
+            highlights: history.highlights?.total || 0,
+            recording: history.recording,
+            transcript: history.transcript?.totalEntries || 0
+          };
+        });
+        
+        setMeetings(meetingsData);
+        setHighlightReels(new Map());
+      } else {
+        // Fallback to local meetings
+        const localMeetings = getMeetings();
+        setMeetings(localMeetings);
+        setHighlightReels(new Map());
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing meetings:', error);
+      // Fallback to local meetings on error
+      const localMeetings = getMeetings();
+      setMeetings(localMeetings);
+      setHighlightReels(new Map());
+    } finally {
       setLoading(false);
-    }, 300);
+    }
   };
 
   // Load highlight reel data for meetings
@@ -307,27 +380,54 @@ const MeetingsHistory = () => {
                       </TableCell>
                       <TableCell>
                         {meeting.highlightReel ? (
-                          <Box display="flex" alignItems="center" gap={1}>
+                          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
                             <Chip
                               icon={<Star />}
-                              label={`${meeting.highlightReel.highlightCount || 0} highlights`}
+                              label={`${meeting.highlightReel.highlightCount || meeting.highlights || 0} highlights`}
                               color="primary"
                               size="small"
                               className="highlights-chip"
                             />
                             <Button
                               size="small"
-                              variant="outlined"
+                              variant="contained"
+                              color="primary"
                               startIcon={<PlayArrow />}
-                              onClick={() => window.open(meeting.highlightReel.url, '_blank')}
+                              onClick={() => {
+                                const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://192.168.0.108:5000';
+                                // Construct URL: use provided URL or construct from filename/path
+                                let reelUrl = meeting.highlightReel.url;
+                                if (!reelUrl.startsWith('http')) {
+                                  // Relative URL - prepend API base URL
+                                  reelUrl = `${API_BASE_URL}${reelUrl}`;
+                                } else if (meeting.highlightReel.filename) {
+                                  // Construct from filename
+                                  reelUrl = `${API_BASE_URL}/output/${meeting.highlightReel.filename}`;
+                                } else if (meeting.highlightReel.path) {
+                                  // Extract filename from path
+                                  const filename = meeting.highlightReel.path.split(/[/\\]/).pop();
+                                  reelUrl = `${API_BASE_URL}/output/${filename}`;
+                                }
+                                console.log('🎬 Opening highlight reel:', reelUrl);
+                                window.open(reelUrl, '_blank');
+                              }}
                             >
-                              View Reel
+                              Play Reel
                             </Button>
                           </Box>
+                        ) : meeting.highlights > 0 ? (
+                          <Chip
+                            icon={<Star />}
+                            label={`${meeting.highlights} highlights (processing)`}
+                            size="small"
+                            color="warning"
+                            variant="outlined"
+                            className="highlights-chip"
+                          />
                         ) : (
                           <Chip
                             icon={<Star />}
-                            label="No Highlights Available"
+                            label="No Highlights"
                             size="small"
                             variant="outlined"
                             className="no-highlights-chip"

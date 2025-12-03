@@ -17,11 +17,14 @@
   "author": "WebNexus Team",
   "license": "MIT",
   "dependencies": {
+    "@google-cloud/speech": "^6.0.0",
+    "@google/generative-ai": "^0.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
-    "cors": "^2.8.5",
-    "uuid": "^9.0.0",
-    "@google-cloud/speech": "^6.0.0"
+    "socket.io-client": "^4.8.1",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

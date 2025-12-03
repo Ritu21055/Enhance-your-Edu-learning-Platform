@@ -504,6 +504,19 @@
   flex-direction: column;
   height: calc(100vh - 80px - 80px); /* Full height minus header and control bar */
   overflow: hidden;
+  /* CRITICAL: Prevent layout changes when chat opens */
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  /* Ensure video container doesn't resize */
+  contain: layout style paint;
+  /* Force stable dimensions - never resize */
+  width: 100%;
+  max-width: 100%;
+  /* Prevent any layout shifts */
+  isolation: isolate;
+  /* Ensure video area stays stable */
+  will-change: auto;
 }
 
 /* UltraSimpleVideo container */
@@ -638,6 +651,15 @@
   flex-direction: column;
   z-index: 1000;
   overflow: hidden;
+  /* CRITICAL: Ensure chat doesn't affect video layout */
+  pointer-events: auto;
+  /* Don't cause layout reflow - use GPU acceleration */
+  transform: translateZ(0);
+  will-change: transform;
+  /* Isolate from video layout */
+  isolation: isolate;
+  /* Prevent affecting parent layout */
+  contain: layout style paint;
 }
 
 .chat-header-container {

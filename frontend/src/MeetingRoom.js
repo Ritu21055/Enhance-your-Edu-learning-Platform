@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -17,7 +17,7 @@ import { formatMeetingCode } from './services/meetingCodeService';
 import './css/MeetingRoom.css';
 
 // Import custom hooks
-import useUltraSimplePeer from './hooks/useUltraSimplePeer';
+import useVideoCall from './hooks/useVideoCall'; // New clean video call hook
 import { useChat } from './hooks/useChat';
 import { useMediaControls } from './hooks/useMediaControls';
 import useSentimentAnalysis from './hooks/useSentimentAnalysis';
@@ -26,11 +26,10 @@ import useScreenShare from './hooks/useScreenShare';
 import ScreenShareViewer from './components/ScreenShareViewer';
 
 // Import components
-import UltraSimpleVideo from './components/UltraSimpleVideo';
+import VideoCall from './components/VideoCall'; // New clean video call component
 import MeetingControls from './components/MeetingControls';
 import ChatSidebar from './components/ChatSidebar';
 import ParticipantsDialog from './components/ParticipantsDialog';
-import PendingApprovalsDialog from './components/PendingApprovalsDialog';
 import SentimentDashboard from './components/SentimentDashboard';
 import FatigueAlert from './components/FatigueAlert';
 import AudioTroubleshooter from './components/AudioTroubleshooter';
@@ -57,6 +56,10 @@ import ShareHighlightReel from './components/ShareHighlightReel';
 import AIHighlightNotification from './components/AIHighlightNotification';
 import FreeTranscription from './components/FreeTranscription';
 
+// Import Meeting Media Protection
+import meetingMediaProtection from './utils/meetingMediaProtection';
+
+
 // AI Features - Real-time Sentiment Analysis
 
 const MeetingRoom = () => {
@@ -68,14 +71,6 @@ const MeetingRoom = () => {
   // If userName is empty or just whitespace, use Guest
   const finalUserName = userName && userName.trim() !== '' ? userName.trim() : 'Guest';
   
-  console.log('🔍 MeetingRoom: URL params:', { meetingId, userName });
-  console.log('🔍 MeetingRoom: userName value:', userName);
-  console.log('🔍 MeetingRoom: userName type:', typeof userName);
-  console.log('🔍 MeetingRoom: userName length:', userName?.length);
-  console.log('🔍 MeetingRoom: userName trimmed:', userName?.trim());
-  console.log('🔍 MeetingRoom: finalUserName will be:', userName && userName.trim() !== '' ? userName.trim() : 'Guest');
-  
-
   // State for UI
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
@@ -96,35 +91,75 @@ const MeetingRoom = () => {
   const [aiStatus, setAiStatus] = useState(null);
   // Refs (localVideoRef comes from useWebRTC hook)
 
-  // Custom hooks
+  // Custom hooks - Video Call (clean implementation)
   const {
     localStream,
     remoteStreams,
     participants,
     isConnected,
-    pendingApprovals,
-    showPendingApprovals,
-    setShowPendingApprovals,
-    isWaitingForApproval,
     localVideoRef,
-    joinMeeting,
     initializeMedia,
-    approveParticipant,
-    rejectParticipant,
     isHost,
     socket,
     forceConnection,
-    createConnectionsToAllParticipants,
-    // Screen sharing functionality
-    screenStream,
-    remoteScreenStreams,
-    handleScreenShareChange,
-    forceRender,
-    // Audio debugging
-    fixAudioIssue,
-    forceReshareHostStream,
-    forceReinitializeAudio
-  } = useUltraSimplePeer(meetingId, finalUserName);
+    updateAllPeerConnections
+  } = useVideoCall(meetingId, finalUserName);
+
+
+  // Expose update function for useMediaControls - persist even when socket disconnects
+  useEffect(() => {
+    if (updateAllPeerConnections) {
+      window.updateVideoCallPeerConnections = updateAllPeerConnections;
+      console.log('✅ MeetingRoom: Exposed updateVideoCallPeerConnections to window');
+    }
+    return () => {
+      // Don't delete on cleanup - keep it available
+      // delete window.updateVideoCallPeerConnections;
+    };
+  }, [updateAllPeerConnections]);
+
+  // Expose local stream ref for screen share protection
+  useEffect(() => {
+    if (localStream) {
+      window.localStreamRef = { current: localStream };
+      window.streamRef = { current: localStream };
+      console.log('✅ MeetingRoom: Exposed localStream to window for screen share protection');
+    }
+    return () => {
+      // Keep ref available even after cleanup
+    };
+  }, [localStream]);
+  
+  // Note: Video state refs (isVideoEnabledRef, setIsVideoEnabled) are exposed to window
+  // by useMediaControls hook itself - no need to expose them here
+
+  // Screen sharing (separate hook - not part of video call)
+  const screenShareHook = useScreenShare(socket, meetingId, finalUserName, isHost);
+  
+  const {
+    isScreenSharing: isNewScreenSharing,
+    screenStream: newScreenStream,
+    remoteScreenStream: newRemoteScreenStream,
+    screenShareParticipants: newScreenShareParticipants,
+    screenShareError: newScreenShareError,
+    startScreenShare: startNewScreenShare,
+    stopScreenShare: stopNewScreenShare,
+    setScreenShareError: setNewScreenShareError
+  } = screenShareHook;
+  
+  // Map to expected variable names for compatibility
+  const screenStream = newScreenStream;
+  const remoteScreenStreams = newRemoteScreenStream ? { [socket?.id]: newRemoteScreenStream } : {};
+  
+  // Handle screen share change callback
+  const handleScreenShareChange = useCallback((stream, isSharing) => {
+    if (isSharing) {
+      startNewScreenShare();
+    } else {
+      stopNewScreenShare();
+    }
+  }, [startNewScreenShare, stopNewScreenShare]);
+
 
   const {
     chatMessages,
@@ -158,36 +193,6 @@ const MeetingRoom = () => {
     triggerImmediateAnalysis
   } = useFatigueDetection(sentimentData, isHost, socket);
 
-  // Screen Sharing (New Implementation)
-  const screenShareHook = useScreenShare(socket, meetingId, finalUserName, isHost);
-  
-  const {
-    isScreenSharing: isNewScreenSharing,
-    screenStream: newScreenStream,
-    remoteScreenStream: newRemoteScreenStream,
-    screenShareParticipants: newScreenShareParticipants,
-    screenShareError: newScreenShareError,
-    startScreenShare: startNewScreenShare,
-    stopScreenShare: stopNewScreenShare,
-    setScreenShareError: setNewScreenShareError
-  } = screenShareHook;
-
-  // Debug fatigue detection - logging removed to prevent console spam
-
-  // DISABLED: Immediate fatigue analysis when participants join (was too aggressive)
-  // useEffect(() => {
-  //   if (isHost && participants.length > 1 && triggerImmediateAnalysis) {
-  //     console.log('🧠 Fatigue Detection: Participants joined, triggering analysis', {
-  //       participantCount: participants.length,
-  //       isHost
-  //     });
-      
-  //     // Trigger analysis after a short delay to allow sentiment data to accumulate
-  //     setTimeout(() => {
-  //       triggerImmediateAnalysis();
-  //     }, 5000); // 5 seconds delay to allow sentiment data to be collected
-  //   }
-  // }, [isHost, participants.length, triggerImmediateAnalysis]);
 
   // TEST: Add manual fatigue alert trigger for testing (host only)
   useEffect(() => {
@@ -236,6 +241,54 @@ const MeetingRoom = () => {
     };
   }, [socket, isHost]);
 
+  // AI Follow-up Question Generation - Audio Transcription (needed for handleStartQuestionGeneration)
+  const {
+    isRecording: isTranscriptionRecording,
+    transcript,
+    isTranscribing,
+    error: transcriptionError,
+    startRecording: startTranscriptionRecording,
+    stopRecording: stopTranscriptionRecording,
+    clearTranscript
+  } = useAudioTranscription(socket, meetingId);
+
+  // AI Follow-up Question Generation - Control functions (defined early to avoid initialization errors)
+  const handleStartQuestionGeneration = useCallback(() => {
+    if (socket && meetingId) {
+      console.log('🤖 Starting AI question generation...');
+      console.log('🤖 Socket connected:', socket.connected);
+      console.log('🤖 Meeting ID:', meetingId);
+      console.log('🤖 Is Host:', isHost);
+      
+      socket.emit('start_question_generation', { meetingId });
+      setIsQuestionGenerationActive(true);
+      
+      // Also start audio transcription for the host
+      if (isHost) {
+        console.log('🤖 Starting audio transcription for host...');
+        startTranscriptionRecording();
+      }
+    } else {
+      console.error('🤖 Cannot start AI question generation:', {
+        hasSocket: !!socket,
+        socketConnected: socket?.connected,
+        meetingId,
+        isHost
+      });
+    }
+  }, [socket, meetingId, isHost, startTranscriptionRecording]);
+
+  const handleStopQuestionGeneration = useCallback(() => {
+    if (socket && meetingId) {
+      console.log('🛑 Stopping AI question generation...');
+      socket.emit('stop_question_generation', { meetingId });
+      setIsQuestionGenerationActive(false);
+      
+      // Stop audio transcription
+      stopTranscriptionRecording();
+    }
+  }, [socket, meetingId, stopTranscriptionRecording]);
+
   // AI Follow-up Question Generation - Listen for follow-up suggestions (host only)
   useEffect(() => {
     if (!socket || !isHost) {
@@ -265,11 +318,13 @@ const MeetingRoom = () => {
       console.log('🤖 Received AI status:', data);
       setAiStatus(data);
       
-      // Don't automatically start question generation - let user control it
-      if (data.status === 'ready') {
-        console.log('🤖 AI is ready, but not starting question generation automatically');
-        // Only start if there's already been some conversation
-        // handleStartQuestionGeneration(); // Commented out to prevent automatic start
+      // Auto-start question generation when AI is ready
+      if (data.status === 'ready' && !isQuestionGenerationActive) {
+        console.log('🤖 AI is ready, auto-starting question generation...');
+        // Add a small delay to ensure everything is initialized
+        setTimeout(() => {
+          handleStartQuestionGeneration();
+        }, 1000);
       }
     };
 
@@ -278,7 +333,43 @@ const MeetingRoom = () => {
     return () => {
       socket.off('ai_status', handleAIStatus);
     };
-  }, [socket, isHost, isQuestionGenerationActive]);
+  }, [socket, isHost, isQuestionGenerationActive, handleStartQuestionGeneration]);
+
+  // Auto-start question generation for host when they join the meeting
+  useEffect(() => {
+    // Only auto-start for host
+    if (!isHost) {
+      return;
+    }
+
+    // Wait for all prerequisites to be ready
+    if (!socket || !meetingId) {
+      return;
+    }
+
+    // Don't auto-start if already active
+    if (isQuestionGenerationActive) {
+      return;
+    }
+
+    // Add a delay to ensure AI service is initialized
+    const autoStartTimer = setTimeout(() => {
+      console.log('🤖 Auto-starting AI question generation for host...');
+      console.log('🤖 Prerequisites:', {
+        isHost,
+        hasSocket: !!socket,
+        meetingId,
+        currentStatus: isQuestionGenerationActive
+      });
+
+      // Start question generation automatically
+      handleStartQuestionGeneration();
+    }, 3000); // 3 second delay to ensure AI service is ready
+
+    return () => {
+      clearTimeout(autoStartTimer);
+    };
+  }, [isHost, socket, meetingId, isQuestionGenerationActive, handleStartQuestionGeneration]);
 
 
   // Start sentiment analysis when models are loaded and video is available (participants only)
@@ -331,8 +422,6 @@ const MeetingRoom = () => {
   console.log('🔍 MeetingRoom Debug:', {
     socket: !!socket,
     socketConnected: socket?.connected,
-    pendingApprovals: pendingApprovals.length,
-    showPendingApprovals,
     isHost,
     chatMessages: chatMessages.length,
     sentimentAnalysis: {
@@ -345,26 +434,7 @@ const MeetingRoom = () => {
     showSentimentDashboard: showSentimentDashboard
   });
 
-  const {
-    isAudioEnabled,
-    isVideoEnabled,
-    isScreenSharing,
-    screenVideoRef,
-    toggleAudio,
-    toggleVideo,
-    toggleScreenShare
-  } = useMediaControls(localStream, handleScreenShareChange, socket, meetingId, socket?.id);
-
-  // AI Follow-up Question Generation - Audio Transcription
-  const {
-    isRecording: isTranscriptionRecording,
-    transcript,
-    isTranscribing,
-    error: transcriptionError,
-    startRecording: startTranscriptionRecording,
-    stopRecording: stopTranscriptionRecording,
-    clearTranscript
-  } = useAudioTranscription(socket, meetingId);
+  // Note: useAudioTranscription hook is now called earlier (before handleStartQuestionGeneration)
 
   // Enhanced highlight system state (declared early to avoid initialization errors)
   const [highlights, setHighlights] = useState([]);
@@ -380,6 +450,25 @@ const MeetingRoom = () => {
     feedbackMessage,
     clearFeedback
   } = useHighlightMarker(socket, meetingId, userName);
+
+  // Media Controls Hook - Clean implementation
+  const {
+    isAudioEnabled,
+    isVideoEnabled,
+    isScreenSharing: isMediaControlsScreenSharing,
+    toggleAudio,
+    toggleVideo,
+    toggleScreenShare
+  } = useMediaControls(
+    localStream,
+    handleScreenShareChange,
+    socket,
+    meetingId,
+    socket?.id
+  );
+  
+  // Use screen sharing from media controls or fallback to screen share hook
+  const isScreenSharing = isMediaControlsScreenSharing || isNewScreenSharing;
 
   // Media Recorder hook for real-time recording
   const {
@@ -403,6 +492,96 @@ const MeetingRoom = () => {
       meetingId
     });
   }, [isMediaRecording, recordingStatus, recordingError, localStream, socket, meetingId]);
+
+  // Meeting Media Protection - Start protection when meeting starts
+  useEffect(() => {
+    if (localStream && localVideoRef?.current && isConnected) {
+      // Start protection
+      meetingMediaProtection.startProtection(
+        localStream,
+        localVideoRef.current,
+        isVideoEnabled,
+        isAudioEnabled
+      );
+
+      // Force initial restore
+      setTimeout(() => {
+        meetingMediaProtection.forceRestoreVideo();
+        meetingMediaProtection.forceRestoreAudio();
+      }, 500);
+
+      console.log('🛡️ Meeting Media Protection: Started for meeting', {
+        meetingId,
+        hasStream: !!localStream,
+        hasVideoElement: !!localVideoRef.current,
+        isVideoEnabled,
+        isAudioEnabled
+      });
+    }
+
+    // Cleanup on unmount or when meeting ends
+    return () => {
+      if (!isConnected) {
+        meetingMediaProtection.stopProtection();
+      }
+    };
+  }, [localStream, localVideoRef, isConnected, isVideoEnabled, isAudioEnabled, meetingId]);
+
+  // Update protection state when media controls change
+  useEffect(() => {
+    if (meetingMediaProtection.isActive && localStream && localVideoRef?.current) {
+      meetingMediaProtection.updateState(
+        localStream,
+        localVideoRef.current,
+        isVideoEnabled,
+        isAudioEnabled
+      );
+    }
+  }, [isVideoEnabled, isAudioEnabled, localStream, localVideoRef]);
+
+  // Auto-start recording for host when they join the meeting
+  useEffect(() => {
+    // Only auto-start for host
+    if (!isHost) {
+      return;
+    }
+
+    // Wait for all prerequisites to be ready
+    if (!socket || !localStream || !meetingId) {
+      return;
+    }
+
+    // Don't auto-start if already recording or if recording is in progress
+    if (isMediaRecording || recordingStatus === 'starting' || recordingStatus === 'recording') {
+      return;
+    }
+
+    // Add a small delay to ensure everything is initialized
+    const autoStartTimer = setTimeout(() => {
+      console.log('🎬 Auto-starting recording for host...');
+      console.log('🎬 Prerequisites:', {
+        isHost,
+        hasSocket: !!socket,
+        hasLocalStream: !!localStream,
+        meetingId,
+        currentRecordingStatus: recordingStatus,
+        isCurrentlyRecording: isMediaRecording
+      });
+
+      // Start recording automatically
+      if (startMediaRecording) {
+        startMediaRecording().then(() => {
+          console.log('✅ Auto-recording started successfully for host');
+        }).catch((error) => {
+          console.error('❌ Auto-recording failed:', error);
+        });
+      }
+    }, 2000); // 2 second delay to ensure everything is ready
+
+    return () => {
+      clearTimeout(autoStartTimer);
+    };
+  }, [isHost, socket, localStream, meetingId, isMediaRecording, recordingStatus, startMediaRecording]);
 
   // Listen for highlight events
   useEffect(() => {
@@ -530,42 +709,8 @@ const MeetingRoom = () => {
     }
   };
 
-  // AI Follow-up Question Generation - Control functions
-  const handleStartQuestionGeneration = () => {
-    if (socket && meetingId) {
-      console.log('🤖 Starting AI question generation...');
-      console.log('🤖 Socket connected:', socket.connected);
-      console.log('🤖 Meeting ID:', meetingId);
-      console.log('🤖 Is Host:', isHost);
-      
-      socket.emit('start_question_generation', { meetingId });
-      setIsQuestionGenerationActive(true);
-      
-      // Also start audio transcription for the host
-      if (isHost) {
-        console.log('🤖 Starting audio transcription for host...');
-        startTranscriptionRecording();
-      }
-    } else {
-      console.error('🤖 Cannot start AI question generation:', {
-        hasSocket: !!socket,
-        socketConnected: socket?.connected,
-        meetingId,
-        isHost
-      });
-    }
-  };
-
-  const handleStopQuestionGeneration = () => {
-    if (socket && meetingId) {
-      console.log('🛑 Stopping AI question generation...');
-      socket.emit('stop_question_generation', { meetingId });
-      setIsQuestionGenerationActive(false);
-      
-      // Stop audio transcription
-      stopTranscriptionRecording();
-    }
-  };
+  // Note: handleStartQuestionGeneration and handleStopQuestionGeneration are now defined earlier
+  // (before the useEffect hooks that use them) to avoid initialization errors
 
   const handleDismissQuestion = () => {
     setShowQuestionSuggestion(false);
@@ -651,19 +796,7 @@ const MeetingRoom = () => {
             {isHost ? 'You are the host' : 'Participant'}
           </Typography>
         </Box>
-        
-        {isHost && pendingApprovals.length > 0 && (
-          <Box className="pending-approvals-notification">
-            <Button
-              variant="contained"
-              color="warning"
-              onClick={() => setShowPendingApprovals(true)}
-              startIcon={<People />}
-            >
-              Pending Approvals ({pendingApprovals.length})
-            </Button>
-          </Box>
-        )}
+
 
         {/* AI Features - Sentiment Dashboard Toggle and Camera Request */}
         {isHost && (
@@ -688,7 +821,6 @@ const MeetingRoom = () => {
                 console.log('🔍 Current meeting state:', {
                   isHost,
                   remoteStreams: remoteStreams.length,
-                  pendingApprovals: pendingApprovals.length,
                   sentimentData: sentimentData,
                   totalParticipants: remoteStreams.length + 1 // +1 for host
                 });
@@ -780,30 +912,15 @@ const MeetingRoom = () => {
             
             <MenuItem 
               onClick={() => {
-                if (fixAudioIssue) {
-                  fixAudioIssue();
+                // Re-initialize media (includes audio)
+                if (initializeMedia) {
+                  initializeMedia().then(() => {
+                    alert('Media re-initialized. Check if audio is now working.');
+                  }).catch((err) => {
+                    alert('Failed to re-initialize media: ' + err.message);
+                  });
                 } else {
-                  alert('Audio fix function not available');
-                }
-                setDebugMenuAnchor(null);
-              }}
-            >
-              <ListItemIcon>
-                🎤
-              </ListItemIcon>
-              <ListItemText 
-                primary="Fix Audio Issues"
-                secondary="Fix microphone and audio transmission"
-              />
-            </MenuItem>
-            
-            <MenuItem 
-              onClick={() => {
-                if (forceReinitializeAudio) {
-                  forceReinitializeAudio();
-                  alert('Audio re-initialization attempted. Check if audio is now working.');
-                } else {
-                  alert('Audio re-initialization function not available');
+                  alert('Media initialization function not available');
                 }
                 setDebugMenuAnchor(null);
               }}
@@ -812,8 +929,8 @@ const MeetingRoom = () => {
                 🔄
               </ListItemIcon>
               <ListItemText 
-                primary="Re-initialize Audio"
-                secondary="Force re-initialize audio for all participants"
+                primary="Re-initialize Media"
+                secondary="Re-initialize camera and microphone"
               />
             </MenuItem>
             
@@ -875,10 +992,12 @@ const MeetingRoom = () => {
             {isHost && (
               <MenuItem 
                 onClick={() => {
-                  if (forceReshareHostStream) {
-                    forceReshareHostStream();
+                  // Force connection to all participants
+                  if (forceConnection) {
+                    forceConnection();
+                    alert('Force connection attempted. Video should be re-shared to all participants.');
                   } else {
-                    alert('Force re-share function not available');
+                    alert('Force connection function not available');
                   }
                   setDebugMenuAnchor(null);
                 }}
@@ -887,8 +1006,8 @@ const MeetingRoom = () => {
                   📹
                 </ListItemIcon>
                 <ListItemText 
-                  primary="Force Re-share Host Video"
-                  secondary="Re-share host video stream to all participants"
+                  primary="Force Re-connect"
+                  secondary="Force re-connection to all participants"
                 />
               </MenuItem>
             )}
@@ -1055,51 +1174,19 @@ const MeetingRoom = () => {
       })}
 
       <Box className="video-main-area">
-        {/* Always show video component, but with waiting overlay if needed */}
-        <UltraSimpleVideo
-          userName={finalUserName}
-          isHost={isHost}
+        {/* Clean Video Call Component - CRITICAL: Stable key to prevent remounting */}
+        <VideoCall
+          key="video-call-stable" // Stable key prevents remounting when chat opens
+          localStream={localStream}
+          remoteStreams={remoteStreams}
           localVideoRef={localVideoRef}
           participants={participants}
-          remoteStreams={remoteStreams}
-          localStream={localStream}
           currentUserId={socket?.id}
-          forceConnection={forceConnection}
-          createConnectionsToAllParticipants={createConnectionsToAllParticipants}
-          initializeMedia={initializeMedia}
-          // Screen sharing props
-          screenStream={screenStream}
-          remoteScreenStreams={remoteScreenStreams}
-          forceRender={forceRender}
-          // Participant management
-          onRemoveParticipant={handleRemoveParticipant}
+          isVideoEnabled={isVideoEnabled}
         />
         
-        {/* Waiting approval overlay */}
-        {isWaitingForApproval && (
-          <Box className="waiting-approval-overlay">
-            <Box className="waiting-approval-content">
-              <Typography variant="h4" color="primary" gutterBottom>
-                ⏳ Waiting for Host Approval
-              </Typography>
-              <Typography variant="body1" color="text.secondary" align="center">
-                You have requested to join the meeting. Please wait for the host to approve your request.
-              </Typography>
-              <Box className="loading-spinner loading-spinner-with-margin">
-                <div className="spinner"></div>
-              </Box>
-              <Button
-                variant="contained"
-                color="primary"
-                className="button-with-margin"
-                onClick={() => console.log('Request approval - SimplePeer handles this automatically')}
-              >
-                Request Approval Again
-              </Button>
-            </Box>
-          </Box>
-        )}
       </Box>
+
 
       {/* Free Transcription for AI Question Generation */}
       <FreeTranscription
@@ -1129,9 +1216,8 @@ const MeetingRoom = () => {
         />
       )}
 
-      {/* Meeting Controls - Only show when approved */}
-      {!isWaitingForApproval && (
-        <MeetingControls
+      {/* Meeting Controls */}
+      <MeetingControls
           isAudioEnabled={isAudioEnabled}
           isVideoEnabled={isVideoEnabled}
           isScreenSharing={isScreenSharing}
@@ -1139,14 +1225,216 @@ const MeetingRoom = () => {
           showParticipants={showParticipants}
           onToggleAudio={toggleAudio}
           onToggleVideo={toggleVideo}
-          onToggleScreenShare={isNewScreenSharing ? stopNewScreenShare : startNewScreenShare}
+          onToggleScreenShare={toggleScreenShare}
           onToggleChat={() => {
-            console.log('💬 Chat button clicked, current showChat:', showChat);
-            setShowChat(!showChat);
-            console.log('💬 Chat state will be:', !showChat);
+            // SIMPLE - Just toggle chat state, nothing else
+            // Video is protected by React.memo on VideoCall component
+            console.log('💬 Chat toggle:', !showChat);
+            const newChatState = !showChat;
+            setShowChat(newChatState);
+            
+            // CRITICAL: Immediately protect video when chat state changes
+            setTimeout(() => {
+              if (localStream && localVideoRef?.current) {
+                const videoElement = localVideoRef.current;
+                const videoTrack = localStream.getVideoTracks()[0];
+                
+                if (videoTrack && isVideoEnabled) {
+                  // Force video to stay on
+                  if (!videoTrack.enabled) {
+                    console.warn('🛡️ MeetingRoom: Chat toggle - track disabled, re-enabling');
+                    videoTrack.enabled = true;
+                  }
+                  
+                  if (videoElement.srcObject !== localStream) {
+                    console.warn('🛡️ MeetingRoom: Chat toggle - srcObject lost, restoring');
+                    videoElement.srcObject = localStream;
+                  }
+                  
+                  // Force visibility
+                  videoElement.style.opacity = '1';
+                  videoElement.style.visibility = 'visible';
+                  videoElement.style.display = 'block';
+                  
+                  // Force play
+                  if (videoElement.paused) {
+                    videoElement.play().catch(() => {});
+                  }
+                }
+              }
+            }, 0);
           }}
-          onToggleParticipants={() => setShowParticipants(!showParticipants)}
-          onMarkHighlight={markHighlight}
+          localStream={localStream}
+          onToggleParticipants={() => {
+            // SIMPLE - Just toggle participants state, nothing else
+            // Video is protected by React.memo on VideoCall component
+            console.log('👥 Participants toggle:', !showParticipants);
+            const newParticipantsState = !showParticipants;
+            setShowParticipants(newParticipantsState);
+            
+            // CRITICAL: Immediately protect video when participants state changes
+            setTimeout(() => {
+              if (localStream && localVideoRef?.current) {
+                const videoElement = localVideoRef.current;
+                const videoTrack = localStream.getVideoTracks()[0];
+                
+                if (videoTrack && isVideoEnabled) {
+                  // Force video to stay on
+                  if (!videoTrack.enabled) {
+                    console.warn('🛡️ MeetingRoom: Participants toggle - track disabled, re-enabling');
+                    videoTrack.enabled = true;
+                  }
+                  
+                  if (videoElement.srcObject !== localStream) {
+                    console.warn('🛡️ MeetingRoom: Participants toggle - srcObject lost, restoring');
+                    videoElement.srcObject = localStream;
+                  }
+                  
+                  // Force visibility
+                  videoElement.style.opacity = '1';
+                  videoElement.style.visibility = 'visible';
+                  videoElement.style.display = 'block';
+                  
+                  // Force play
+                  if (videoElement.paused) {
+                    videoElement.play().catch(() => {});
+                  }
+                }
+              }
+            }, 0);
+          }}
+          onMarkHighlight={(highlightType) => {
+            // SIMPLE - Mark highlight, but protect video
+            console.log('⭐ Mark highlight:', highlightType);
+            
+            // CRITICAL: Capture video state BEFORE any operations
+            const videoTrack = localStream?.getVideoTracks()[0];
+            const videoWasEnabled = isVideoEnabled;
+            
+            // CRITICAL: Protect video SYNCHRONOUSLY before calling markHighlight
+            if (localStream && localVideoRef?.current) {
+              const videoElement = localVideoRef.current;
+              
+              if (videoTrack && videoWasEnabled) {
+                // Force video to stay on immediately (synchronous)
+                if (!videoTrack.enabled) {
+                  console.warn('🛡️ MeetingRoom: Mark highlight - track disabled, re-enabling immediately');
+                  videoTrack.enabled = true;
+                }
+                
+                if (videoElement.srcObject !== localStream) {
+                  console.warn('🛡️ MeetingRoom: Mark highlight - srcObject lost, restoring immediately');
+                  videoElement.srcObject = localStream;
+                }
+                
+                // Force visibility
+                videoElement.style.opacity = '1';
+                videoElement.style.visibility = 'visible';
+                videoElement.style.display = 'block';
+              }
+            }
+            
+            // CRITICAL: Also protect using requestAnimationFrame for immediate browser update
+            requestAnimationFrame(() => {
+              if (localStream && localVideoRef?.current) {
+                const videoElement = localVideoRef.current;
+                
+                if (videoTrack && videoWasEnabled) {
+                  if (!videoTrack.enabled) {
+                    videoTrack.enabled = true;
+                  }
+                  
+                  if (videoElement.srcObject !== localStream) {
+                    videoElement.srcObject = localStream;
+                  }
+                  
+                  videoElement.style.opacity = '1';
+                  videoElement.style.visibility = 'visible';
+                  videoElement.style.display = 'block';
+                  
+                  if (videoElement.paused) {
+                    videoElement.play().catch(() => {});
+                  }
+                }
+              }
+            });
+            
+            // Call the original markHighlight function
+            markHighlight(highlightType);
+            
+            // CRITICAL: Multiple protection checks after highlight is marked
+            setTimeout(() => {
+              if (localStream && localVideoRef?.current) {
+                const videoElement = localVideoRef.current;
+                
+                if (videoTrack && videoWasEnabled) {
+                  // Force video to stay on
+                  if (!videoTrack.enabled) {
+                    console.warn('🛡️ MeetingRoom: Mark highlight - track disabled, re-enabling');
+                    videoTrack.enabled = true;
+                  }
+                  
+                  if (videoElement.srcObject !== localStream) {
+                    console.warn('🛡️ MeetingRoom: Mark highlight - srcObject lost, restoring');
+                    videoElement.srcObject = localStream;
+                  }
+                  
+                  // Force visibility
+                  videoElement.style.opacity = '1';
+                  videoElement.style.visibility = 'visible';
+                  videoElement.style.display = 'block';
+                  
+                  // Force play
+                  if (videoElement.paused) {
+                    videoElement.play().catch(() => {});
+                  }
+                }
+              }
+            }, 0);
+            
+            // Additional checks
+            setTimeout(() => {
+              if (localStream && localVideoRef?.current) {
+                const videoElement = localVideoRef.current;
+                
+                if (videoTrack && videoWasEnabled) {
+                  if (!videoTrack.enabled) {
+                    videoTrack.enabled = true;
+                  }
+                  if (videoElement.srcObject !== localStream) {
+                    videoElement.srcObject = localStream;
+                  }
+                  videoElement.style.opacity = '1';
+                  videoElement.style.visibility = 'visible';
+                  videoElement.style.display = 'block';
+                  if (videoElement.paused) {
+                    videoElement.play().catch(() => {});
+                  }
+                }
+              }
+            }, 50);
+            
+            setTimeout(() => {
+              if (localStream && localVideoRef?.current) {
+                const videoElement = localVideoRef.current;
+                
+                if (videoTrack && videoWasEnabled) {
+                  if (!videoTrack.enabled) {
+                    videoTrack.enabled = true;
+                  }
+                  if (videoElement.srcObject !== localStream) {
+                    videoElement.srcObject = localStream;
+                  }
+                  videoElement.style.opacity = '1';
+                  videoElement.style.visibility = 'visible';
+                  videoElement.style.display = 'block';
+                  if (videoElement.paused) {
+                    videoElement.play().catch(() => {});
+                  }
+                }
+              }
+            }, 200);
+          }}
           isRecording={isMediaRecording}
           onToggleRecording={toggleRecording}
           recordingStatus={recordingStatus}
@@ -1162,22 +1450,47 @@ const MeetingRoom = () => {
           // AI Question Generation props
           isQuestionGenerationActive={isQuestionGenerationActive}
           onToggleQuestionGeneration={() => {
+            // SIMPLE - Toggle AI question generation, but protect video
+            console.log('🤖 AI Question toggle:', !isQuestionGenerationActive);
+            
             if (isQuestionGenerationActive) {
               handleStopQuestionGeneration();
             } else {
               handleStartQuestionGeneration();
             }
+            
+            // CRITICAL: Immediately protect video when AI question state changes
+            setTimeout(() => {
+              if (localStream && localVideoRef?.current) {
+                const videoElement = localVideoRef.current;
+                const videoTrack = localStream.getVideoTracks()[0];
+                
+                if (videoTrack && isVideoEnabled) {
+                  // Force video to stay on
+                  if (!videoTrack.enabled) {
+                    console.warn('🛡️ MeetingRoom: AI Question toggle - track disabled, re-enabling');
+                    videoTrack.enabled = true;
+                  }
+                  
+                  if (videoElement.srcObject !== localStream) {
+                    console.warn('🛡️ MeetingRoom: AI Question toggle - srcObject lost, restoring');
+                    videoElement.srcObject = localStream;
+                  }
+                  
+                  // Force visibility
+                  videoElement.style.opacity = '1';
+                  videoElement.style.visibility = 'visible';
+                  videoElement.style.display = 'block';
+                  
+                  // Force play
+                  if (videoElement.paused) {
+                    videoElement.play().catch(() => {});
+                  }
+                }
+              }
+            }, 0);
           }}
         />
-      )}
-
-      {/* Pending Approvals Dialog */}
-      <PendingApprovalsDialog
-        open={showPendingApprovals}
-        onClose={() => setShowPendingApprovals(false)}
-        pendingApprovals={pendingApprovals}
-        onApproveParticipant={approveParticipant}
-      />
 
       {/* Participants Dialog */}
       <ParticipantsDialog
@@ -1282,9 +1595,6 @@ const MeetingRoom = () => {
             </Typography>
             <Typography variant="body2" style={{ marginBottom: '5px' }}>
               <strong>Is Host:</strong> {isHost ? '✅ Yes' : '❌ No'}
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: '5px' }}>
-              <strong>Waiting for Approval:</strong> {isWaitingForApproval ? '⏳ Yes' : '✅ No'}
             </Typography>
           </Box>
           

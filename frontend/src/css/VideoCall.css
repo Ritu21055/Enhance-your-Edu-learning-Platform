@@ -1,0 +1,276 @@
+/* Video Call Container */
+.video-call-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  /* CRITICAL: Prevent layout changes when chat opens */
+  min-width: 0;
+  min-height: 0;
+  /* Ensure video stays stable */
+  contain: layout style paint;
+  /* Force stable dimensions */
+  flex: 1 1 auto;
+  /* Prevent any resizing */
+  isolation: isolate;
+  /* Ensure video never gets removed */
+  will-change: auto;
+}
+
+/* Video Grid Layout */
+.video-call-grid {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+  /* Prevent layout flickering */
+  contain: layout style paint;
+  /* CRITICAL: Ensure grid fills entire container */
+  min-width: 0;
+  min-height: 0;
+  background: #0a0a0a;
+}
+
+/* Grid layouts based on number of videos */
+.video-call-grid.grid-1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  /* CRITICAL: Single video should fill entire space */
+  place-items: stretch;
+  /* Remove gap and padding for single video to fill completely */
+  gap: 0;
+  padding: 0;
+  background: #000;
+}
+
+.video-call-grid.grid-2 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+  place-items: stretch;
+  gap: 12px;
+  padding: 12px;
+  /* Better spacing for 2 videos */
+}
+
+.video-call-grid.grid-multiple {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-rows: repeat(auto-fit, minmax(240px, 1fr));
+  place-items: stretch;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* Local Video Wrapper */
+.local-video-wrapper {
+  position: relative !important;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden; /* Keep for rounded corners - labels must be within bounds */
+  /* Prevent layout shifts - but don't contain paint to allow labels to show */
+  contain: layout style;
+  /* No transitions - instant changes */
+  transition: none;
+  /* CRITICAL: Ensure wrapper fills grid cell completely */
+  min-width: 0;
+  min-height: 0;
+  /* Modern styling */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  /* CRITICAL: Ensure labels are not clipped - labels are positioned within bounds */
+  z-index: 1;
+  /* CRITICAL: Create positioning context for absolutely positioned labels */
+  isolation: isolate;
+}
+
+/* When only 1 video (local only), fill entire space */
+.video-call-grid.grid-1 .local-video-wrapper {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+
+/* When 2 videos, show side by side */
+.video-call-grid.grid-2 .local-video-wrapper {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+/* Local Video */
+.local-video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  background: #000;
+  border-radius: 10px;
+  /* Camera provides mirrored feed - flip it back to show correctly */
+  /* scaleX(-1) un-mirrors the video so right hand appears on right side */
+  transform: scaleX(-1);
+  display: block !important;
+  /* CRITICAL: No transitions - prevents layout shifts */
+  transition: none;
+  /* Prevent video from being affected by layout changes */
+  position: relative;
+  z-index: 1; /* Lower z-index so labels appear above */
+  min-width: 0;
+  min-height: 0;
+  /* Force video to maintain stream */
+  will-change: auto;
+  /* CRITICAL: Fixed dimensions to prevent layout shifts */
+  flex-shrink: 0;
+  flex-grow: 0;
+  /* Prevent video from being removed */
+  pointer-events: auto;
+  /* CRITICAL: Ensure video doesn't clip labels */
+  overflow: visible;
+  /* CRITICAL: Force visibility */
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Remote Video Wrapper */
+.remote-video-wrapper {
+  position: relative !important;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden; /* Keep for rounded corners - labels must be within bounds */
+  /* Prevent layout shifts - but don't contain paint to allow labels to show */
+  contain: layout style;
+  /* Modern styling - match local video */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  /* CRITICAL: Ensure labels are not clipped - labels are positioned within bounds */
+  z-index: 1;
+  /* CRITICAL: Create positioning context for absolutely positioned labels */
+  isolation: isolate;
+}
+
+/* Hover effect for remote videos */
+.remote-video-wrapper:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Remote Video */
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+  border-radius: 10px;
+  display: block;
+  position: relative;
+  z-index: 1; /* Lower z-index so labels appear above */
+  /* Remote cameras also provide mirrored feed - flip it back to show correctly */
+  /* scaleX(-1) un-mirrors the remote video so right hand appears on right side */
+  transform: scaleX(-1);
+  /* CRITICAL: Ensure video doesn't clip labels */
+  overflow: visible;
+}
+
+/* Video Label (Name) */
+.video-label {
+  position: absolute;
+  bottom: 75px;
+  left: 12px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.9), rgba(139, 92, 246, 0.85));
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 19px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.4), 0 1px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  text-transform: capitalize;
+  letter-spacing: 0.2px;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-sizing: border-box;
+  transition: opacity 0.2s ease;
+  display: block;
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Host Label - Subtle Highlight */
+.video-label-host {
+  border-left: 3px solid rgba(255, 193, 7, 0.8);
+}
+
+/* Video Off Placeholder */
+.video-off-placeholder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 24px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 5;
+  user-select: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .video-call-grid {
+    gap: 8px;
+    padding: 8px;
+  }
+  
+  .video-call-grid.grid-2 {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+  }
+  
+  .video-call-grid.grid-multiple {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  
+  .local-video-wrapper,
+  .remote-video-wrapper {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  .video-label {
+    font-size: 16px;
+    padding: 8px 16px;
+    bottom: 8px;
+    left: 8px;
+  }
+  
+  .video-off-placeholder {
+    font-size: 20px;
+  }
+}
+
+/* Large screens - better spacing */
+@media (min-width: 1920px) {
+  .video-call-grid.grid-2 {
+    gap: 16px;
+    padding: 16px;
+  }
+  
+  .video-call-grid.grid-multiple {
+    gap: 16px;
+    padding: 16px;
+  }
+}
