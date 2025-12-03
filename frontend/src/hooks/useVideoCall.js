@@ -290,6 +290,7 @@ const useVideoCall = (meetingId, userName) => {
                 isInitiator = newSocket.id < participant.id;
               }
               
+              console.log(`🔗🔗🔗🔗🔗 CREATING PEER CONNECTION 🔗🔗🔗🔗🔗`);
               console.log(`🔗 Connection details:`, {
                 from: newSocket.id,
                 to: participant.id,
@@ -298,7 +299,9 @@ const useVideoCall = (meetingId, userName) => {
                 isInitiator: isInitiator,
                 iAmHost: hostStatus,
                 theyAreHost: participantIsHost,
-                streamReady: streamReady
+                streamReady: streamReady,
+                hasStream: !!streamRef.current,
+                streamActive: streamRef.current?.active || false
               });
               
               // Create connection immediately if stream is ready, otherwise wait
@@ -881,12 +884,18 @@ const useVideoCall = (meetingId, userName) => {
 
   // Create Peer Connection
   const createPeerConnection = useCallback((participantId, initiator) => {
+    const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
+    console.log(`🔗🔗🔗🔗🔗 CREATE PEER CONNECTION CALLED 🔗🔗🔗🔗🔗`);
     console.log(`🔗 createPeerConnection called:`, {
       participantId,
+      participantName,
       initiator,
       hasStream: !!streamRef.current,
+      streamActive: streamRef.current?.active || false,
+      streamTracks: streamRef.current ? streamRef.current.getTracks().length : 0,
       hasExistingPeer: !!peersRef.current[participantId],
-      socketId: socketRef.current?.id
+      socketId: socketRef.current?.id,
+      isHost: isHostRef.current
     });
     
     // Don't create duplicate connections
@@ -948,6 +957,25 @@ const useVideoCall = (meetingId, userName) => {
       senders.forEach((sender, idx) => {
         console.log(`    Sender ${idx}: track=${sender.track?.kind || 'none'}, enabled=${sender.track?.enabled || false}`);
       });
+      
+      // CRITICAL: Double-check that stream tracks are actually added
+      if (senders.length === 0) {
+        console.error(`❌❌❌ CRITICAL: No senders found in peer connection! Stream may not be added properly.`);
+        console.error(`  - Stream tracks: ${streamRef.current.getTracks().length}`);
+        console.error(`  - Video tracks: ${streamRef.current.getVideoTracks().length}`);
+        console.error(`  - Audio tracks: ${streamRef.current.getAudioTracks().length}`);
+        
+        // Try to manually add tracks
+        console.log(`🔄 Attempting to manually add tracks to peer connection...`);
+        streamRef.current.getTracks().forEach(track => {
+          try {
+            peer._pc.addTrack(track, streamRef.current);
+            console.log(`✅ Added ${track.kind} track manually`);
+          } catch (error) {
+            console.error(`❌ Error adding ${track.kind} track:`, error);
+          }
+        });
+      }
     }
 
     // Store peer immediately
@@ -955,6 +983,9 @@ const useVideoCall = (meetingId, userName) => {
     console.log(`✅ Peer stored for ${participantId}`);
     console.log(`  - Peer ready: ${peer.ready}`);
     console.log(`  - Peer destroyed: ${peer.destroyed}`);
+    console.log(`  - Initiator: ${initiator}`);
+    console.log(`  - Stream ID: ${streamRef.current?.id}`);
+    console.log(`  - Stream active: ${streamRef.current?.active}`);
     
     // CRITICAL: Add error handler immediately to catch any peer creation issues
     peer.on('error', (error) => {
@@ -1086,7 +1117,7 @@ const useVideoCall = (meetingId, userName) => {
     // Handle incoming stream
     peer.on('stream', (stream) => {
       const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
-      console.log(`📹📹📹 Received remote stream from ${participantName} (${participantId}):`);
+      console.log(`📹📹📹📹📹📹📹📹📹 RECEIVED REMOTE STREAM FROM ${participantName} (${participantId}) 📹📹📹📹📹📹📹📹📹`);
       console.log(`  - streamId: ${stream.id}`);
       console.log(`  - active: ${stream.active}`);
       console.log(`  - videoTracks: ${stream.getVideoTracks().length}`);
@@ -1097,6 +1128,8 @@ const useVideoCall = (meetingId, userName) => {
       console.log(`  - peerDestroyed: ${peer.destroyed}`);
       console.log(`  - peerSignalingState: ${peer.signalingState}`);
       console.log(`  - peerIceConnectionState: ${peer._pc?.iceConnectionState || 'N/A'}`);
+      console.log(`  - My socket ID: ${socketRef.current?.id}`);
+      console.log(`  - Is host: ${isHostRef.current}`);
       
       // CRITICAL: Ensure stream is active before setting it
       if (stream.active) {
@@ -1139,13 +1172,24 @@ const useVideoCall = (meetingId, userName) => {
     // Handle connection established
     peer.on('connect', () => {
       const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
-      console.log(`✅✅✅✅✅ Peer connection ESTABLISHED with ${participantName} (${participantId}) - streams should work now!`);
+      console.log(`✅✅✅✅✅✅✅✅✅ PEER CONNECTION ESTABLISHED with ${participantName} (${participantId}) ✅✅✅✅✅✅✅✅✅`);
       console.log(`  - Participant: ${participantName} (${participantId})`);
       console.log(`  - My socket ID: ${socketRef.current?.id}`);
+      console.log(`  - Is host: ${isHostRef.current}`);
+      console.log(`  - Initiator: ${initiator}`);
       console.log(`  - Peer destroyed: ${peer.destroyed}`);
       console.log(`  - Peer ready: ${peer.ready}`);
       console.log(`  - Peer signalingState: ${peer.signalingState}`);
       console.log(`  - Peer ICE connection state: ${peer._pc?.iceConnectionState || 'N/A'}`);
+      
+      // CRITICAL: Check if we're sending our stream
+      if (peer._pc) {
+        const senders = peer._pc.getSenders();
+        console.log(`  - Sending tracks: ${senders.length}`);
+        senders.forEach((sender, idx) => {
+          console.log(`    Sender ${idx}: ${sender.track?.kind || 'none'}, enabled=${sender.track?.enabled || false}`);
+        });
+      }
       // Use ref to get current remote streams state
       const currentStreams = remoteStreamsRef.current;
       console.log(`  - Remote streams count: ${Object.keys(currentStreams).length}`);
