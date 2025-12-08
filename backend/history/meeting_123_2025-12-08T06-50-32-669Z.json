@@ -1,0 +1,40 @@
+{
+  "meeting": {
+    "id": "123",
+    "title": "testing",
+    "participants": 1,
+    "createdAt": "2025-12-08T06:50:32.534Z",
+    "endedAt": "2025-12-08T06:50:32.669Z",
+    "duration": 0,
+    "status": "completed"
+  },
+  "highlights": {
+    "total": 0,
+    "data": [],
+    "summary": {
+      "totalHighlights": 0,
+      "byType": {},
+      "byPriority": {},
+      "byParticipant": {},
+      "timeline": []
+    }
+  },
+  "recording": null,
+  "highlightReel": null,
+  "transcript": {
+    "totalEntries": 0,
+    "data": [],
+    "fullTranscript": ""
+  },
+  "sentiment": null,
+  "metadata": {
+    "savedAt": "2025-12-08T06:50:32.670Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": true,
+      "questionGeneration": true,
+      "sentimentAnalysis": false,
+      "transcription": false
+    }
+  }
+}

@@ -730,6 +730,29 @@ const useVideoCall = (meetingId, userName) => {
               videoElement.pause();
             }
           }
+          
+          // CRITICAL: Immediately mute/unmute audio tracks based on audioEnabled state
+          const audioTracks = stream.getAudioTracks();
+          audioTracks.forEach((audioTrack, index) => {
+            const shouldEnableAudio = audioEnabled !== false;
+            const currentEnabled = audioTrack.enabled;
+            
+            if (currentEnabled !== shouldEnableAudio) {
+              console.log(`🔊⚡⚡⚡ INSTANT AUDIO UPDATE: ${participantId} audio track ${index} ${shouldEnableAudio ? 'UNMUTE' : 'MUTE'}`, {
+                audioEnabled,
+                currentEnabled,
+                shouldEnableAudio,
+                trackReady: audioTrack.readyState === 'live'
+              });
+              
+              audioTrack.enabled = shouldEnableAudio;
+              
+              // Also set muted property if possible (though it's usually read-only)
+              if (audioTrack.muted !== !shouldEnableAudio) {
+                console.log(`🔊 Audio track muted state: ${audioTrack.muted}, should be: ${!shouldEnableAudio}`);
+              }
+            }
+          });
         }
       }, 0);
       

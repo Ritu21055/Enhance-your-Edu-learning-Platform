@@ -508,6 +508,7 @@ const VideoCallComponent = memo(({
         // When participant turns off camera, socket event is more reliable than track.enabled
         const socketMediaState = participantMediaState[participantId];
         const socketVideoEnabled = socketMediaState?.videoEnabled;
+        const socketAudioEnabled = socketMediaState?.audioEnabled;
         
         // Use socket state if available, otherwise fall back to track state
         // CRITICAL: If socket says video is disabled, hide it immediately
@@ -550,6 +551,34 @@ const VideoCallComponent = memo(({
           videoElement.style.display = 'none'; // Also set display to none for complete hiding
           videoElement.pause();
         }
+        
+        // CRITICAL: Mute/unmute audio tracks based on participant's audio state
+        const audioTracks = stream.getAudioTracks();
+        audioTracks.forEach((audioTrack, index) => {
+          // Use socket state if available, otherwise fall back to track state
+          const shouldEnableAudio = socketAudioEnabled !== undefined
+            ? socketAudioEnabled !== false  // If socket says enabled, enable (unless explicitly false)
+            : audioTrack.enabled;  // Fallback to current track state
+          
+          const currentEnabled = audioTrack.enabled;
+          
+          if (currentEnabled !== shouldEnableAudio) {
+            console.log(`🔊 Audio muting check for ${participantId} track ${index}:`, {
+              socketAudioEnabled,
+              currentEnabled,
+              shouldEnableAudio,
+              trackReady: audioTrack.readyState === 'live'
+            });
+            
+            audioTrack.enabled = shouldEnableAudio;
+            
+            if (shouldEnableAudio) {
+              console.log(`🔊✅ Unmuted audio track ${index} for ${participantId}`);
+            } else {
+              console.log(`🔊🔇 Muted audio track ${index} for ${participantId}`);
+            }
+          }
+        });
       } else {
         console.warn(`⚠️ No video element found for participant ${participantId}`);
       }
@@ -872,9 +901,30 @@ const VideoCallComponent = memo(({
                       el.pause();
                     }
                     
+                    // CRITICAL: Handle audio tracks based on participant's audio state
+                    const audioTracks = stream.getAudioTracks();
+                    const socketAudioEnabled = socketMediaState?.audioEnabled;
+                    
+                    audioTracks.forEach((audioTrack, index) => {
+                      // Use socket state if available, otherwise fall back to track state
+                      const shouldEnableAudio = socketAudioEnabled !== undefined
+                        ? socketAudioEnabled !== false  // If socket says enabled, enable (unless explicitly false)
+                        : audioTrack.enabled;  // Fallback to current track state
+                      
+                      if (audioTrack.enabled !== shouldEnableAudio) {
+                        console.log(`🔊 Setting audio track ${index} for ${participantName}: ${shouldEnableAudio ? 'ENABLE' : 'DISABLE'}`, {
+                          socketAudioEnabled,
+                          currentEnabled: audioTrack.enabled,
+                          shouldEnableAudio
+                        });
+                        audioTrack.enabled = shouldEnableAudio;
+                      }
+                    });
+                    
                     if (wasNew) {
                       console.log(`✅ Remote video element created for ${participantName}`);
                       console.log(`  - Video track enabled: ${isVideoEnabled}`);
+                      console.log(`  - Audio tracks: ${audioTracks.length}, socket audio enabled: ${socketAudioEnabled}`);
                       
                       // Set up listener for track enabled state changes
                       if (videoTrack) {
@@ -902,8 +952,7 @@ const VideoCallComponent = memo(({
                           const currentEnabled = videoTrack.enabled;
                           const lastEnabled = videoTrack._lastEnabledState ?? currentEnabled;
                           
-                          // Also check socket media state
-                          const socketMediaState = participantMediaState[participantId];
+                          // Also check socket media state (reuse socketMediaState from outer scope)
                           const socketVideoEnabled = socketMediaState?.videoEnabled;
                           const lastSocketState = videoTrack._lastSocketVideoEnabled;
                           
