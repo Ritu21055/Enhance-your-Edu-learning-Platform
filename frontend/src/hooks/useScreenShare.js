@@ -350,8 +350,21 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
 
     // Signal if provided (AFTER adding stream)
     if (signal) {
+      // CRITICAL: Check if peer is destroyed before signaling
+      if (peer.destroyed) {
+        console.warn('🖥️ Screen Share: Cannot signal destroyed peer for', participantId);
+        return;
+      }
       console.log('🖥️ Screen Share: Signaling peer for', participantId);
-      peer.signal(signal);
+      try {
+        peer.signal(signal);
+      } catch (error) {
+        console.error('🖥️ Screen Share: Error signaling peer:', error);
+        // Clean up destroyed peer
+        if (peer.destroyed) {
+          delete screenSharePeersRef.current[participantId];
+        }
+      }
     }
 
     screenSharePeersRef.current[participantId] = peer;
@@ -363,8 +376,25 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
     const { signal, from } = data;
     
     if (screenSharePeersRef.current[from]) {
+      const peer = screenSharePeersRef.current[from];
+      // CRITICAL: Check if peer is destroyed before signaling
+      if (peer.destroyed) {
+        console.warn('🖥️ Screen Share: Peer is destroyed for', from, '- creating new peer');
+        delete screenSharePeersRef.current[from];
+        createScreenSharePeer(from, signal);
+        return;
+      }
       console.log('🖥️ Screen Share: Signaling existing peer', from);
-      screenSharePeersRef.current[from].signal(signal);
+      try {
+        peer.signal(signal);
+      } catch (error) {
+        console.error('🖥️ Screen Share: Error signaling existing peer:', error);
+        // Clean up destroyed peer and create new one
+        if (peer.destroyed) {
+          delete screenSharePeersRef.current[from];
+          createScreenSharePeer(from, signal);
+        }
+      }
     } else {
       console.log('🖥️ Screen Share: Creating new peer for', from);
       createScreenSharePeer(from, signal);
