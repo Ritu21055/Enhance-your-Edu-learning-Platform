@@ -322,14 +322,26 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       setScreenShareError(`Connection error: ${err.message}`);
     });
 
-    // Add screen stream if we're sharing
+    // CRITICAL: Add screen stream BEFORE signaling (if we're sharing)
+    // This ensures the stream is included in the SDP offer/answer
     if (isScreenSharingRef.current && screenShareStreamRef.current) {
-      console.log('🖥️ Screen Share: Adding screen stream to peer');
-      peer.addStream(screenShareStreamRef.current);
+      console.log('🖥️ Screen Share: Adding screen stream to new peer for', participantId, 'BEFORE signaling');
+      try {
+        peer.addStream(screenShareStreamRef.current);
+        console.log('🖥️ Screen Share: Successfully added stream to new peer');
+      } catch (error) {
+        console.error('🖥️ Screen Share: Error adding stream to new peer:', error);
+      }
+    } else {
+      console.log('🖥️ Screen Share: Not adding stream to peer (not sharing or no stream)', {
+        isScreenSharing: isScreenSharingRef.current,
+        hasStream: !!screenShareStreamRef.current
+      });
     }
 
-    // Signal if provided
+    // Signal if provided (AFTER adding stream)
     if (signal) {
+      console.log('🖥️ Screen Share: Signaling peer for', participantId);
       peer.signal(signal);
     }
 
@@ -598,9 +610,64 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
       console.log('🖥️ Screen Share: Screen stream obtained', stream);
       
       setScreenStream(stream);
-      setScreenShareStream(stream);
+      screenShareStreamRef.current = stream;
       setIsScreenSharing(true);
       isScreenSharingRef.current = true;
+
+      // CRITICAL: Add screen share stream to all existing peer connections
+      console.log('🖥️ Screen Share: Adding stream to existing peer connections');
+      Object.entries(screenSharePeersRef.current).forEach(([participantId, peer]) => {
+        if (peer && !peer.destroyed) {
+          try {
+            console.log(`🖥️ Screen Share: Adding stream to existing peer for ${participantId}`);
+            // Use replaceTrack if peer connection is already established
+            if (peer._pc && peer._pc.signalingState !== 'stable') {
+              // If peer is still connecting, addStream should work
+              peer.addStream(stream);
+            } else if (peer._pc) {
+              // If peer is connected, use replaceTrack
+              const senders = peer._pc.getSenders();
+              const videoTrack = stream.getVideoTracks()[0];
+              const audioTrack = stream.getAudioTracks()[0];
+              
+              if (videoTrack) {
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                if (videoSender) {
+                  videoSender.replaceTrack(videoTrack).catch(err => {
+                    console.error(`🖥️ Screen Share: Error replacing video track:`, err);
+                    // Fallback to addStream
+                    peer.addStream(stream);
+                  });
+                } else {
+                  // No video sender yet, use addStream
+                  peer.addStream(stream);
+                }
+              }
+              
+              if (audioTrack) {
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if (audioSender) {
+                  audioSender.replaceTrack(audioTrack).catch(err => {
+                    console.error(`🖥️ Screen Share: Error replacing audio track:`, err);
+                  });
+                }
+              }
+            } else {
+              // No peer connection yet, use addStream
+              peer.addStream(stream);
+            }
+            console.log(`🖥️ Screen Share: Successfully added stream to peer for ${participantId}`);
+          } catch (error) {
+            console.error(`🖥️ Screen Share: Error adding stream to peer ${participantId}:`, error);
+            // Fallback: try addStream
+            try {
+              peer.addStream(stream);
+            } catch (fallbackError) {
+              console.error(`🖥️ Screen Share: Fallback addStream also failed:`, fallbackError);
+            }
+          }
+        }
+      });
 
       // Notify other participants (only if socket is available)
       if (socket && socket.emit && socket.id) {

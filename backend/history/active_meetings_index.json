@@ -348,5 +348,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-12-08T06:51:36.431Z"
+  },
+  "HRK345": {
+    "title": "Meeting HRK345",
+    "createdAt": "2025-12-08T07:00:22.748Z",
+    "endedAt": "2025-12-08T07:00:17.944Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-12-08T07:00:19.109Z"
   }
 }
