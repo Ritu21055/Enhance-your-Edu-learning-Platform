@@ -380,13 +380,25 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
   }, [createScreenSharePeer]);
 
   // Start screen sharing
-  const startScreenShare = useCallback(async () => {
-    console.log('🖥️🖥️🖥️🖥️ SCREEN SHARE START - DETAILED DEBUG');
+  // Optional: accept an existing stream (from useMediaControls) instead of creating a new one
+  const startScreenShare = useCallback(async (existingStream = null) => {
+    console.log('🖥️🖥️🖥️🖥️ SCREEN SHARE START - DETAILED DEBUG', { hasExistingStream: !!existingStream });
     console.trace('🖥️ Stack trace at start');
     
     try {
-      console.log('🖥️ Screen Share: Starting screen capture...');
-      setScreenShareError(null);
+      // If we already have a stream (from useMediaControls), use it
+      let stream = existingStream;
+      
+      if (!stream) {
+        console.log('🖥️ Screen Share: Starting screen capture...');
+        setScreenShareError(null);
+      } else {
+        console.log('🖥️ Screen Share: Using existing stream from useMediaControls', {
+          streamId: stream.id,
+          tracks: stream.getTracks().length
+        });
+        setScreenShareError(null);
+      }
 
       // CRITICAL: Get reference to local video track BEFORE screen share
       // We need to protect it from being affected
@@ -430,30 +442,39 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         console.warn('🖥️ Screen Share: Could not get local video track reference:', err);
       }
 
-      // Get screen stream with specific constraints to avoid recursive capture
-      console.log('🖥️🖥️ Calling getDisplayMedia...');
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          cursor: 'always',
-          displaySurface: 'monitor',
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          frameRate: { ideal: 30, max: 30 }
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        preferCurrentTab: false
-      });
-      
-      console.log('🖥️🖥️ getDisplayMedia SUCCESS:', {
-        streamId: stream.id,
-        tracks: stream.getTracks().length,
-        videoTracks: stream.getVideoTracks().length,
-        audioTracks: stream.getAudioTracks().length
-      });
+      // Get screen stream with specific constraints to avoid recursive capture (only if we don't have one)
+      if (!stream) {
+        console.log('🖥️🖥️ Calling getDisplayMedia...');
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: 'always',
+            displaySurface: 'monitor',
+            width: { ideal: 1920, max: 1920 },
+            height: { ideal: 1080, max: 1080 },
+            frameRate: { ideal: 30, max: 30 }
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          preferCurrentTab: false
+        });
+        
+        console.log('🖥️🖥️ getDisplayMedia SUCCESS:', {
+          streamId: stream.id,
+          tracks: stream.getTracks().length,
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length
+        });
+      } else {
+        console.log('🖥️🖥️ Using provided stream (from useMediaControls):', {
+          streamId: stream.id,
+          tracks: stream.getTracks().length,
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length
+        });
+      }
 
       // CRITICAL: Check video IMMEDIATELY after getDisplayMedia
       console.log('🖥️🖥️ IMMEDIATELY AFTER getDisplayMedia:', {

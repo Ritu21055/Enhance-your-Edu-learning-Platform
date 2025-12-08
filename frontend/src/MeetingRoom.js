@@ -154,9 +154,14 @@ const MeetingRoom = () => {
   
   // Handle screen share change callback
   const handleScreenShareChange = useCallback((stream, isSharing) => {
-    if (isSharing) {
-      startNewScreenShare();
+    console.log('🖥️ MeetingRoom: handleScreenShareChange called', { isSharing, hasStream: !!stream, streamId: stream?.id });
+    if (isSharing && stream) {
+      console.log('🖥️ MeetingRoom: Starting screen share via useScreenShare hook with existing stream');
+      // Pass the stream to the screen share hook so it can send it through peer connections
+      // The hook will handle peer connections and sending to participants
+      startNewScreenShare(stream); // Pass the stream from useMediaControls
     } else {
+      console.log('🖥️ MeetingRoom: Stopping screen share');
       stopNewScreenShare();
     }
   }, [startNewScreenShare, stopNewScreenShare]);
