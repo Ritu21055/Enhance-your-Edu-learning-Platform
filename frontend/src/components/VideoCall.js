@@ -510,10 +510,19 @@ const VideoCallComponent = memo(({
         const socketVideoEnabled = socketMediaState?.videoEnabled;
         
         // Use socket state if available, otherwise fall back to track state
-        // If socket says video is disabled, hide it regardless of track state
+        // CRITICAL: If socket says video is disabled, hide it immediately
+        // If socket says video is enabled, show it (but still check track is ready)
         const isVideoEnabled = socketVideoEnabled !== undefined 
-          ? socketVideoEnabled && trackReady
-          : trackEnabled && trackReady;
+          ? socketVideoEnabled !== false && trackReady  // If socket says enabled, show (unless track not ready)
+          : trackEnabled && trackReady;  // Fallback to track state
+        
+        console.log(`🎥 Video visibility check for ${participantId}:`, {
+          socketVideoEnabled,
+          trackEnabled,
+          trackReady,
+          isVideoEnabled,
+          socketMediaState
+        });
         
         if (isVideoEnabled) {
           // Video is enabled - show and play
@@ -529,8 +538,8 @@ const VideoCallComponent = memo(({
             });
           }
         } else {
-          // Video is disabled - hide the video element
-          console.log(`🚫 Video disabled for ${participantId} - hiding video element`, {
+          // Video is disabled - hide the video element IMMEDIATELY
+          console.log(`🚫 Video disabled for ${participantId} - hiding video element IMMEDIATELY`, {
             socketVideoEnabled,
             trackEnabled,
             trackReady,
@@ -538,6 +547,7 @@ const VideoCallComponent = memo(({
           });
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
+          videoElement.style.display = 'none'; // Also set display to none for complete hiding
           videoElement.pause();
         }
       } else {
@@ -810,10 +820,14 @@ const VideoCallComponent = memo(({
               className="remote-video-wrapper"
             >
               <video
+                data-participant-id={participantId}
                 ref={(el) => {
                   if (el) {
                     const wasNew = !remoteVideoRefs.current[participantId];
                     remoteVideoRefs.current[participantId] = el;
+                    
+                    // Set data attribute for instant DOM updates
+                    el.setAttribute('data-participant-id', participantId);
                     
                     if (el.srcObject !== stream) {
                       console.log(`📹 Setting srcObject for ${participantName} (${participantId})`);
@@ -883,15 +897,43 @@ const VideoCallComponent = memo(({
                         videoTrack.addEventListener('mute', handleEnabledChange);
                         videoTrack.addEventListener('unmute', handleEnabledChange);
                         
-                        // Also check enabled property periodically
+                        // Also check enabled property periodically (faster check for responsiveness)
                         const checkInterval = setInterval(() => {
                           const currentEnabled = videoTrack.enabled;
                           const lastEnabled = videoTrack._lastEnabledState ?? currentEnabled;
-                          if (currentEnabled !== lastEnabled) {
+                          
+                          // Also check socket media state
+                          const socketMediaState = participantMediaState[participantId];
+                          const socketVideoEnabled = socketMediaState?.videoEnabled;
+                          const lastSocketState = videoTrack._lastSocketVideoEnabled;
+                          
+                          if (currentEnabled !== lastEnabled || socketVideoEnabled !== lastSocketState) {
                             videoTrack._lastEnabledState = currentEnabled;
-                            handleEnabledChange();
+                            videoTrack._lastSocketVideoEnabled = socketVideoEnabled;
+                            
+                            // Use socket state if available, otherwise use track state
+                            const shouldShow = socketVideoEnabled !== undefined 
+                              ? socketVideoEnabled && videoTrack.readyState === 'live'
+                              : currentEnabled && videoTrack.readyState === 'live';
+                            
+                            console.log(`🔄 Periodic check for ${participantName}:`, {
+                              trackEnabled: currentEnabled,
+                              socketVideoEnabled,
+                              shouldShow
+                            });
+                            
+                            if (shouldShow) {
+                              el.style.opacity = '1';
+                              el.style.visibility = 'visible';
+                              el.style.display = 'block';
+                              el.play().catch(() => {});
+                            } else {
+                              el.style.opacity = '0';
+                              el.style.visibility = 'hidden';
+                              el.pause();
+                            }
                           }
-                        }, 300);
+                        }, 100); // Check every 100ms for faster response
                         
                         videoTrack._lastEnabledState = videoTrack.enabled;
                         

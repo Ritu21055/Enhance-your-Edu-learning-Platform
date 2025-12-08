@@ -700,6 +700,39 @@ const useVideoCall = (meetingId, userName) => {
       participantMediaStateRef.current[participantId].videoEnabled = videoEnabled;
       participantMediaStateRef.current[participantId].audioEnabled = audioEnabled;
       
+      // CRITICAL: Immediately update video element DOM (don't wait for React re-render)
+      // This makes the change instant
+      setTimeout(() => {
+        const stream = remoteStreamsRef.current[participantId];
+        if (stream) {
+          const videoElement = document.querySelector(`video[data-participant-id="${participantId}"]`);
+          if (videoElement) {
+            const videoTrack = stream.getVideoTracks()[0];
+            const trackReady = videoTrack?.readyState === 'live';
+            const shouldShow = videoEnabled !== false && trackReady;
+            
+            console.log(`⚡⚡⚡ INSTANT UPDATE: ${participantId} video ${shouldShow ? 'SHOW' : 'HIDE'}`, {
+              videoEnabled,
+              trackReady,
+              shouldShow
+            });
+            
+            if (shouldShow) {
+              videoElement.style.opacity = '1';
+              videoElement.style.visibility = 'visible';
+              videoElement.style.display = 'block';
+              if (videoElement.paused && stream.active) {
+                videoElement.play().catch(() => {});
+              }
+            } else {
+              videoElement.style.opacity = '0';
+              videoElement.style.visibility = 'hidden';
+              videoElement.pause();
+            }
+          }
+        }
+      }, 0);
+      
       // CRITICAL: Force update remote streams to trigger re-render with new media state
       setRemoteStreams(prev => {
         const updated = { ...prev };
