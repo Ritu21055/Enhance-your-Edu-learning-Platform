@@ -14,7 +14,8 @@ const VideoCallComponent = memo(({
   localVideoRef,
   participants,
   currentUserId,
-  isVideoEnabled = true
+  isVideoEnabled = true,
+  participantMediaState = {}
 }) => {
   const remoteVideoRefs = useRef({});
   
@@ -498,9 +499,21 @@ const VideoCallComponent = memo(({
           videoElement.srcObject = stream;
         }
         
-        // CRITICAL: Check if video track is enabled
+        // CRITICAL: Check if video track is enabled AND check media state from socket
         const videoTrack = stream.getVideoTracks()[0];
-        const isVideoEnabled = videoTrack?.enabled ?? false;
+        const trackEnabled = videoTrack?.enabled ?? false;
+        const trackReady = videoTrack?.readyState === 'live';
+        
+        // CRITICAL: Check media state from socket events (most reliable)
+        // When participant turns off camera, socket event is more reliable than track.enabled
+        const socketMediaState = participantMediaState[participantId];
+        const socketVideoEnabled = socketMediaState?.videoEnabled;
+        
+        // Use socket state if available, otherwise fall back to track state
+        // If socket says video is disabled, hide it regardless of track state
+        const isVideoEnabled = socketVideoEnabled !== undefined 
+          ? socketVideoEnabled && trackReady
+          : trackEnabled && trackReady;
         
         if (isVideoEnabled) {
           // Video is enabled - show and play
@@ -517,7 +530,12 @@ const VideoCallComponent = memo(({
           }
         } else {
           // Video is disabled - hide the video element
-          console.log(`🚫 Video disabled for ${participantId} - hiding video element`);
+          console.log(`🚫 Video disabled for ${participantId} - hiding video element`, {
+            socketVideoEnabled,
+            trackEnabled,
+            trackReady,
+            socketMediaState
+          });
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.pause();
@@ -537,7 +555,7 @@ const VideoCallComponent = memo(({
         }
       });
     };
-  }, [remoteStreams]);
+  }, [remoteStreams, participantMediaState]);
 
   // Get participant name
   const getParticipantName = (participantId) => {
@@ -802,9 +820,21 @@ const VideoCallComponent = memo(({
                       el.srcObject = stream;
                     }
                     
-                    // CRITICAL: Check if video track is enabled
+                    // CRITICAL: Check if video track is enabled AND check media state from socket
                     const videoTrack = stream.getVideoTracks()[0];
-                    const isVideoEnabled = videoTrack?.enabled ?? false;
+                    const trackEnabled = videoTrack?.enabled ?? false;
+                    const trackReady = videoTrack?.readyState === 'live';
+                    
+                    // CRITICAL: Check media state from socket events (most reliable)
+                    // When participant turns off camera, socket event is more reliable than track.enabled
+                    const socketMediaState = participantMediaState[participantId];
+                    const socketVideoEnabled = socketMediaState?.videoEnabled;
+                    
+                    // Use socket state if available, otherwise fall back to track state
+                    // If socket says video is disabled, hide it regardless of track state
+                    const isVideoEnabled = socketVideoEnabled !== undefined 
+                      ? socketVideoEnabled && trackReady
+                      : trackEnabled && trackReady;
                     
                     if (isVideoEnabled) {
                       // Video is enabled - show and play

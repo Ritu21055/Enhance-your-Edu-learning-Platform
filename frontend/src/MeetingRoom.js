@@ -102,7 +102,8 @@ const MeetingRoom = () => {
     isHost,
     socket,
     forceConnection,
-    updateAllPeerConnections
+    updateAllPeerConnections,
+    participantMediaState
   } = useVideoCall(meetingId, finalUserName);
 
 
@@ -1183,6 +1184,7 @@ const MeetingRoom = () => {
           participants={participants}
           currentUserId={socket?.id}
           isVideoEnabled={isVideoEnabled}
+          participantMediaState={participantMediaState}
         />
         
       </Box>

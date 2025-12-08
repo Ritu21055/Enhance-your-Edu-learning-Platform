@@ -112,6 +112,25 @@ export default function registerMediaHandlers(socket, io) {
       });
     }
     
+    // CRITICAL: Broadcast media state change to all other participants in the meeting
+    // This allows the host and other participants to know when someone turns off their camera
+    meeting.participants.forEach(p => {
+      if (p.id !== data.participantId && p.socketId) {
+        io.to(p.socketId).emit('media-state-change', {
+          participantId: data.participantId,
+          audioEnabled: data.audioEnabled,
+          videoEnabled: data.videoEnabled,
+          meetingId: data.meetingId,
+          timestamp: data.timestamp || Date.now()
+        });
+        console.log(`📡 Broadcasted media state change to ${p.name} (${p.socketId}):`, {
+          participantId: data.participantId,
+          videoEnabled: data.videoEnabled,
+          audioEnabled: data.audioEnabled
+        });
+      }
+    });
+    
     // Update intelligent recording with media state
     const mediaState = {
       videoEnabled: data.videoEnabled,

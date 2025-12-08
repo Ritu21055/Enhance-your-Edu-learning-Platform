@@ -35,6 +35,7 @@ const useVideoCall = (meetingId, userName) => {
   const earlySignalQueueRef = useRef([]); // Queue signals that arrive before media is ready
   const reconnectingUsersRef = useRef(new Set()); // Track users currently reconnecting
   const remoteStreamsRef = useRef({}); // Track remote streams for debugging
+  const participantMediaStateRef = useRef({}); // Track video/audio enabled state for each participant
 
   // Initialize Socket Connection
   useEffect(() => {
@@ -681,6 +682,40 @@ const useVideoCall = (meetingId, userName) => {
       // Remove from participants
       setParticipants(prev => prev.filter(p => p.id !== participantId));
     });
+
+    // Handle media state changes (when participant toggles video/audio)
+    // Listen for both the direct event and the broadcast event
+    const handleMediaStateChange = (data) => {
+      const { participantId, videoEnabled, audioEnabled } = data;
+      console.log(`📡📡📡 Media state change received for ${participantId}:`, {
+        videoEnabled,
+        audioEnabled,
+        participantId
+      });
+      
+      // Update media state tracking
+      if (!participantMediaStateRef.current[participantId]) {
+        participantMediaStateRef.current[participantId] = {};
+      }
+      participantMediaStateRef.current[participantId].videoEnabled = videoEnabled;
+      participantMediaStateRef.current[participantId].audioEnabled = audioEnabled;
+      
+      // CRITICAL: Force update remote streams to trigger re-render with new media state
+      setRemoteStreams(prev => {
+        const updated = { ...prev };
+        if (updated[participantId]) {
+          // Create a new stream reference to trigger re-render
+          updated[participantId] = updated[participantId];
+        }
+        return updated;
+      });
+    };
+    
+    // Listen for the broadcast event from backend
+    newSocket.on('participant-media-state-changed', handleMediaStateChange);
+    
+    // Also listen for direct media-state-change (in case it's used)
+    newSocket.on('media-state-change', handleMediaStateChange);
 
     // Handle signaling data
     newSocket.on('signal', (data) => {
@@ -1447,6 +1482,9 @@ const useVideoCall = (meetingId, userName) => {
     // Connection
     socket,
     isConnected: socketConnected,
+    
+    // Media state tracking
+    participantMediaState: participantMediaStateRef.current,
     
     // Functions
     initializeMedia,
