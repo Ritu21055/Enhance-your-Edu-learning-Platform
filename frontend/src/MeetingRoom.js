@@ -135,7 +135,8 @@ const MeetingRoom = () => {
   // by useMediaControls hook itself - no need to expose them here
 
   // Screen sharing (separate hook - not part of video call)
-  const screenShareHook = useScreenShare(socket, meetingId, finalUserName, isHost);
+  // Pass participants so screen share can create peer connections proactively
+  const screenShareHook = useScreenShare(socket, meetingId, finalUserName, isHost, participants);
   
   const {
     isScreenSharing: isNewScreenSharing,

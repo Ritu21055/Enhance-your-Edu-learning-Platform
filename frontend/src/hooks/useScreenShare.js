@@ -5,13 +5,14 @@ import SimplePeer from 'simple-peer';
  * Custom hook for screen sharing functionality
  * Handles screen capture, peer connections, and stream management
  */
-const useScreenShare = (socket, meetingId, userName, isHost) => {
+const useScreenShare = (socket, meetingId, userName, isHost, participants = []) => {
   console.log('🖥️ Screen Share: useScreenShare hook called', {
     hasSocket: !!socket,
     socketConnected: socket?.connected,
     meetingId,
     userName,
-    isHost
+    isHost,
+    participantsCount: participants.length
   });
   console.log('🖥️ Screen Share: Hook initialization starting...');
   
@@ -270,11 +271,17 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
 
   // Create screen share peer connection
   const createScreenSharePeer = useCallback((participantId, signal = null) => {
-    console.log('🖥️ Screen Share: Creating peer for', participantId, 'with signal:', !!signal);
+    console.log('🖥️ Screen Share: Creating peer for', participantId, 'with signal:', !!signal, 'isHost:', isHost, 'mySocketId:', socket?.id);
+    
+    // CRITICAL: The person sharing screen should be initiator for faster connection
+    // If we're sharing (no signal provided), we're the initiator
+    // If we're receiving (signal provided), we're not the initiator
+    // This works for both host and participant screen sharing
+    const shouldBeInitiator = !signal; // If no signal, we're initiating (sharing our screen)
     
     const peer = new SimplePeer({
-      initiator: !signal,
-      trickle: false,
+      initiator: shouldBeInitiator,
+      trickle: false, // Set to false for faster connection (waits for all ICE candidates)
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -282,6 +289,8 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         ]
       }
     });
+    
+    console.log('🖥️ Screen Share: Peer created with initiator:', shouldBeInitiator);
 
     // Handle peer connection
     peer.on('signal', (signal) => {
@@ -347,7 +356,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
 
     screenSharePeersRef.current[participantId] = peer;
     setScreenSharePeer(peer);
-  }, [socket, meetingId, userName]);
+  }, [socket, meetingId, userName, isHost]);
 
   // Handle screen share signal
   const handleScreenShareSignal = useCallback((data) => {
@@ -690,6 +699,22 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
         }
       });
 
+      // CRITICAL: Create peer connections proactively for all participants BEFORE emitting events
+      // This makes the connection faster because peers are ready when participants respond
+      console.log('🖥️ Screen Share: Creating peer connections proactively for all participants');
+      const otherParticipants = participants.filter(p => p.id !== socket?.id);
+      console.log('🖥️ Screen Share: Other participants to connect to:', otherParticipants.map(p => ({ id: p.id, name: p.name })));
+      
+      otherParticipants.forEach(participant => {
+        // Only create if peer doesn't exist yet
+        if (!screenSharePeersRef.current[participant.id]) {
+          console.log(`🖥️ Screen Share: Proactively creating peer connection for ${participant.name} (${participant.id})`);
+          createScreenSharePeer(participant.id);
+        } else {
+          console.log(`🖥️ Screen Share: Peer connection already exists for ${participant.name} (${participant.id})`);
+        }
+      });
+
       // Notify other participants (only if socket is available)
       if (socket && socket.emit && socket.id) {
         console.log('🖥️ Screen Share: Emitting screen-share-start event', {
@@ -973,7 +998,7 @@ const useScreenShare = (socket, meetingId, userName, isHost) => {
     }
     
     console.log('🖥️🖥️🖥️🖥️ SCREEN SHARE START END (success)');
-  }, [socket, meetingId, userName]);
+  }, [socket, meetingId, userName, isHost, participants, createScreenSharePeer]);
 
   // Cleanup function to restore all UI elements
   const cleanupScreenShare = useCallback(() => {
