@@ -272,12 +272,19 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
   // Create screen share peer connection
   const createScreenSharePeer = useCallback((participantId, signal = null) => {
     console.log('🖥️ Screen Share: Creating peer for', participantId, 'with signal:', !!signal, 'isHost:', isHost, 'mySocketId:', socket?.id);
+    console.log('🖥️ Screen Share: isScreenSharingRef.current:', isScreenSharingRef.current);
     
-    // CRITICAL: The person sharing screen should be initiator for faster connection
-    // If we're sharing (no signal provided), we're the initiator
-    // If we're receiving (signal provided), we're not the initiator
-    // This works for both host and participant screen sharing
-    const shouldBeInitiator = !signal; // If no signal, we're initiating (sharing our screen)
+    // CRITICAL: The person sharing screen should be initiator
+    // - If we're sharing (isScreenSharingRef.current is true) AND no signal provided, we're the initiator
+    // - If we're receiving (signal provided), we're NOT the initiator
+    // - If we're NOT sharing AND no signal provided, we should NOT create a peer (wait for signal)
+    const shouldBeInitiator = isScreenSharingRef.current && !signal;
+    
+    // If we're not sharing and no signal is provided, don't create a peer yet
+    if (!isScreenSharingRef.current && !signal) {
+      console.log('🖥️ Screen Share: Not sharing and no signal - waiting for signal from', participantId);
+      return;
+    }
     
     const peer = new SimplePeer({
       initiator: shouldBeInitiator,
@@ -411,11 +418,13 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
   const handleScreenShareSignal = useCallback((data) => {
     const { signal, from } = data;
     
+    console.log('🖥️ Screen Share: Received signal from', from, 'signal type:', signal?.type);
+    
     if (screenSharePeersRef.current[from]) {
       const peer = screenSharePeersRef.current[from];
       // CRITICAL: Check if peer is destroyed before signaling
       if (peer.destroyed) {
-        console.warn('🖥️ Screen Share: Peer is destroyed for', from, '- creating new peer');
+        console.warn('🖥️ Screen Share: Peer is destroyed for', from, '- creating new peer with signal');
         delete screenSharePeersRef.current[from];
         createScreenSharePeer(from, signal);
         return;
@@ -432,7 +441,8 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
         }
       }
     } else {
-      console.log('🖥️ Screen Share: Creating new peer for', from);
+      // CRITICAL: Create peer as non-initiator when receiving signal (we're receiving screen share)
+      console.log('🖥️ Screen Share: Creating new peer for', from, 'as NON-INITIATOR (receiving screen share)');
       createScreenSharePeer(from, signal);
     }
   }, [createScreenSharePeer]);
@@ -448,11 +458,20 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
       from: from
     });
     
-    // Always create a peer connection when someone requests screen share
-    // This allows participants to receive the screen share
-    console.log('🖥️ Screen Share: Creating peer connection for screen share from', from);
-    createScreenSharePeer(from);
-  }, [createScreenSharePeer]);
+    // CRITICAL: Don't create a peer here - wait for the signal from the sharer
+    // The sharer will create their peer as initiator and send us a signal
+    // We'll create our peer as non-initiator when we receive that signal
+    console.log('🖥️ Screen Share: Waiting for signal from', from, '- will create peer when signal arrives');
+    
+    // If we already have a peer for this participant, don't create another one
+    if (screenSharePeersRef.current[from]) {
+      console.log('🖥️ Screen Share: Peer already exists for', from, '- waiting for signal');
+      return;
+    }
+    
+    // Just log that we're ready to receive
+    console.log('🖥️ Screen Share: Ready to receive screen share from', from);
+  }, []);
 
   // Start screen sharing
   // Optional: accept an existing stream (from useMediaControls) instead of creating a new one

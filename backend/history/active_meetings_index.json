@@ -371,13 +371,13 @@
   },
   "HRK345": {
     "title": "Meeting HRK345",
-    "createdAt": "2025-12-08T07:00:22.748Z",
-    "endedAt": "2025-12-08T07:00:17.944Z",
+    "createdAt": "2025-12-08T07:46:11.750Z",
+    "endedAt": "2025-12-08T07:46:06.922Z",
     "duration": 0,
     "highlights": 0,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2025-12-08T07:00:19.109Z"
+    "lastUpdated": "2025-12-08T07:46:07.408Z"
   },
   "EUE168": {
     "title": "Meeting EUE168",
@@ -388,5 +388,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-12-08T07:26:29.866Z"
+  },
+  "NNE560": {
+    "title": "testing",
+    "createdAt": "2025-12-08T07:41:55.483Z",
+    "endedAt": "2025-12-08T07:41:55.556Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-12-08T07:41:55.583Z"
   }
 }

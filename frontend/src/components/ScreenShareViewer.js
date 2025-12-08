@@ -60,14 +60,30 @@ const ScreenShareViewer = ({
         videoTracks: remoteScreenStream.getVideoTracks().length,
         audioTracks: remoteScreenStream.getAudioTracks().length,
         videoTrackEnabled: remoteScreenStream.getVideoTracks()[0]?.enabled,
-        videoTrackReady: remoteScreenStream.getVideoTracks()[0]?.readyState
+        videoTrackReady: remoteScreenStream.getVideoTracks()[0]?.readyState,
+        videoTrackLabel: remoteScreenStream.getVideoTracks()[0]?.label
       });
       
-      // CRITICAL: Ensure video element is visible and ready
       const videoElement = remoteVideoRef.current;
+      const videoTrack = remoteScreenStream.getVideoTracks()[0];
+      
+      // CRITICAL: Verify stream has video tracks
+      if (!videoTrack) {
+        console.error('🖥️ ScreenShareViewer: Remote stream has no video tracks!');
+        return;
+      }
+      
+      // CRITICAL: Ensure video track is enabled
+      if (!videoTrack.enabled) {
+        console.warn('🖥️ ScreenShareViewer: Video track is disabled, enabling it');
+        videoTrack.enabled = true;
+      }
+      
+      // CRITICAL: Ensure video element is visible and ready
       videoElement.style.opacity = '1';
       videoElement.style.visibility = 'visible';
       videoElement.style.display = 'block';
+      videoElement.style.zIndex = '1';
       
       // Set the stream
       if (videoElement.srcObject !== remoteScreenStream) {
@@ -75,29 +91,46 @@ const ScreenShareViewer = ({
         videoElement.srcObject = remoteScreenStream;
       }
       
-      // Ensure video plays
-      if (remoteScreenStream.active) {
-        videoElement.play().then(() => {
-          console.log('🖥️ ScreenShareViewer: Remote screen stream playing successfully');
-        }).catch(err => {
-          console.error('🖥️ ScreenShareViewer: Remote video play error:', err);
-        });
-      } else {
-        console.warn('🖥️ ScreenShareViewer: Remote screen stream is not active yet');
-        // Wait for stream to become active
-        const checkActive = setInterval(() => {
-          if (remoteScreenStream.active && videoElement.paused) {
-            console.log('🖥️ ScreenShareViewer: Stream became active, playing now');
-            videoElement.play().catch(err => {
-              console.error('🖥️ ScreenShareViewer: Play error after stream active:', err);
-            });
-            clearInterval(checkActive);
-          }
-        }, 100);
-        
-        // Cleanup after 5 seconds
-        setTimeout(() => clearInterval(checkActive), 5000);
-      }
+      // Play video with retry mechanism
+      const playVideo = () => {
+        if (videoElement && remoteScreenStream.active && videoTrack?.enabled) {
+          videoElement.play().then(() => {
+            console.log('🖥️ ScreenShareViewer: Remote screen stream playing successfully');
+          }).catch(err => {
+            console.warn('🖥️ ScreenShareViewer: Remote video play error (will retry):', err);
+            setTimeout(playVideo, 500); // Retry playing
+          });
+        } else {
+          console.warn('🖥️ ScreenShareViewer: Remote stream not active or video track not enabled, retrying...', {
+            streamActive: remoteScreenStream.active,
+            trackEnabled: videoTrack?.enabled,
+            hasElement: !!videoElement
+          });
+          setTimeout(playVideo, 500); // Retry if not active or enabled
+        }
+      };
+      
+      // Start playing
+      playVideo();
+      
+      // Also listen for track enabled/disabled events
+      const handleTrackEnabled = () => {
+        console.log('🖥️ ScreenShareViewer: Video track enabled event');
+        playVideo();
+      };
+      
+      const handleTrackDisabled = () => {
+        console.warn('🖥️ ScreenShareViewer: Video track disabled event');
+      };
+      
+      videoTrack.addEventListener('enabled', handleTrackEnabled);
+      videoTrack.addEventListener('disabled', handleTrackDisabled);
+      
+      // Cleanup
+      return () => {
+        videoTrack.removeEventListener('enabled', handleTrackEnabled);
+        videoTrack.removeEventListener('disabled', handleTrackDisabled);
+      };
     } else {
       console.log('🖥️ ScreenShareViewer: No remote screen stream or video element', {
         hasStream: !!remoteScreenStream,
