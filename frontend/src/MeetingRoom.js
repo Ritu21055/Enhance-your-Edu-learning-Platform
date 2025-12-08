@@ -1553,7 +1553,7 @@ const MeetingRoom = () => {
         meetingTitle={`Meeting ${meetingId}`}
       />
 
-      {/* Screen Share Viewer - Only show when there's active screen sharing */}
+      {/* Screen Share Viewer - Show when there's active screen sharing (local or remote) */}
       {(isNewScreenSharing || newRemoteScreenStream) && (
         <ScreenShareViewer
           isScreenSharing={isNewScreenSharing}

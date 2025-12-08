@@ -56,14 +56,53 @@ const ScreenShareViewer = ({
       console.log('🖥️ ScreenShareViewer: Stream details:', {
         id: remoteScreenStream.id,
         active: remoteScreenStream.active,
-        tracks: remoteScreenStream.getTracks().length
+        tracks: remoteScreenStream.getTracks().length,
+        videoTracks: remoteScreenStream.getVideoTracks().length,
+        audioTracks: remoteScreenStream.getAudioTracks().length,
+        videoTrackEnabled: remoteScreenStream.getVideoTracks()[0]?.enabled,
+        videoTrackReady: remoteScreenStream.getVideoTracks()[0]?.readyState
       });
-      remoteVideoRef.current.srcObject = remoteScreenStream;
-      remoteVideoRef.current.play().catch(err => {
-        console.log('🖥️ ScreenShareViewer: Remote video play error:', err);
-      });
+      
+      // CRITICAL: Ensure video element is visible and ready
+      const videoElement = remoteVideoRef.current;
+      videoElement.style.opacity = '1';
+      videoElement.style.visibility = 'visible';
+      videoElement.style.display = 'block';
+      
+      // Set the stream
+      if (videoElement.srcObject !== remoteScreenStream) {
+        console.log('🖥️ ScreenShareViewer: Setting srcObject for remote screen stream');
+        videoElement.srcObject = remoteScreenStream;
+      }
+      
+      // Ensure video plays
+      if (remoteScreenStream.active) {
+        videoElement.play().then(() => {
+          console.log('🖥️ ScreenShareViewer: Remote screen stream playing successfully');
+        }).catch(err => {
+          console.error('🖥️ ScreenShareViewer: Remote video play error:', err);
+        });
+      } else {
+        console.warn('🖥️ ScreenShareViewer: Remote screen stream is not active yet');
+        // Wait for stream to become active
+        const checkActive = setInterval(() => {
+          if (remoteScreenStream.active && videoElement.paused) {
+            console.log('🖥️ ScreenShareViewer: Stream became active, playing now');
+            videoElement.play().catch(err => {
+              console.error('🖥️ ScreenShareViewer: Play error after stream active:', err);
+            });
+            clearInterval(checkActive);
+          }
+        }, 100);
+        
+        // Cleanup after 5 seconds
+        setTimeout(() => clearInterval(checkActive), 5000);
+      }
     } else {
-      console.log('🖥️ ScreenShareViewer: No remote screen stream or video element');
+      console.log('🖥️ ScreenShareViewer: No remote screen stream or video element', {
+        hasStream: !!remoteScreenStream,
+        hasElement: !!remoteVideoRef.current
+      });
     }
   }, [remoteScreenStream]);
 
@@ -196,7 +235,9 @@ const ScreenShareViewer = ({
             height: '100%',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            backgroundColor: '#000',
+            zIndex: 1
           }}
         >
           <video
@@ -208,7 +249,11 @@ const ScreenShareViewer = ({
               width: '100%',
               height: '100%',
               objectFit: 'contain',
-              backgroundColor: '#000'
+              backgroundColor: '#000',
+              opacity: 1,
+              visibility: 'visible',
+              display: 'block',
+              zIndex: 1
             }}
           />
         </Box>
