@@ -328,5 +328,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-10-28T23:08:45.359Z"
+  },
+  "SUQ725": {
+    "title": "Meeting SUQ725",
+    "createdAt": "2025-12-08T06:05:57.777Z",
+    "endedAt": "2025-12-08T06:05:52.834Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-12-08T06:05:53.063Z"
   }
 }

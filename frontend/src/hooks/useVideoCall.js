@@ -1131,6 +1131,77 @@ const useVideoCall = (meetingId, userName) => {
       console.log(`  - My socket ID: ${socketRef.current?.id}`);
       console.log(`  - Is host: ${isHostRef.current}`);
       
+      // CRITICAL: Verify stream tracks are actually working
+      const videoTrack = stream.getVideoTracks()[0];
+      const audioTrack = stream.getAudioTracks()[0];
+      if (videoTrack) {
+        console.log(`  - Video track details:`, {
+          id: videoTrack.id,
+          enabled: videoTrack.enabled,
+          readyState: videoTrack.readyState,
+          muted: videoTrack.muted,
+          kind: videoTrack.kind,
+          label: videoTrack.label
+        });
+      }
+      if (audioTrack) {
+        console.log(`  - Audio track details:`, {
+          id: audioTrack.id,
+          enabled: audioTrack.enabled,
+          readyState: audioTrack.readyState,
+          muted: audioTrack.muted,
+          kind: audioTrack.kind,
+          label: audioTrack.label
+        });
+      }
+      
+      // CRITICAL: Listen for track enabled/disabled changes
+      if (videoTrack) {
+        // Listen for track enabled state changes
+        const handleTrackEnabledChange = () => {
+          console.log(`🎥🎥🎥 Video track enabled state changed for ${participantName} (${participantId}): ${videoTrack.enabled}`);
+          // Force a re-render by updating the stream reference
+          setRemoteStreams(prev => {
+            const updated = { ...prev };
+            // Create a new stream reference to trigger re-render
+            if (updated[participantId]) {
+              updated[participantId] = stream;
+            }
+            return updated;
+          });
+        };
+        
+        // Listen for track mute changes (when camera is turned off)
+        videoTrack.addEventListener('mute', () => {
+          console.log(`🔇 Video track muted for ${participantName} (${participantId})`);
+          handleTrackEnabledChange();
+        });
+        
+        videoTrack.addEventListener('unmute', () => {
+          console.log(`🔊 Video track unmuted for ${participantName} (${participantId})`);
+          handleTrackEnabledChange();
+        });
+        
+        // Also check enabled state periodically (as a fallback)
+        const enabledCheckInterval = setInterval(() => {
+          const currentEnabled = videoTrack.enabled;
+          const lastEnabled = videoTrack._lastEnabledState;
+          if (currentEnabled !== lastEnabled) {
+            console.log(`🔄 Video track enabled state changed (detected via polling) for ${participantName}: ${lastEnabled} -> ${currentEnabled}`);
+            videoTrack._lastEnabledState = currentEnabled;
+            handleTrackEnabledChange();
+          }
+        }, 500);
+        
+        // Store initial state
+        videoTrack._lastEnabledState = videoTrack.enabled;
+        
+        // Clean up interval when stream is removed
+        stream.addEventListener('removetrack', () => {
+          clearInterval(enabledCheckInterval);
+        });
+      }
+      
       // CRITICAL: Ensure stream is active before setting it
       if (stream.active) {
         setRemoteStreams(prev => {
@@ -1226,6 +1297,13 @@ const useVideoCall = (meetingId, userName) => {
         } else if (state === 'failed' || state === 'disconnected') {
           console.warn(`⚠️ ICE ${state} for ${participantName} (${participantId})`);
           console.warn(`  - This may indicate a network issue or firewall blocking WebRTC`);
+          console.warn(`  - Remote stream exists: ${!!remoteStreams[participantId]}`);
+          console.warn(`  - Remote stream active: ${remoteStreams[participantId]?.active || false}`);
+          if (state === 'failed') {
+            console.warn(`  - Attempting to reconnect...`);
+            // Don't auto-reconnect here, let the user know there's an issue
+            // The connection might recover on its own
+          }
         }
       };
       

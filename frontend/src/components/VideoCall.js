@@ -498,24 +498,45 @@ const VideoCallComponent = memo(({
           videoElement.srcObject = stream;
         }
         
-        // Ensure video is playing
-        if (videoElement.paused && stream.active) {
-          console.log(`▶️ Playing remote video for ${participantId}`);
-          videoElement.play().catch(err => {
-            console.error(`❌ Error playing remote video for ${participantId}:`, err);
-          });
-        }
+        // CRITICAL: Check if video track is enabled
+        const videoTrack = stream.getVideoTracks()[0];
+        const isVideoEnabled = videoTrack?.enabled ?? false;
         
-        // Ensure video is visible
-        if (videoElement.style.opacity === '0' || videoElement.style.visibility === 'hidden') {
+        if (isVideoEnabled) {
+          // Video is enabled - show and play
           videoElement.style.opacity = '1';
           videoElement.style.visibility = 'visible';
-          console.log(`👁️ Making remote video visible for ${participantId}`);
+          videoElement.style.display = 'block';
+          
+          // Ensure video is playing
+          if (videoElement.paused && stream.active) {
+            console.log(`▶️ Playing remote video for ${participantId}`);
+            videoElement.play().catch(err => {
+              console.error(`❌ Error playing remote video for ${participantId}:`, err);
+            });
+          }
+        } else {
+          // Video is disabled - hide the video element
+          console.log(`🚫 Video disabled for ${participantId} - hiding video element`);
+          videoElement.style.opacity = '0';
+          videoElement.style.visibility = 'hidden';
+          videoElement.pause();
         }
       } else {
         console.warn(`⚠️ No video element found for participant ${participantId}`);
       }
     });
+    
+    // Cleanup function to remove event listeners
+    return () => {
+      Object.entries(remoteStreams).forEach(([participantId, stream]) => {
+        const videoElement = remoteVideoRefs.current[participantId];
+        if (videoElement && videoElement._cleanupTrackListener) {
+          videoElement._cleanupTrackListener();
+          videoElement._cleanupTrackListener = null;
+        }
+      });
+    };
   }, [remoteStreams]);
 
   // Get participant name
@@ -781,17 +802,76 @@ const VideoCallComponent = memo(({
                       el.srcObject = stream;
                     }
                     
-                    // Ensure video plays
-                    if (stream.active) {
-                      el.play().catch(err => {
-                        console.error(`❌ Error playing remote video for ${participantName}:`, err);
-                      });
+                    // CRITICAL: Check if video track is enabled
+                    const videoTrack = stream.getVideoTracks()[0];
+                    const isVideoEnabled = videoTrack?.enabled ?? false;
+                    
+                    if (isVideoEnabled) {
+                      // Video is enabled - show and play
+                      el.style.opacity = '1';
+                      el.style.visibility = 'visible';
+                      el.style.display = 'block';
+                      
+                      // Ensure video plays
+                      if (stream.active) {
+                        el.play().catch(err => {
+                          console.error(`❌ Error playing remote video for ${participantName}:`, err);
+                        });
+                      } else {
+                        console.warn(`⚠️ Stream for ${participantName} is not active yet`);
+                      }
                     } else {
-                      console.warn(`⚠️ Stream for ${participantName} is not active yet`);
+                      // Video is disabled - hide the video element
+                      console.log(`🚫 Video disabled for ${participantName} (${participantId}) - hiding video element`);
+                      el.style.opacity = '0';
+                      el.style.visibility = 'hidden';
+                      el.pause();
                     }
                     
                     if (wasNew) {
                       console.log(`✅ Remote video element created for ${participantName}`);
+                      console.log(`  - Video track enabled: ${isVideoEnabled}`);
+                      
+                      // Set up listener for track enabled state changes
+                      if (videoTrack) {
+                        const handleEnabledChange = () => {
+                          const enabled = videoTrack.enabled;
+                          console.log(`🎥 Track enabled state changed for ${participantName}: ${enabled}`);
+                          if (enabled) {
+                            el.style.opacity = '1';
+                            el.style.visibility = 'visible';
+                            el.style.display = 'block';
+                            el.play().catch(() => {});
+                          } else {
+                            el.style.opacity = '0';
+                            el.style.visibility = 'hidden';
+                            el.pause();
+                          }
+                        };
+                        
+                        // Listen for mute/unmute events (when camera is toggled)
+                        videoTrack.addEventListener('mute', handleEnabledChange);
+                        videoTrack.addEventListener('unmute', handleEnabledChange);
+                        
+                        // Also check enabled property periodically
+                        const checkInterval = setInterval(() => {
+                          const currentEnabled = videoTrack.enabled;
+                          const lastEnabled = videoTrack._lastEnabledState ?? currentEnabled;
+                          if (currentEnabled !== lastEnabled) {
+                            videoTrack._lastEnabledState = currentEnabled;
+                            handleEnabledChange();
+                          }
+                        }, 300);
+                        
+                        videoTrack._lastEnabledState = videoTrack.enabled;
+                        
+                        // Clean up on unmount
+                        el._cleanupTrackListener = () => {
+                          videoTrack.removeEventListener('mute', handleEnabledChange);
+                          videoTrack.removeEventListener('unmute', handleEnabledChange);
+                          clearInterval(checkInterval);
+                        };
+                      }
                     }
                     
                     // CRITICAL: Ensure remote video is un-mirrored (remote cameras also provide mirrored feed)
@@ -806,8 +886,8 @@ const VideoCallComponent = memo(({
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
-                  opacity: 1,
-                  visibility: 'visible',
+                  opacity: stream.getVideoTracks()[0]?.enabled ? 1 : 0,
+                  visibility: stream.getVideoTracks()[0]?.enabled ? 'visible' : 'hidden',
                   // Remote cameras also provide mirrored feed - flip it back
                   transform: 'scaleX(-1)'
                 }}

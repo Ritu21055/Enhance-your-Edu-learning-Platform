@@ -3,7 +3,7 @@
 
 // For local development (same computer)
 const LOCAL_CONFIG = {
-  BACKEND_URL: 'http://192.168.0.110:5000', 
+  BACKEND_URL: 'http://192.168.0.108:5000', 
   FRONTEND_URL: 'http://localhost:3000'
 };
 
