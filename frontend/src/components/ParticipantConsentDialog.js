@@ -454,53 +454,53 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       // For video/camera requests, set video based on request
       // For both, set both based on request
       const emitMediaStateChange = () => {
-        let actualVideoEnabled;
+        // Get final stream (merged for audio-only, or new stream for others)
+        const finalStream = window.localStreamRef?.current || stream;
+        const videoTrack = finalStream.getVideoTracks()[0];
+        const audioTrack = finalStream.getAudioTracks()[0];
+        
+        let videoStateToEmit;
         if (requestData.requestType === 'audio') {
-          // Audio-only: Check actual video state from merged stream
-          const finalStream = window.localStreamRef?.current || stream;
-          const videoTrack = finalStream.getVideoTracks()[0];
-          actualVideoEnabled = videoTrack?.enabled ?? false;
+          // Audio-only: Preserve actual video state from merged stream
+          videoStateToEmit = videoTrack?.enabled ?? false;
           console.log('📸 ParticipantConsentDialog: Audio-only request, preserving video state', {
-            actualVideoEnabled,
+            videoStateToEmit,
             hasVideoTrack: !!videoTrack,
-            videoTrackEnabled: videoTrack?.enabled
+            videoTrackEnabled: videoTrack?.enabled,
+            videoTrackReadyState: videoTrack?.readyState
           });
         } else {
           // Video or both: Set based on request
-          actualVideoEnabled = requestData.requestType === 'camera' || requestData.requestType === 'both';
+          videoStateToEmit = requestData.requestType === 'camera' || requestData.requestType === 'both';
         }
         
-        // Get final stream (merged for audio-only, or new stream for others)
-        const finalStream = window.localStreamRef?.current || stream;
-        const finalVideoEnabled = finalStream.getVideoTracks().length > 0 && 
-                                  (finalStream.getVideoTracks()[0]?.enabled ?? false);
-        
-        // Use the final video state
-        const videoStateToEmit = requestData.requestType === 'audio' ? finalVideoEnabled : actualVideoEnabled;
+        const audioStateToEmit = requestData.requestType === 'audio' || requestData.requestType === 'both';
         
         if (socket && socket.connected) {
           socket.emit('media-state-change', {
             meetingId,
             participantId: currentUserId,
             videoEnabled: videoStateToEmit,
-            audioEnabled: requestData.requestType === 'audio' || requestData.requestType === 'both',
+            audioEnabled: audioStateToEmit,
             hasVideo: finalStream.getVideoTracks().length > 0,
             hasAudio: finalStream.getAudioTracks().length > 0,
             timestamp: Date.now()
           });
           console.log('📸 ParticipantConsentDialog: Media state change emitted', {
             videoEnabled: videoStateToEmit,
-            audioEnabled: requestData.requestType === 'audio' || requestData.requestType === 'both',
+            audioEnabled: audioStateToEmit,
             requestType: requestData.requestType,
             finalStreamHasVideo: finalStream.getVideoTracks().length > 0,
-            finalStreamHasAudio: finalStream.getAudioTracks().length > 0
+            finalStreamHasAudio: finalStream.getAudioTracks().length > 0,
+            videoTrackEnabled: videoTrack?.enabled,
+            audioTrackEnabled: audioTrack?.enabled
           });
         }
       };
       
       // For audio-only, wait for stream merge to complete
       if (requestData.requestType === 'audio') {
-        setTimeout(emitMediaStateChange, 150);
+        setTimeout(emitMediaStateChange, 200);
       } else {
         emitMediaStateChange();
       }
@@ -666,8 +666,22 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       }
       
       // Emit media state change to notify others
+      // CRITICAL: For audio-only requests, preserve video state (don't turn it off)
       if (socket && socket.connected) {
-        const videoEnabled = !(currentRequest.requestType === 'camera' || currentRequest.requestType === 'both');
+        let videoEnabled;
+        if (currentRequest.requestType === 'audio') {
+          // Audio-only: Preserve actual video state
+          const videoTrack = stream.getVideoTracks()[0];
+          videoEnabled = videoTrack?.enabled ?? false;
+          console.log('📸 ParticipantConsentDialog: Audio-only session ended, preserving video state', {
+            videoEnabled,
+            hasVideoTrack: !!videoTrack
+          });
+        } else {
+          // Camera or both: Video should be disabled
+          videoEnabled = !(currentRequest.requestType === 'camera' || currentRequest.requestType === 'both');
+        }
+        
         const audioEnabled = !(currentRequest.requestType === 'audio' || currentRequest.requestType === 'both');
         
         socket.emit('media-state-change', {
@@ -681,7 +695,8 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
         });
         console.log('📸 ParticipantConsentDialog: Emitted media state change after session end', {
           videoEnabled,
-          audioEnabled
+          audioEnabled,
+          requestType: currentRequest.requestType
         });
       }
     } else {
