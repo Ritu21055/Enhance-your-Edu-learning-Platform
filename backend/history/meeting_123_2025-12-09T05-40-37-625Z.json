@@ -1,10 +1,10 @@
 {
   "meeting": {
     "id": "123",
-    "title": "testing",
+    "title": "Meeting 123",
     "participants": 1,
-    "createdAt": "2025-12-08T06:22:34.972Z",
-    "endedAt": "2025-12-08T06:22:35.059Z",
+    "createdAt": "2025-12-09T05:40:44.068Z",
+    "endedAt": "2025-12-09T05:40:37.654Z",
     "duration": 0,
     "status": "completed"
   },
@@ -28,7 +28,7 @@
   },
   "sentiment": null,
   "metadata": {
-    "savedAt": "2025-12-08T06:22:35.060Z",
+    "savedAt": "2025-12-09T05:40:37.654Z",
     "version": "1.0",
     "aiFeatures": {
       "highlightDetection": true,

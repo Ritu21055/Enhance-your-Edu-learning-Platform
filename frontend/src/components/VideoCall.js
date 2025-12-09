@@ -51,6 +51,47 @@ const VideoCallComponent = memo(({
     });
   }, [localStream, isVideoEnabled]);
 
+  // CRITICAL: Update video element when localStream changes (e.g., after camera/mic request approval)
+  useEffect(() => {
+    if (!localStream || !localVideoRef.current) {
+      return;
+    }
+
+    const videoElement = localVideoRef.current;
+    const videoTrack = localStream.getVideoTracks()[0];
+    
+    console.log('🎥 VideoCall: Local stream changed, updating video element', {
+      streamId: localStream.id,
+      hasVideoTrack: !!videoTrack,
+      videoTrackEnabled: videoTrack?.enabled,
+      currentSrcObject: videoElement.srcObject?.id
+    });
+
+    // Update srcObject if it's different
+    if (videoElement.srcObject !== localStream) {
+      console.log('🎥 VideoCall: Setting new srcObject for local video');
+      videoElement.srcObject = localStream;
+    }
+
+    // Ensure video track is enabled
+    if (videoTrack && !videoTrack.enabled) {
+      console.log('🎥 VideoCall: Enabling video track');
+      videoTrack.enabled = true;
+    }
+
+    // Force video to be visible and playing
+    videoElement.style.opacity = '1';
+    videoElement.style.visibility = 'visible';
+    videoElement.style.display = 'block';
+    
+    // Play the video
+    if (videoElement.paused && localStream.active) {
+      videoElement.play().catch(err => {
+        console.warn('🎥 VideoCall: Error playing video after stream change:', err);
+      });
+    }
+  }, [localStream, localVideoRef]);
+
   // GLOBAL PROTECTION: Register video element for global protection
   // CRITICAL: Use refs to avoid re-running when unrelated props change
   useEffect(() => {

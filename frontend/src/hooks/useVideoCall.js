@@ -1525,6 +1525,39 @@ const useVideoCall = (meetingId, userName) => {
     }
   }, []);
 
+  // Function to update local stream (for camera/mic request approval)
+  const updateLocalStream = useCallback((newStream) => {
+    console.log('🔄 useVideoCall: Updating local stream', {
+      hasNewStream: !!newStream,
+      newStreamId: newStream?.id,
+      currentStreamId: streamRef.current?.id,
+      videoTracks: newStream?.getVideoTracks().length,
+      audioTracks: newStream?.getAudioTracks().length
+    });
+    
+    // Stop old stream tracks if they exist
+    if (streamRef.current) {
+      const oldStream = streamRef.current;
+      console.log('🔄 useVideoCall: Stopping old stream tracks');
+      oldStream.getTracks().forEach(track => {
+        track.stop();
+        console.log('🔄 useVideoCall: Stopped track:', track.kind, track.id);
+      });
+    }
+    
+    // Update stream ref and state
+    streamRef.current = newStream;
+    setLocalStream(newStream);
+    
+    // Update all peer connections with the new stream
+    if (newStream) {
+      console.log('🔄 useVideoCall: Updating all peer connections with new stream');
+      updateAllPeerConnections(newStream, 'both');
+    }
+    
+    console.log('✅ useVideoCall: Local stream updated successfully');
+  }, [updateAllPeerConnections]);
+
   return {
     // Streams
     localStream,
@@ -1545,7 +1578,8 @@ const useVideoCall = (meetingId, userName) => {
     // Functions
     initializeMedia,
     forceConnection,
-    updateAllPeerConnections
+    updateAllPeerConnections,
+    updateLocalStream
   };
 };
 

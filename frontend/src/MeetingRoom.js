@@ -103,7 +103,8 @@ const MeetingRoom = () => {
     socket,
     forceConnection,
     updateAllPeerConnections,
-    participantMediaState
+    participantMediaState,
+    updateLocalStream
   } = useVideoCall(meetingId, finalUserName);
 
 
@@ -1095,54 +1096,33 @@ const MeetingRoom = () => {
         meetingId={meetingId}
         currentUserId={socket?.id}
         onCameraMicToggle={(isActive, stream) => {
-          console.log('📹 Camera/Mic toggled:', { isActive, stream });
+          console.log('📹 Camera/Mic toggled:', { isActive, stream, hasUpdateLocalStream: !!updateLocalStream });
           if (isActive && stream) {
             // Replace the local stream with the new stream from consent dialog
             console.log('🔄 Replacing local stream with consent stream');
             
-            // Update the local stream in the peer connection system
-            if (window.ultraSimplePeerRef && window.ultraSimplePeerRef.current) {
-              const peerRef = window.ultraSimplePeerRef.current;
-              
-              // Replace the local stream
-              peerRef.updateLocalStream(stream);
-              
+            // Update the local stream in useVideoCall hook
+            if (updateLocalStream) {
+              updateLocalStream(stream);
               console.log('✅ Consent stream integrated with peer connections');
+            } else {
+              console.error('❌ updateLocalStream function not available');
             }
           } else {
             // Turn off camera/mic - session ended
-            console.log('🔄 Camera/Mic session ended - restoring original state');
+            console.log('🔄 Camera/Mic session ended - stopping consent stream');
             if (window.consentStream) {
               // Stop the consent stream
-              window.consentStream.getTracks().forEach(track => track.stop());
+              window.consentStream.getTracks().forEach(track => {
+                track.stop();
+                console.log('🔄 Stopped consent stream track:', track.kind);
+              });
               window.consentStream = null;
             }
             
-            // Restore the original local stream (if available)
-            if (window.ultraSimplePeerRef && window.ultraSimplePeerRef.current) {
-              const peerRef = window.ultraSimplePeerRef.current;
-              
-              // Use the restore function to properly restore the original stream
-              if (peerRef.restoreOriginalStream) {
-                console.log('🔄 Restoring original stream using restore function');
-                peerRef.restoreOriginalStream();
-              } else {
-                console.log('🔄 No restore function available, clearing peer connections');
-                // Clear all tracks from peer connections
-                Object.keys(peerRef.peersRef.current).forEach(participantId => {
-                  const peer = peerRef.peersRef.current[participantId];
-                  if (peer && peer.getSenders) {
-                    const senders = peer.getSenders();
-                    senders.forEach(sender => {
-                      if (sender.track) {
-                        peer.removeTrack(sender);
-                      }
-                    });
-                  }
-                });
-              }
-              console.log('✅ Restored original media state');
-            }
+            // Note: The original stream should be restored by the participant manually
+            // or the system will reinitialize when needed
+            console.log('✅ Consent stream stopped');
           }
         }}
       />
