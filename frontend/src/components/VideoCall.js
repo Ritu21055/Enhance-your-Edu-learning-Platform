@@ -464,20 +464,41 @@ const VideoCallComponent = memo(({
     Object.entries(remoteStreams).forEach(([participantId, stream]) => {
       const videoElement = remoteVideoRefs.current[participantId];
       if (videoElement) {
-        if (videoElement.srcObject !== stream) {
-          videoElement.srcObject = stream;
-        }
-        
         // CRITICAL: Check if video track is enabled AND check media state from socket
         const videoTrack = stream.getVideoTracks()[0];
         const trackEnabled = videoTrack?.enabled ?? false;
         const trackReady = videoTrack?.readyState === 'live';
+        const trackEnded = videoTrack?.readyState === 'ended';
         
         // CRITICAL: Check media state from socket events (most reliable)
         // When participant turns off camera, socket event is more reliable than track.enabled
         const socketMediaState = participantMediaState[participantId];
         const socketVideoEnabled = socketMediaState?.videoEnabled;
         const socketAudioEnabled = socketMediaState?.audioEnabled;
+        
+        // CRITICAL: If track is ended OR socket says video is disabled, replace srcObject with blank stream IMMEDIATELY to prevent frozen frame
+        const shouldReplaceWithBlank = trackEnded || socketVideoEnabled === false;
+        
+        if (shouldReplaceWithBlank && videoElement.srcObject === stream) {
+          console.log(`📹 VideoCall: Track ended or video disabled for ${participantId}, replacing srcObject with blank stream in useEffect`, {
+            trackEnded,
+            socketVideoEnabled
+          });
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1;
+            canvas.height = 1;
+            const blankStream = canvas.captureStream(0);
+            videoElement.srcObject = blankStream;
+            console.log(`📹 VideoCall: Replaced remote video srcObject with blank stream for ${participantId} in useEffect`);
+          } catch (e) {
+            console.warn(`📹 VideoCall: Could not create blank stream for ${participantId} in useEffect:`, e);
+            videoElement.srcObject = null;
+          }
+        } else if (!shouldReplaceWithBlank && videoElement.srcObject !== stream) {
+          // Only set srcObject if track is not ended and video is enabled
+          videoElement.srcObject = stream;
+        }
         
         // Use socket state if available, otherwise fall back to track state
         // CRITICAL: If socket says video is disabled, hide it immediately

@@ -615,18 +615,30 @@ const useVideoCall = (meetingId, userName) => {
                 videoElement.play().catch(() => {});
               }
             } else {
+              // CRITICAL: If video is disabled OR track is ended, replace srcObject with blank stream to clear frozen frame
+              if (videoEnabled === false || (videoTrack && videoTrack.readyState === 'ended')) {
+                console.log(`⚡⚡⚡ Video disabled or track ended for ${participantId}, replacing srcObject with blank stream to prevent frozen frame`, {
+                  videoEnabled,
+                  trackState: videoTrack?.readyState
+                });
+                try {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 1;
+                  canvas.height = 1;
+                  const blankStream = canvas.captureStream(0);
+                  videoElement.srcObject = blankStream;
+                  console.log(`⚡⚡⚡ Replaced video srcObject with blank stream for ${participantId}`);
+                } catch (e) {
+                  console.warn(`⚡⚡⚡ Could not create blank stream for ${participantId}, using null:`, e);
+                  videoElement.srcObject = null;
+                }
+              }
+              
               // CRITICAL: Completely hide video when disabled or track stopped
               videoElement.style.opacity = '0';
               videoElement.style.visibility = 'hidden';
               videoElement.style.display = 'none'; // Also set display to none
               videoElement.pause();
-              
-              // If track is stopped/ended, also clear the video source to prevent frozen frame
-              if (videoTrack && videoTrack.readyState === 'ended') {
-                console.log(`⚡⚡⚡ Track ended for ${participantId}, clearing video source to prevent frozen frame`);
-                // Don't clear srcObject completely, but ensure it's hidden
-                // The stream might still be needed for audio
-              }
             }
           }
           
