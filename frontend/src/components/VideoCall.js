@@ -282,17 +282,26 @@ const VideoCallComponent = memo(({
           trackState: videoTrack.readyState
         });
         
+        // CRITICAL: If track is ended, replace srcObject with blank stream to clear frozen frame
+        if (videoTrack && videoTrack.readyState === 'ended') {
+          console.log('🎥 VideoCall: Local video track ended, replacing srcObject with blank stream');
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1;
+            canvas.height = 1;
+            const blankStream = canvas.captureStream(0);
+            videoElement.srcObject = blankStream;
+            console.log('🎥 VideoCall: Replaced local video srcObject with blank stream in updateVideo');
+          } catch (e) {
+            console.warn('🎥 VideoCall: Could not create blank stream in updateVideo:', e);
+            videoElement.srcObject = null;
+          }
+        }
+        
         videoElement.style.opacity = '0';
         videoElement.style.visibility = 'hidden';
         videoElement.style.display = 'none'; // Use display: none to completely hide
         videoElement.pause(); // Pause the video
-        
-        // If track is stopped/ended, also try to clear srcObject to prevent frozen frame
-        if (videoTrack.readyState === 'ended') {
-          console.log('🎥 VideoCall: Local video track ended, video hidden and srcObject cleared');
-          // Don't clear srcObject completely as it might break the stream
-          // But ensure it's hidden
-        }
       }
     };
 
@@ -316,20 +325,24 @@ const VideoCallComponent = memo(({
         const handleTrackEnded = () => {
           console.log('🎥 VideoCall: Local video track ended, hiding video immediately');
           if (videoElement) {
+            // CRITICAL: Replace srcObject with blank canvas stream to clear frozen frame
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 1;
+              canvas.height = 1;
+              const blankStream = canvas.captureStream(0);
+              videoElement.srcObject = blankStream;
+              console.log('🎥 VideoCall: Replaced local video srcObject with blank stream');
+            } catch (e) {
+              console.warn('🎥 VideoCall: Could not create blank stream, using null:', e);
+              videoElement.srcObject = null;
+            }
+            
             // Hide immediately with multiple methods - do this FIRST before anything else
             videoElement.style.opacity = '0';
             videoElement.style.visibility = 'hidden';
             videoElement.style.display = 'none';
             videoElement.pause();
-            
-            // Try to clear the video frame by seeking to start
-            try {
-              if (videoElement.currentTime > 0) {
-                videoElement.currentTime = 0;
-              }
-            } catch (e) {
-              // Ignore seek errors
-            }
             
             // Force hide multiple times to ensure it stays hidden
             const forceHide = () => {
@@ -495,24 +508,27 @@ const VideoCallComponent = memo(({
           }
         } else {
           // Video is disabled or track stopped - hide the video element IMMEDIATELY
+          // CRITICAL: If track is ended, replace srcObject with blank stream to clear frozen frame
+          if (videoTrack && videoTrack.readyState === 'ended') {
+            console.log(`📹 VideoCall: Track ended for ${participantId}, replacing srcObject with blank stream`);
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 1;
+              canvas.height = 1;
+              const blankStream = canvas.captureStream(0);
+              videoElement.srcObject = blankStream;
+              console.log(`📹 VideoCall: Replaced remote video srcObject with blank stream for ${participantId}`);
+            } catch (e) {
+              console.warn(`📹 VideoCall: Could not create blank stream for ${participantId}:`, e);
+              videoElement.srcObject = null;
+            }
+          }
+          
           // CRITICAL: Use display: none to completely hide and prevent frozen frame
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.style.display = 'none'; // Also set display to none for complete hiding
           videoElement.pause();
-          
-          // If track is stopped/ended, also try to clear the currentTime to prevent frozen frame
-          if (videoTrack && videoTrack.readyState === 'ended') {
-            console.log(`📹 VideoCall: Track ended for ${participantId}, video hidden to prevent frozen frame`);
-            // Try to seek to start to clear the frame
-            try {
-              if (videoElement.currentTime > 0) {
-                videoElement.currentTime = 0;
-              }
-            } catch (e) {
-              // Ignore errors
-            }
-          }
         }
         
         // CRITICAL: Mute/unmute audio tracks based on participant's audio state
@@ -534,20 +550,24 @@ const VideoCallComponent = memo(({
             console.log(`📹 VideoCall: Video track ended for ${participantId}, hiding video element immediately`);
             const currentElement = remoteVideoRefs.current[participantId];
             if (currentElement) {
+              // CRITICAL: Replace srcObject with blank canvas stream to clear frozen frame
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1;
+                canvas.height = 1;
+                const blankStream = canvas.captureStream(0);
+                currentElement.srcObject = blankStream;
+                console.log(`📹 VideoCall: Replaced remote video srcObject with blank stream for ${participantId}`);
+              } catch (e) {
+                console.warn(`📹 VideoCall: Could not create blank stream for ${participantId}, using null:`, e);
+                currentElement.srcObject = null;
+              }
+              
               // Hide immediately with multiple methods
               currentElement.style.opacity = '0';
               currentElement.style.visibility = 'hidden';
               currentElement.style.display = 'none';
               currentElement.pause();
-              
-              // Try to clear the video frame
-              try {
-                if (currentElement.currentTime > 0) {
-                  currentElement.currentTime = 0;
-                }
-              } catch (e) {
-                // Ignore seek errors
-              }
               
               // Force hide multiple times to ensure it stays hidden
               const forceHide = () => {

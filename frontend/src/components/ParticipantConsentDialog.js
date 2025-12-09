@@ -502,6 +502,23 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
         if (window.localVideoRef && window.localVideoRef.current) {
           const videoElement = window.localVideoRef.current;
           console.log('📸 ParticipantConsentDialog: Hiding video element BEFORE stopping track');
+          
+          // CRITICAL: Replace srcObject with blank canvas stream to clear frozen frame
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1;
+            canvas.height = 1;
+            const blankStream = canvas.captureStream(0);
+            // Replace srcObject with blank stream to clear the frame
+            videoElement.srcObject = blankStream;
+            console.log('📸 ParticipantConsentDialog: Replaced video srcObject with blank stream');
+          } catch (e) {
+            console.warn('📸 ParticipantConsentDialog: Could not create blank stream, using null:', e);
+            // Fallback: set srcObject to null
+            videoElement.srcObject = null;
+          }
+          
+          // Hide with CSS
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.style.display = 'none';
@@ -513,6 +530,15 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
         if (track.kind === 'video' && (currentRequest.requestType === 'camera' || currentRequest.requestType === 'both')) {
           console.log('📸 ParticipantConsentDialog: Disabling and stopping video track:', track.id);
           track.enabled = false; // Disable first
+          
+          // CRITICAL: Remove video track from stream before stopping to prevent frozen frame
+          try {
+            stream.removeTrack(track);
+            console.log('📸 ParticipantConsentDialog: Removed video track from stream');
+          } catch (e) {
+            console.warn('📸 ParticipantConsentDialog: Could not remove track from stream:', e);
+          }
+          
           // Small delay before stopping to ensure video is hidden first
           setTimeout(() => {
             if (track.readyState !== 'ended') {
