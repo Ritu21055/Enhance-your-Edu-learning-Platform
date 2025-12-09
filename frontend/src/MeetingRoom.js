@@ -825,7 +825,7 @@ const MeetingRoom = () => {
 
         {/* AI Features - Sentiment Dashboard Toggle and Camera Request */}
         {isHost && (
-          <Box className="ai-features-notification">
+          <Box className="ai-features-notification" sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="contained"
               color="primary"
@@ -858,6 +858,21 @@ const MeetingRoom = () => {
               }}
             >
               🧠 {showSentimentDashboard ? 'Hide' : 'Show'} AI Analytics
+            </Button>
+            
+            <Button
+              variant="contained"
+              startIcon={<People />}
+              onClick={() => setShowBulkRequest(true)}
+              sx={{
+                backgroundColor: '#9c27b0',
+                color: '#fff',
+                '&:hover': {
+                  backgroundColor: '#7b1fa2',
+                },
+              }}
+            >
+              Request Camera Access
             </Button>
             
             {/* AI Status Display */}
@@ -1455,20 +1470,6 @@ const MeetingRoom = () => {
           isAudioLocked={isAudioLocked}
           isVideoLocked={isVideoLocked}
         />
-
-      {/* Bulk Request Button - Host Only */}
-      {isHost && (
-        <Box sx={{ position: 'fixed', top: 20, right: 20, zIndex: 1000 }}>
-          <Button
-            variant="outlined"
-            startIcon={<People />}
-            onClick={() => setShowBulkRequest(true)}
-            sx={{ mr: 2 }}
-          >
-            Request All
-          </Button>
-        </Box>
-      )}
 
       {/* Bulk Request Dialog */}
       {isHost && (
