@@ -403,6 +403,17 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
           hasAudio: stream.getAudioTracks().length > 0
         });
         window.updateVideoCallPeerConnections(stream, trackType);
+        
+        // CRITICAL: For audio-only, wait a bit for stream merge to complete before emitting media-state-change
+        if (trackType === 'audio') {
+          setTimeout(() => {
+            // Re-check the merged stream after merge
+            const mergedStream = window.localStreamRef?.current;
+            if (mergedStream) {
+              console.log('📸 ParticipantConsentDialog: Merged stream ready, will emit media-state-change');
+            }
+          }, 100);
+        }
       } else {
         console.error('📸 ParticipantConsentDialog: updateVideoCallPeerConnections not available!');
       }
@@ -439,17 +450,59 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       }
       
       // Emit media state change to notify other participants
-      if (socket && socket.connected) {
-        socket.emit('media-state-change', {
-          meetingId,
-          participantId: currentUserId,
-          videoEnabled: requestData.requestType === 'camera' || requestData.requestType === 'both',
-          audioEnabled: requestData.requestType === 'audio' || requestData.requestType === 'both',
-          hasVideo: stream.getVideoTracks().length > 0,
-          hasAudio: stream.getAudioTracks().length > 0,
-          timestamp: Date.now()
-        });
-        console.log('📸 ParticipantConsentDialog: Media state change emitted');
+      // CRITICAL: For audio-only requests, preserve the actual video state (don't turn it off)
+      // For video/camera requests, set video based on request
+      // For both, set both based on request
+      const emitMediaStateChange = () => {
+        let actualVideoEnabled;
+        if (requestData.requestType === 'audio') {
+          // Audio-only: Check actual video state from merged stream
+          const finalStream = window.localStreamRef?.current || stream;
+          const videoTrack = finalStream.getVideoTracks()[0];
+          actualVideoEnabled = videoTrack?.enabled ?? false;
+          console.log('📸 ParticipantConsentDialog: Audio-only request, preserving video state', {
+            actualVideoEnabled,
+            hasVideoTrack: !!videoTrack,
+            videoTrackEnabled: videoTrack?.enabled
+          });
+        } else {
+          // Video or both: Set based on request
+          actualVideoEnabled = requestData.requestType === 'camera' || requestData.requestType === 'both';
+        }
+        
+        // Get final stream (merged for audio-only, or new stream for others)
+        const finalStream = window.localStreamRef?.current || stream;
+        const finalVideoEnabled = finalStream.getVideoTracks().length > 0 && 
+                                  (finalStream.getVideoTracks()[0]?.enabled ?? false);
+        
+        // Use the final video state
+        const videoStateToEmit = requestData.requestType === 'audio' ? finalVideoEnabled : actualVideoEnabled;
+        
+        if (socket && socket.connected) {
+          socket.emit('media-state-change', {
+            meetingId,
+            participantId: currentUserId,
+            videoEnabled: videoStateToEmit,
+            audioEnabled: requestData.requestType === 'audio' || requestData.requestType === 'both',
+            hasVideo: finalStream.getVideoTracks().length > 0,
+            hasAudio: finalStream.getAudioTracks().length > 0,
+            timestamp: Date.now()
+          });
+          console.log('📸 ParticipantConsentDialog: Media state change emitted', {
+            videoEnabled: videoStateToEmit,
+            audioEnabled: requestData.requestType === 'audio' || requestData.requestType === 'both',
+            requestType: requestData.requestType,
+            finalStreamHasVideo: finalStream.getVideoTracks().length > 0,
+            finalStreamHasAudio: finalStream.getAudioTracks().length > 0
+          });
+        }
+      };
+      
+      // For audio-only, wait for stream merge to complete
+      if (requestData.requestType === 'audio') {
+        setTimeout(emitMediaStateChange, 150);
+      } else {
+        emitMediaStateChange();
       }
       
     } catch (error) {
