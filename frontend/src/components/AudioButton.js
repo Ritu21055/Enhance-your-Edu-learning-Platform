@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
-import { IconButton } from '@mui/material';
-import { Mic, MicOff } from '@mui/icons-material';
+import { IconButton, Tooltip } from '@mui/material';
+import { Mic, MicOff, Lock } from '@mui/icons-material';
 
 /**
  * Audio Button Component
@@ -9,7 +9,8 @@ import { Mic, MicOff } from '@mui/icons-material';
 const AudioButton = ({ 
   isAudioEnabled, 
   onToggleAudio,
-  localStream 
+  localStream,
+  disabled = false
 }) => {
   const isTogglingRef = useRef(false);
 
@@ -17,48 +18,70 @@ const AudioButton = ({
     e.preventDefault();
     e.stopPropagation();
     
-    // Prevent multiple simultaneous clicks
+    if (disabled) {
+      return;
+    }
+    
     if (isTogglingRef.current) {
-      console.warn('🔇 AudioButton: Toggle already in progress, ignoring click');
       return;
     }
 
     if (!localStream) {
-      console.warn('🔇 AudioButton: No local stream available');
       return;
     }
 
     const audioTrack = localStream.getAudioTracks()[0];
     if (!audioTrack) {
-      console.warn('🔇 AudioButton: No audio track found');
       return;
     }
 
     isTogglingRef.current = true;
     
-    console.log('🔇 AudioButton: Toggling audio, current state:', audioTrack.enabled);
-    
-    // CRITICAL: Just call the callback - let useMediaControls handle the toggle
-    // This prevents double-toggling
     if (onToggleAudio) {
       onToggleAudio();
     }
     
-    // Reset toggle lock after a short delay
     setTimeout(() => {
       isTogglingRef.current = false;
     }, 200);
   };
 
   return (
-    <IconButton
-      onClick={handleClick}
-      className={`control-button ${isAudioEnabled ? 'audio-enabled' : 'audio-disabled'}`}
-      title={isAudioEnabled ? 'Mute Audio' : 'Unmute Audio'}
-      type="button"
+    <Tooltip 
+      title={
+        disabled 
+          ? "Audio is locked by host request" 
+          : (isAudioEnabled ? 'Mute Audio' : 'Unmute Audio')
+      }
     >
-      {isAudioEnabled ? <Mic /> : <MicOff />}
-    </IconButton>
+      <span style={{ position: 'relative', display: 'inline-block' }}>
+        <IconButton
+          onClick={handleClick}
+          disabled={disabled}
+          className={`control-button ${isAudioEnabled ? 'audio-enabled' : 'audio-disabled'} ${disabled ? 'locked' : ''}`}
+          sx={{
+            opacity: disabled ? 0.7 : 1,
+            '&:disabled': {
+              opacity: 0.7
+            }
+          }}
+          type="button"
+        >
+          {isAudioEnabled ? <Mic /> : <MicOff />}
+        </IconButton>
+        {disabled && (
+          <Lock 
+            sx={{ 
+              position: 'absolute', 
+              top: 2, 
+              right: 2, 
+              fontSize: '12px', 
+              color: '#ff9800' 
+            }} 
+          />
+        )}
+      </span>
+    </Tooltip>
   );
 };
 

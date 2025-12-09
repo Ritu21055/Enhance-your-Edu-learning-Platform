@@ -1348,7 +1348,20 @@ const useVideoCall = (meetingId, userName) => {
 
   // Update all peer connections with new stream state (for video/audio toggle)
   // trackType: 'audio' | 'video' | 'both' - specifies which track to update
-  const updateAllPeerConnections = useCallback((stream, trackType = 'both') => {
+  // If stream is provided, it will replace the current local stream (for camera/mic requests)
+  const updateAllPeerConnections = useCallback((newStream, trackType = 'both') => {
+    // If a new stream is provided (e.g., from camera/mic request approval), update the local stream
+    if (newStream && newStream !== streamRef.current) {
+      // Stop old tracks to free up resources
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
+      // Update stream ref and state
+      streamRef.current = newStream;
+      setLocalStream(newStream);
+    }
+    
     // Always use current streamRef - never change stream reference during toggles
     // This prevents sync effects from running and interfering with user actions
     const streamToUse = streamRef.current;

@@ -219,6 +219,12 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
 
   // Toggle Audio - SIMPLE: Only touch audio, protect video
   const toggleAudio = () => {
+    // Check if audio is locked by host request
+    if (window.isAudioLocked) {
+      console.warn('🔇 Audio is locked by host request - cannot toggle');
+      return;
+    }
+    
     console.log('🔇🔇🔇🔇 AUDIO TOGGLE START - DETAILED DEBUG');
     console.trace('🔇 Stack trace at audio toggle start');
     
@@ -451,6 +457,12 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
 
   // Toggle Video - COMPLETELY ISOLATED: No effects, no sync, just toggle
   const toggleVideo = () => {
+    // Check if video is locked by host request
+    if (window.isVideoLocked) {
+      console.warn('🎥 Video is locked by host request - cannot toggle');
+      return;
+    }
+    
     if (!localStream) return;
 
     const videoTrack = localStream.getVideoTracks()[0];

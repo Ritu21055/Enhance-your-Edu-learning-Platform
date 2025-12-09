@@ -3,7 +3,8 @@ import {
   Paper,
   Stack,
   IconButton,
-  Button
+  Button,
+  Tooltip
 } from '@mui/material';
 import {
   Videocam,
@@ -13,7 +14,8 @@ import {
   Star,
   FiberManualRecord,
   Stop,
-  Psychology
+  Psychology,
+  Lock
 } from '@mui/icons-material';
 import ChatButton from './ChatButton';
 import AudioButton from './AudioButton';
@@ -39,8 +41,25 @@ const MeetingControls = ({
   isQuestionGenerationActive,
   onToggleQuestionGeneration,
   // Additional props for isolated buttons
-  localStream
+  localStream,
+  // NEW: Lock state props
+  isAudioLocked = false,
+  isVideoLocked = false
 }) => {
+  
+  const handleToggleAudio = () => {
+    if (isAudioLocked) {
+      return;
+    }
+    onToggleAudio();
+  };
+
+  const handleToggleVideo = () => {
+    if (isVideoLocked) {
+      return;
+    }
+    onToggleVideo();
+  };
   return (
     <Paper 
       className="meeting-controls-bottom"
@@ -54,21 +73,71 @@ const MeetingControls = ({
         justifyContent="center"
         sx={{ width: '100%' }}
       >
-        {/* Audio Control - Isolated Component */}
-        <AudioButton
-          isAudioEnabled={isAudioEnabled}
-          onToggleAudio={onToggleAudio}
-          localStream={localStream}
-        />
-        
-        {/* Video Control */}
-        <IconButton
-          onClick={onToggleVideo}
-          className={`control-button ${isVideoEnabled ? 'video-enabled' : 'video-disabled'}`}
-          title={isVideoEnabled ? 'Turn Off Video' : 'Turn On Video'}
+        {/* Audio Control - With Lock Support */}
+        <Tooltip 
+          title={
+            isAudioLocked 
+              ? "Audio is locked by host request. Cannot turn off during active session." 
+              : (isAudioEnabled ? 'Mute Audio' : 'Unmute Audio')
+          }
         >
-          {isVideoEnabled ? <Videocam /> : <VideocamOff />}
-        </IconButton>
+          <span>
+            <AudioButton
+              isAudioEnabled={isAudioEnabled}
+              onToggleAudio={handleToggleAudio}
+              localStream={localStream}
+              disabled={isAudioLocked}
+            />
+            {isAudioLocked && (
+              <Lock 
+                sx={{ 
+                  position: 'absolute', 
+                  fontSize: '12px', 
+                  color: '#ff9800',
+                  ml: -2,
+                  mt: -1
+                }} 
+              />
+            )}
+          </span>
+        </Tooltip>
+        
+        {/* Video Control - With Lock Support */}
+        <Tooltip
+          title={
+            isVideoLocked 
+              ? "Video is locked by host request. Cannot turn off during active session." 
+              : (isVideoEnabled ? 'Turn Off Video' : 'Turn On Video')
+          }
+        >
+          <span>
+            <IconButton
+              onClick={handleToggleVideo}
+              disabled={isVideoLocked}
+              className={`control-button ${isVideoEnabled ? 'video-enabled' : 'video-disabled'} ${isVideoLocked ? 'locked' : ''}`}
+              sx={{
+                position: 'relative',
+                opacity: isVideoLocked ? 0.7 : 1,
+                '&:disabled': {
+                  opacity: 0.7
+                }
+              }}
+            >
+              {isVideoEnabled ? <Videocam /> : <VideocamOff />}
+              {isVideoLocked && (
+                <Lock 
+                  sx={{ 
+                    position: 'absolute', 
+                    top: 2, 
+                    right: 2, 
+                    fontSize: '14px', 
+                    color: '#ff9800' 
+                  }} 
+                />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
         
         {/* Screen Share Control - Isolated Component */}
         <ScreenShareButton

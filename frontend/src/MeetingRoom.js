@@ -35,6 +35,9 @@ import FatigueAlert from './components/FatigueAlert';
 import AudioTroubleshooter from './components/AudioTroubleshooter';
 import CompatibilityTestResults from './components/CompatibilityTestResults';
 import QuestionSuggestion from './components/QuestionSuggestion';
+import HostCameraRequestButton from './components/HostCameraRequestButton';
+import BulkRequestDialog from './components/BulkRequestDialog';
+import ParticipantConsentDialog from './components/ParticipantConsentDialog';
 
 // Import device compatibility utilities
 import { runCompatibilityTest, getErrorMessage, getRecommendations } from './utils/deviceCompatibility';
@@ -87,6 +90,11 @@ const MeetingRoom = () => {
   
   // AI Status state
   const [aiStatus, setAiStatus] = useState(null);
+  
+  // Camera/Audio Request Feature State
+  const [showBulkRequest, setShowBulkRequest] = useState(false);
+  const [activeSession, setActiveSession] = useState(null);
+  
   // Refs (localVideoRef comes from useWebRTC hook)
 
   // Custom hooks - Video Call (clean implementation)
@@ -128,6 +136,18 @@ const MeetingRoom = () => {
       // Keep ref available even after cleanup
     };
   }, [localStream]);
+  
+  // Calculate lock states based on active session
+  const isAudioLocked = activeSession && 
+    (activeSession.requestType === 'audio' || activeSession.requestType === 'both');
+  const isVideoLocked = activeSession && 
+    (activeSession.requestType === 'camera' || activeSession.requestType === 'both');
+
+  // Update window refs for useMediaControls
+  useEffect(() => {
+    window.isAudioLocked = isAudioLocked;
+    window.isVideoLocked = isVideoLocked;
+  }, [isAudioLocked, isVideoLocked]);
   
   // Note: Video state refs (isVideoEnabledRef, setIsVideoEnabled) are exposed to window
   // by useMediaControls hook itself - no need to expose them here
@@ -1432,14 +1452,55 @@ const MeetingRoom = () => {
               }
             }, 0);
           }}
+          isAudioLocked={isAudioLocked}
+          isVideoLocked={isVideoLocked}
         />
+
+      {/* Bulk Request Button - Host Only */}
+      {isHost && (
+        <Box sx={{ position: 'fixed', top: 20, right: 20, zIndex: 1000 }}>
+          <Button
+            variant="outlined"
+            startIcon={<People />}
+            onClick={() => setShowBulkRequest(true)}
+            sx={{ mr: 2 }}
+          >
+            Request All
+          </Button>
+        </Box>
+      )}
+
+      {/* Bulk Request Dialog */}
+      {isHost && (
+        <BulkRequestDialog
+          open={showBulkRequest}
+          onClose={() => setShowBulkRequest(false)}
+          socket={socket}
+          meetingId={meetingId}
+          participants={participants}
+          currentUserId={socket?.id}
+          participantMediaState={participantMediaState}
+        />
+      )}
+
+      {/* Participant Consent Dialog */}
+      <ParticipantConsentDialog
+        socket={socket}
+        meetingId={meetingId}
+        currentUserId={socket?.id}
+        onSessionStateChange={setActiveSession}
+      />
 
       {/* Participants Dialog */}
       <ParticipantsDialog
         open={showParticipants}
         onClose={() => setShowParticipants(false)}
         participants={participants}
-        userName={userName}
+        userName={finalUserName}
+        isHost={isHost}
+        socket={socket}
+        meetingId={meetingId}
+        participantMediaState={participantMediaState}
       />
 
       {/* Enhanced Highlight System Components */}
