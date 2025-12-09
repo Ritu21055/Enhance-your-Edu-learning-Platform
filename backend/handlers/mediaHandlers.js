@@ -55,6 +55,8 @@ export default function registerMediaHandlers(socket, io) {
     const { meetingId, participantId, requestType, duration, customMessage } = data;
     const meeting = activeMeetings.get(meetingId);
     
+    console.log(`📸 Camera/Mic Request: Host ${socket.id} requesting from participant ${participantId} in meeting ${meetingId}`);
+    
     if (!meeting) {
       console.log(`❌ Meeting ${meetingId} not found`);
       return;
@@ -62,23 +64,27 @@ export default function registerMediaHandlers(socket, io) {
     
     // Validate host
     if (meeting.hostId !== socket.id) {
-      console.log(`❌ Only host can request camera/mic access`);
+      console.log(`❌ Only host can request camera/mic access. Host ID: ${meeting.hostId}, Socket ID: ${socket.id}`);
       return;
     }
     
     // Validate participant exists
     const participant = meeting.participants.find(p => p.id === participantId);
     if (!participant) {
-      console.log(`❌ Participant ${participantId} not found`);
+      console.log(`❌ Participant ${participantId} not found in meeting. Available participants:`, meeting.participants.map(p => ({ id: p.id, name: p.name, socketId: p.socketId })));
       return;
     }
+    
+    // Use socketId if available, otherwise use id
+    const targetSocketId = participant.socketId || participant.id || participantId;
+    console.log(`📸 Sending request to participant ${participant.name} (Socket ID: ${targetSocketId})`);
     
     // Validate duration (max 10 minutes = 600 seconds)
     const validDuration = Math.min(Math.max(duration, 10), 600);
     
-    // Send request to participant
+    // Send request to participant - use io.to() to ensure message reaches the socket
     const requestId = `req_${Date.now()}_${socket.id}_${participantId}`;
-    socket.to(participantId).emit('camera-mic-request', {
+    const requestData = {
       requestId,
       meetingId,
       hostName: meeting.host,
@@ -86,11 +92,15 @@ export default function registerMediaHandlers(socket, io) {
       duration: validDuration, // in seconds (max 600)
       customMessage, // Optional custom message
       timestamp: Date.now()
-    });
+    };
+    
+    console.log(`📸 Emitting camera-mic-request to ${targetSocketId}:`, requestData);
+    io.to(targetSocketId).emit('camera-mic-request', requestData);
     
     // Set timeout to expire request if no response (30 seconds)
     setTimeout(() => {
-      socket.to(participantId).emit('camera-mic-request-expired', { requestId });
+      console.log(`📸 Request ${requestId} expired (30s timeout)`);
+      io.to(targetSocketId).emit('camera-mic-request-expired', { requestId });
     }, 30000);
   });
 
@@ -99,15 +109,29 @@ export default function registerMediaHandlers(socket, io) {
     const { requestId, participantId, approved, meetingId } = data;
     const meeting = activeMeetings.get(meetingId);
     
-    if (!meeting || meeting.hostId !== socket.id) return;
+    console.log(`📸 Camera/Mic Response: Socket ${socket.id} responding to request ${requestId} with ${approved ? 'approved' : 'denied'}`);
     
-    const participant = meeting.participants.find(p => p.id === participantId);
+    if (!meeting) {
+      console.log(`❌ Meeting ${meetingId} not found for response`);
+      return;
+    }
     
-    // Notify host
-    socket.to(meeting.hostId).emit('camera-mic-request-result', {
+    // The responder should be the participant (not the host)
+    // Find the participant who is responding (by socket.id)
+    const respondingParticipant = meeting.participants.find(p => p.id === socket.id);
+    
+    if (!respondingParticipant) {
+      console.log(`❌ Responder ${socket.id} not found in meeting participants`);
+      return;
+    }
+    
+    // Notify host - use io.to() to ensure message reaches host
+    const hostSocketId = meeting.hostId;
+    console.log(`📸 Notifying host ${hostSocketId} about participant ${respondingParticipant.name} response`);
+    io.to(hostSocketId).emit('camera-mic-request-result', {
       requestId,
-      participantId,
-      participantName: participant?.name || 'Participant',
+      participantId: respondingParticipant.id,
+      participantName: respondingParticipant.name || 'Participant',
       approved
     });
   });
@@ -117,13 +141,22 @@ export default function registerMediaHandlers(socket, io) {
     const { requestId, participantId, meetingId } = data;
     const meeting = activeMeetings.get(meetingId);
     
-    if (!meeting) return;
+    console.log(`📸 Extension Request: Participant ${participantId} requesting extension for ${requestId}`);
     
-    // Notify host about extension request
-    socket.to(meeting.hostId).emit('extension-requested', {
+    if (!meeting) {
+      console.log(`❌ Meeting ${meetingId} not found for extension request`);
+      return;
+    }
+    
+    const participant = meeting.participants.find(p => p.id === participantId || p.socketId === participantId);
+    
+    // Notify host about extension request - use io.to() to ensure message reaches host
+    const hostSocketId = meeting.hostId;
+    console.log(`📸 Notifying host ${hostSocketId} about extension request`);
+    io.to(hostSocketId).emit('extension-requested', {
       requestId,
-      participantId,
-      participantName: meeting.participants.find(p => p.id === participantId)?.name
+      participantId: participant?.id || participantId,
+      participantName: participant?.name || 'Participant'
     });
   });
 

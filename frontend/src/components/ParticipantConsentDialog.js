@@ -20,28 +20,39 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
   const [warningShown, setWarningShown] = useState(false);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('📸 ParticipantConsentDialog: No socket available');
+      return;
+    }
 
-    socket.on('camera-mic-request', (data) => {
+    console.log('📸 ParticipantConsentDialog: Setting up socket listeners');
+
+    const handleCameraMicRequest = (data) => {
+      console.log('📸 ParticipantConsentDialog: Received camera-mic-request:', data);
       setRequest(data);
       setWarningShown(false);
       setShowWarning(false);
-    });
+    };
 
-    socket.on('camera-mic-request-expired', ({ requestId }) => {
+    const handleRequestExpired = ({ requestId }) => {
+      console.log('📸 ParticipantConsentDialog: Request expired:', requestId);
       if (request?.requestId === requestId) {
         setRequest(null);
         if (onSessionStateChange) {
           onSessionStateChange(null);
         }
       }
-    });
+    };
+
+    socket.on('camera-mic-request', handleCameraMicRequest);
+    socket.on('camera-mic-request-expired', handleRequestExpired);
 
     return () => {
-      socket.off('camera-mic-request');
-      socket.off('camera-mic-request-expired');
+      console.log('📸 ParticipantConsentDialog: Cleaning up socket listeners');
+      socket.off('camera-mic-request', handleCameraMicRequest);
+      socket.off('camera-mic-request-expired', handleRequestExpired);
     };
-  }, [socket, request, onSessionStateChange]);
+  }, [socket, onSessionStateChange]);
 
   useEffect(() => {
     if (!request || !request.approved) return;
