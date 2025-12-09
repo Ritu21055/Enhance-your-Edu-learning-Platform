@@ -69,15 +69,16 @@ export default function registerMediaHandlers(socket, io) {
     }
     
     // Validate participant exists
+    // participant.id IS the socket ID (set in meetingHandlers.js line 501)
     const participant = meeting.participants.find(p => p.id === participantId);
     if (!participant) {
-      console.log(`❌ Participant ${participantId} not found in meeting. Available participants:`, meeting.participants.map(p => ({ id: p.id, name: p.name, socketId: p.socketId })));
+      console.log(`❌ Participant ${participantId} not found in meeting. Available participants:`, meeting.participants.map(p => ({ id: p.id, name: p.name })));
       return;
     }
     
-    // Use socketId if available, otherwise use id
-    const targetSocketId = participant.socketId || participant.id || participantId;
-    console.log(`📸 Sending request to participant ${participant.name} (Socket ID: ${targetSocketId})`);
+    // participant.id is the socket ID
+    const targetSocketId = participant.id;
+    console.log(`📸 Sending request to participant ${participant.name} (Socket ID: ${targetSocketId}, participantId: ${participantId})`);
     
     // Validate duration (max 10 minutes = 600 seconds)
     const validDuration = Math.min(Math.max(duration, 10), 600);

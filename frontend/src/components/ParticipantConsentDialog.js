@@ -25,10 +25,20 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       return;
     }
 
-    console.log('📸 ParticipantConsentDialog: Setting up socket listeners');
+    if (!socket.connected) {
+      console.log('📸 ParticipantConsentDialog: Socket not connected');
+      return;
+    }
+
+    console.log('📸 ParticipantConsentDialog: Setting up socket listeners', {
+      socketId: socket.id,
+      connected: socket.connected,
+      meetingId,
+      currentUserId
+    });
 
     const handleCameraMicRequest = (data) => {
-      console.log('📸 ParticipantConsentDialog: Received camera-mic-request:', data);
+      console.log('📸 ParticipantConsentDialog: ✅✅✅ Received camera-mic-request:', data);
       setRequest(data);
       setWarningShown(false);
       setShowWarning(false);
@@ -47,12 +57,20 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
     socket.on('camera-mic-request', handleCameraMicRequest);
     socket.on('camera-mic-request-expired', handleRequestExpired);
 
+    // Also listen for any socket events to debug
+    socket.onAny((eventName, ...args) => {
+      if (eventName === 'camera-mic-request' || eventName === 'camera-mic-request-expired') {
+        console.log(`📸 ParticipantConsentDialog: Socket event received: ${eventName}`, args);
+      }
+    });
+
     return () => {
       console.log('📸 ParticipantConsentDialog: Cleaning up socket listeners');
       socket.off('camera-mic-request', handleCameraMicRequest);
       socket.off('camera-mic-request-expired', handleRequestExpired);
+      socket.offAny();
     };
-  }, [socket, onSessionStateChange]);
+  }, [socket, meetingId, currentUserId, onSessionStateChange]);
 
   useEffect(() => {
     if (!request || !request.approved) return;

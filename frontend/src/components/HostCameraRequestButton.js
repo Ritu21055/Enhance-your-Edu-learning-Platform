@@ -34,15 +34,27 @@ const HostCameraRequestButton = ({
   if (!isVideoOff && !isAudioOff) return null;
 
   const handleRequest = () => {
-    if (!socket) return;
+    if (!socket) {
+      console.log('📸 HostCameraRequestButton: No socket available');
+      return;
+    }
 
-    socket.emit('host-request-camera-mic', {
+    const requestData = {
       meetingId,
       participantId: participant.id,
       requestType,
       duration,
       customMessage: customMessage.trim() || undefined
+    };
+
+    console.log('📸 HostCameraRequestButton: Sending request:', requestData);
+    console.log('📸 HostCameraRequestButton: Participant details:', {
+      id: participant.id,
+      name: participant.name,
+      socketId: socket.id
     });
+
+    socket.emit('host-request-camera-mic', requestData);
 
     setShowDialog(false);
     setCustomMessage('');
