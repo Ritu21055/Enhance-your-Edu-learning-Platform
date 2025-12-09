@@ -131,11 +131,40 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
   }, [socket, meetingId, currentUserId, onSessionStateChange]);
 
   useEffect(() => {
-    if (!request || !request.approved) return;
+    if (!request || !request.approved || !request.startTime) {
+      // Reset time remaining if request is not approved or doesn't have startTime
+      if (!request || !request.approved) {
+        setTimeRemaining(0);
+      }
+      return;
+    }
+
+    // Initialize timeRemaining immediately
+    const calculateRemaining = () => {
+      if (!request.startTime) return 0;
+      const elapsed = (Date.now() - request.startTime) / 1000;
+      return Math.max(0, request.duration - elapsed);
+    };
+
+    // Set initial time remaining
+    const initialRemaining = calculateRemaining();
+    setTimeRemaining(initialRemaining);
+
+    // If already expired, end session immediately
+    if (initialRemaining <= 0) {
+      console.log('📸 ParticipantConsentDialog: Session already expired, ending immediately');
+      handleSessionEnd();
+      return;
+    }
+
+    console.log('📸 ParticipantConsentDialog: Starting countdown timer', {
+      duration: request.duration,
+      startTime: request.startTime,
+      initialRemaining: initialRemaining
+    });
 
     let timer = setInterval(() => {
-      const elapsed = (Date.now() - request.startTime) / 1000;
-      const remaining = request.duration - elapsed;
+      const remaining = calculateRemaining();
       
       if (remaining <= 10 && remaining > 0 && !warningShown) {
         setShowWarning(true);
@@ -143,20 +172,62 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       }
       
       if (remaining <= 0) {
-        handleSessionEnd();
+        console.log('📸 ParticipantConsentDialog: Timer reached 0, ending session');
         clearInterval(timer);
+        handleSessionEnd();
       } else {
         setTimeRemaining(remaining);
       }
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+    };
   }, [request, warningShown]);
 
   const handleApprove = async () => {
+    // Store request data before closing dialog
+    const requestData = { ...request };
+    
+    // Close the request dialog immediately
+    const startTime = Date.now();
+    const approvedRequest = { 
+      ...requestData, 
+      approved: true, 
+      startTime: startTime
+    };
+    
+    console.log('📸 ParticipantConsentDialog: Request approved, closing dialog and starting session', {
+      requestId: requestData.requestId,
+      duration: requestData.duration,
+      startTime: startTime
+    });
+    
+    // Update state immediately to close request dialog and show active session dialog
+    setRequest(approvedRequest);
+    setTimeRemaining(requestData.duration); // Initialize time remaining
+    
+    // Emit response immediately
+    socket.emit('camera-mic-request-response', {
+      requestId: requestData.requestId,
+      participantId: currentUserId,
+      approved: true,
+      meetingId
+    });
+    
+    // Notify parent component immediately
+    if (onSessionStateChange) {
+      onSessionStateChange({
+        requestType: requestData.requestType,
+        duration: requestData.duration,
+        startTime: startTime
+      });
+    }
+    
+    // Get user media asynchronously (don't block dialog closing)
     const constraints = {
-      video: request.requestType === 'camera' || request.requestType === 'both',
-      audio: request.requestType === 'audio' || request.requestType === 'both'
+      video: requestData.requestType === 'camera' || requestData.requestType === 'both',
+      audio: requestData.requestType === 'audio' || requestData.requestType === 'both'
     };
 
     try {
@@ -165,52 +236,48 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       if (window.updateVideoCallPeerConnections) {
         window.updateVideoCallPeerConnections(stream, 'both');
       }
-
-      socket.emit('camera-mic-request-response', {
-        requestId: request.requestId,
-        participantId: currentUserId,
-        approved: true,
-        meetingId
-      });
-
-      const approvedRequest = { 
-        ...request, 
-        approved: true, 
-        startTime: Date.now() 
-      };
-      setRequest(approvedRequest);
       
-      if (onSessionStateChange) {
-        onSessionStateChange({
-          requestType: request.requestType,
-          duration: request.duration,
-          startTime: Date.now()
-        });
-      }
+      console.log('📸 ParticipantConsentDialog: Media access granted successfully');
     } catch (error) {
-      console.error('Error accessing media:', error);
+      console.error('📸 ParticipantConsentDialog: Error accessing media:', error);
+      // If media access fails, end the session
       socket.emit('camera-mic-request-response', {
-        requestId: request.requestId,
+        requestId: requestData.requestId,
         participantId: currentUserId,
         approved: false,
         meetingId
       });
-      setRequest(null);
+      handleSessionEnd();
     }
   };
 
   const handleDeny = () => {
+    console.log('📸 ParticipantConsentDialog: Request denied, closing dialog immediately');
+    
+    // Emit response
     socket.emit('camera-mic-request-response', {
       requestId: request.requestId,
       participantId: currentUserId,
       approved: false,
       meetingId
     });
+    
+    // Close dialog immediately
     setRequest(null);
+    setTimeRemaining(0);
+    setShowWarning(false);
+    setWarningShown(false);
+    
+    // Notify parent component
+    if (onSessionStateChange) {
+      onSessionStateChange(null);
+    }
   };
 
   const handleSessionEnd = () => {
-    if (window.localStreamRef?.current) {
+    console.log('📸 ParticipantConsentDialog: Ending session');
+    
+    if (window.localStreamRef?.current && request) {
       window.localStreamRef.current.getTracks().forEach(track => {
         if (track.kind === 'video' && (request.requestType === 'camera' || request.requestType === 'both')) {
           track.stop();
@@ -226,6 +293,7 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
     }
     
     setRequest(null);
+    setTimeRemaining(0);
     setShowWarning(false);
     setWarningShown(false);
   };
@@ -322,8 +390,12 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
 
       {request.approved && (
         <Dialog 
-          open={!!request} 
-          onClose={() => {}}
+          open={!!request && request.approved} 
+          onClose={() => {
+            // Allow closing the dialog, but keep the session active
+            // The session will still be locked until time expires
+            console.log('📸 ParticipantConsentDialog: Dialog closed by user, but session remains active');
+          }}
           maxWidth="sm"
           fullWidth
         >
@@ -339,11 +411,11 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
 
               <Box sx={{ mb: 2 }}>
                 <Typography variant="h6" color="primary" sx={{ mb: 1 }}>
-                  {Math.floor(timeRemaining)}s remaining
+                  {timeRemaining > 0 ? `${Math.floor(timeRemaining)}s remaining` : 'Session ended'}
                 </Typography>
                 <LinearProgress 
                   variant="determinate" 
-                  value={(timeRemaining / request.duration) * 100} 
+                  value={request.duration > 0 ? (timeRemaining / request.duration) * 100 : 0} 
                   sx={{ height: 8, borderRadius: 4 }}
                   color={timeRemaining <= 10 ? 'error' : 'primary'}
                 />
