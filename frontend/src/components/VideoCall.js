@@ -244,8 +244,13 @@ const VideoCallComponent = memo(({
       const shouldBeEnabled = isVideoEnabled; // Use prop directly
       const currentStream = localStream; // Use prop directly
       const trackEnabled = videoTrack.enabled;
+      const trackReady = videoTrack.readyState === 'live'; // Check if track is still active
       
-      if (shouldBeEnabled && trackEnabled) {
+      // CRITICAL: Show video only if ALL conditions are met:
+      // 1. State says video should be enabled
+      // 2. Track is enabled
+      // 3. Track is still live (not stopped/ended)
+      if (shouldBeEnabled && trackEnabled && trackReady) {
         // CRITICAL: Check if video is actually visible before showing
         const wasHidden = videoElement.style.opacity === '0' || 
                          videoElement.style.visibility === 'hidden' ||
@@ -270,14 +275,23 @@ const VideoCallComponent = memo(({
         }
       } else {
         // Hide video - completely hide when disabled or track stopped
+        console.log('🎥 VideoCall: updateVideo - Hiding local video', {
+          shouldBeEnabled,
+          trackEnabled,
+          trackReady: videoTrack.readyState,
+          trackState: videoTrack.readyState
+        });
+        
         videoElement.style.opacity = '0';
         videoElement.style.visibility = 'hidden';
         videoElement.style.display = 'none'; // Use display: none to completely hide
         videoElement.pause(); // Pause the video
         
-        // If track is stopped/ended, log it
+        // If track is stopped/ended, also try to clear srcObject to prevent frozen frame
         if (videoTrack.readyState === 'ended') {
-          console.log('🎥 VideoCall: Local video track ended, video hidden');
+          console.log('🎥 VideoCall: Local video track ended, video hidden and srcObject cleared');
+          // Don't clear srcObject completely as it might break the stream
+          // But ensure it's hidden
         }
       }
     };
@@ -297,10 +311,23 @@ const VideoCallComponent = memo(({
         updateVideo();
       }
     };
+    
+    // CRITICAL: Listen for track ended event to immediately hide video when track stops
+    const handleTrackEnded = () => {
+      console.log('🎥 VideoCall: Local video track ended, hiding video immediately');
+      if (videoElement) {
+        videoElement.style.opacity = '0';
+        videoElement.style.visibility = 'hidden';
+        videoElement.style.display = 'none';
+        videoElement.pause();
+      }
+      updateVideo();
+    };
 
     // Listen to track events
     videoTrack.addEventListener('mute', handleMute);
     videoTrack.addEventListener('unmute', handleUnmute);
+    videoTrack.addEventListener('ended', handleTrackEnded);
 
     // Simple protection - only protect if video should be enabled
     // CRITICAL: Use a function that reads props directly to avoid stale closures
@@ -386,6 +413,7 @@ const VideoCallComponent = memo(({
       clearInterval(checkInterval);
       videoTrack.removeEventListener('mute', handleMute);
       videoTrack.removeEventListener('unmute', handleUnmute);
+      videoTrack.removeEventListener('ended', handleTrackEnded);
     };
     // CRITICAL: Depend on props for initial setup, but use refs inside for updates
     // This ensures video starts properly but doesn't re-run when chat opens
@@ -582,11 +610,15 @@ const VideoCallComponent = memo(({
       return false;
     }
     
-    // If video should be enabled, check if track exists and is enabled
+    // If video should be enabled, check if track exists, is enabled, AND is still live
     if (videoTrack) {
       const trackEnabled = videoTrack.enabled;
-      // Show video if track is enabled AND isVideoEnabled prop is true
-      return trackEnabled && isVideoEnabled;
+      const trackReady = videoTrack.readyState === 'live'; // Track must be active, not stopped
+      // Show video only if ALL conditions are met:
+      // 1. isVideoEnabled prop is true
+      // 2. Track is enabled
+      // 3. Track is still live (not stopped/ended)
+      return trackEnabled && isVideoEnabled && trackReady;
     }
     // No video track - use prop value
     return isVideoEnabled;
@@ -624,42 +656,49 @@ const VideoCallComponent = memo(({
                       el.srcObject = localStream;
                     }
                     
-                    // Ensure video track is enabled
-                    if (videoTrack && !videoTrack.enabled) {
-                      videoTrack.enabled = true;
-                    }
+                    // CRITICAL: Only force visibility if video should be enabled
+                    // Check both isVideoEnabled prop and track state
+                    const shouldShow = isVideoEnabled && 
+                                     videoTrack && 
+                                     videoTrack.enabled && 
+                                     videoTrack.readyState === 'live';
                     
-                    // Force visibility
-                    el.style.opacity = '1';
-                    el.style.visibility = 'visible';
-                    el.style.display = 'block';
-                    
-                    // Force play immediately with retry
-                    const playVideo = () => {
-                      if (el && el.srcObject && localStream.active) {
-                        el.play().catch(() => {
-                          // Retry after a short delay
-                          setTimeout(() => {
-                            if (el && !el.paused) return;
-                            playVideo();
-                          }, 300);
-                        });
+                    if (shouldShow) {
+                      // Ensure video track is enabled
+                      if (videoTrack && !videoTrack.enabled) {
+                        videoTrack.enabled = true;
                       }
-                    };
-                    
-                    // Try playing immediately
-                    setTimeout(playVideo, 100);
+                      
+                      // Force visibility only if should be shown
+                      el.style.opacity = '1';
+                      el.style.visibility = 'visible';
+                      el.style.display = 'block';
+                      
+                      // Force play immediately with retry
+                      const playVideo = () => {
+                        if (el && el.srcObject && localStream.active) {
+                          el.play().catch(() => {
+                            // Retry after a short delay
+                            setTimeout(() => {
+                              if (el && !el.paused) return;
+                              playVideo();
+                            }, 300);
+                          });
+                        }
+                      };
+                      
+                      // Try playing immediately
+                      setTimeout(playVideo, 100);
+                    } else {
+                      // Video should be hidden
+                      el.style.opacity = '0';
+                      el.style.visibility = 'hidden';
+                      el.style.display = 'none';
+                      el.pause();
+                    }
                   }
                   
-                  // CRITICAL: Force visibility - check computed styles too
-                  const computedStyle = window.getComputedStyle(el);
-                  
-                  if (computedStyle.opacity === '0' || computedStyle.visibility === 'hidden' ||
-                      el.style.opacity === '0' || el.style.visibility === 'hidden') {
-                    el.style.opacity = '1';
-                    el.style.visibility = 'visible';
-                    el.style.display = 'block';
-                  }
+                  // Set dimensions
                   el.style.width = '100%';
                   el.style.height = '100%';
                 }
@@ -669,7 +708,7 @@ const VideoCallComponent = memo(({
               playsInline
               muted
               style={{
-                // CRITICAL: Force video to always be visible if stream exists
+                // CRITICAL: Conditional visibility based on isLocalVideoEnabled
                 position: 'relative',
                 zIndex: 1,
                 width: '100%',
@@ -677,10 +716,10 @@ const VideoCallComponent = memo(({
                 minWidth: '100%',
                 minHeight: '100%',
                 objectFit: 'cover',
-                // CRITICAL: Always show video element if stream exists, even if track is disabled
-                opacity: '1 !important',
-                visibility: 'visible !important',
-                display: 'block !important'
+                // CRITICAL: Show/hide based on video enabled state (no !important to allow updateVideo to control it)
+                opacity: isLocalVideoEnabled ? 1 : 0,
+                visibility: isLocalVideoEnabled ? 'visible' : 'hidden',
+                display: isLocalVideoEnabled ? 'block' : 'none'
               }}
             />
             {!isLocalVideoEnabled && (
