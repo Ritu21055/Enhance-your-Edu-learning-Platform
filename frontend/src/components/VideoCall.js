@@ -53,42 +53,90 @@ const VideoCallComponent = memo(({
 
   // CRITICAL: Update video element when localStream changes (e.g., after camera/mic request approval)
   useEffect(() => {
-    if (!localStream || !localVideoRef.current) {
+    if (!localStream) {
+      console.log('🎥 VideoCall: No local stream, skipping video element update');
       return;
     }
 
-    const videoElement = localVideoRef.current;
-    const videoTrack = localStream.getVideoTracks()[0];
-    
-    console.log('🎥 VideoCall: Local stream changed, updating video element', {
-      streamId: localStream.id,
-      hasVideoTrack: !!videoTrack,
-      videoTrackEnabled: videoTrack?.enabled,
-      currentSrcObject: videoElement.srcObject?.id
-    });
+    // Wait a bit for the video element to be available if it's being rendered
+    const updateVideoElement = () => {
+      const videoElement = localVideoRef.current;
+      if (!videoElement) {
+        console.log('🎥 VideoCall: Video element not ready yet, will retry...');
+        return false;
+      }
 
-    // Update srcObject if it's different
-    if (videoElement.srcObject !== localStream) {
-      console.log('🎥 VideoCall: Setting new srcObject for local video');
-      videoElement.srcObject = localStream;
-    }
-
-    // Ensure video track is enabled
-    if (videoTrack && !videoTrack.enabled) {
-      console.log('🎥 VideoCall: Enabling video track');
-      videoTrack.enabled = true;
-    }
-
-    // Force video to be visible and playing
-    videoElement.style.opacity = '1';
-    videoElement.style.visibility = 'visible';
-    videoElement.style.display = 'block';
-    
-    // Play the video
-    if (videoElement.paused && localStream.active) {
-      videoElement.play().catch(err => {
-        console.warn('🎥 VideoCall: Error playing video after stream change:', err);
+      const videoTrack = localStream.getVideoTracks()[0];
+      
+      console.log('🎥 VideoCall: Local stream changed, updating video element', {
+        streamId: localStream.id,
+        hasVideoTrack: !!videoTrack,
+        videoTrackEnabled: videoTrack?.enabled,
+        videoTrackReady: videoTrack?.readyState,
+        currentSrcObject: videoElement.srcObject?.id,
+        elementReady: !!videoElement,
+        elementPaused: videoElement.paused
       });
+
+      // CRITICAL: Always update srcObject when stream changes (even if same reference)
+      // This ensures the video element picks up the new stream
+      if (videoElement.srcObject !== localStream) {
+        console.log('🎥 VideoCall: Setting new srcObject for local video');
+        videoElement.srcObject = localStream;
+      }
+
+      // Ensure video track is enabled
+      if (videoTrack) {
+        if (!videoTrack.enabled) {
+          console.log('🎥 VideoCall: Enabling video track');
+          videoTrack.enabled = true;
+        }
+        
+        // Ensure track is live
+        if (videoTrack.readyState !== 'live') {
+          console.log('🎥 VideoCall: Video track not live yet, waiting...', {
+            readyState: videoTrack.readyState
+          });
+        }
+      }
+
+      // Force video to be visible and playing
+      videoElement.style.opacity = '1';
+      videoElement.style.visibility = 'visible';
+      videoElement.style.display = 'block';
+      
+      // Play the video with retry logic
+      const playVideo = () => {
+        if (videoElement.paused && localStream.active) {
+          videoElement.play().then(() => {
+            console.log('🎥 VideoCall: Video playing successfully after stream change');
+          }).catch(err => {
+            console.warn('🎥 VideoCall: Error playing video after stream change:', err);
+            // Retry after a short delay
+            setTimeout(() => {
+              if (videoElement && !videoElement.paused) return;
+              console.log('🎥 VideoCall: Retrying video play...');
+              playVideo();
+            }, 500);
+          });
+        }
+      };
+      
+      playVideo();
+      
+      return true;
+    };
+
+    // Try immediately
+    if (!updateVideoElement()) {
+      // If element not ready, retry after a short delay
+      const retryTimeout = setTimeout(() => {
+        if (!updateVideoElement()) {
+          console.warn('🎥 VideoCall: Video element still not ready after retry');
+        }
+      }, 200);
+      
+      return () => clearTimeout(retryTimeout);
     }
   }, [localStream, localVideoRef]);
 
@@ -787,23 +835,55 @@ const VideoCallComponent = memo(({
                   }
                   
                   // CRITICAL: Ensure srcObject is set immediately when element is available
-                  if (localStream && el.srcObject !== localStream) {
-                    console.log('🎥🎥🎥 Setting local video srcObject:', {
+                  // Always set srcObject if stream exists, even if it's the same (handles stream replacement)
+                  if (localStream) {
+                    const videoTrack = localStream.getVideoTracks()[0];
+                    const needsUpdate = el.srcObject !== localStream;
+                    
+                    console.log('🎥🎥🎥 Setting local video srcObject in ref callback:', {
                       streamId: localStream.id,
                       hasVideoTrack: localStream.getVideoTracks().length > 0,
-                      videoTrackEnabled: localStream.getVideoTracks()[0]?.enabled,
+                      videoTrackEnabled: videoTrack?.enabled,
+                      videoTrackReady: videoTrack?.readyState,
                       elementReady: !!el,
-                      currentSrcObject: el.srcObject?.id
+                      currentSrcObject: el.srcObject?.id,
+                      needsUpdate: needsUpdate,
+                      streamActive: localStream.active
                     });
-                    el.srcObject = localStream;
-                    // Force play immediately
-                    setTimeout(() => {
-                      if (el && el.srcObject) {
-                        el.play().catch(err => {
-                          console.warn('🎥 Local video play error:', err);
+                    
+                    if (needsUpdate) {
+                      el.srcObject = localStream;
+                    }
+                    
+                    // Ensure video track is enabled
+                    if (videoTrack && !videoTrack.enabled) {
+                      console.log('🎥🎥🎥 Enabling video track in ref callback');
+                      videoTrack.enabled = true;
+                    }
+                    
+                    // Force visibility
+                    el.style.opacity = '1';
+                    el.style.visibility = 'visible';
+                    el.style.display = 'block';
+                    
+                    // Force play immediately with retry
+                    const playVideo = () => {
+                      if (el && el.srcObject && localStream.active) {
+                        el.play().then(() => {
+                          console.log('🎥🎥🎥 Local video playing successfully in ref callback');
+                        }).catch(err => {
+                          console.warn('🎥 Local video play error in ref callback:', err);
+                          // Retry after a short delay
+                          setTimeout(() => {
+                            if (el && !el.paused) return;
+                            playVideo();
+                          }, 300);
                         });
                       }
-                    }, 100);
+                    };
+                    
+                    // Try playing immediately
+                    setTimeout(playVideo, 100);
                   }
                   
                   // CRITICAL: Force visibility - check computed styles too
