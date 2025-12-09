@@ -906,11 +906,13 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
       window.isVideoEnabledRef = isVideoEnabledRef;
       window.isVideoEnabled = isVideoEnabled; // Current state value
       window.setIsVideoEnabled = setIsVideoEnabled; // Setter function
+      window.isAudioEnabled = isAudioEnabled; // Current audio state value
+      window.setIsAudioEnabled = setIsAudioEnabled; // Audio setter function
     }
     return () => {
       // Keep refs available even after cleanup
     };
-  }, [isVideoEnabled, setIsVideoEnabled]);
+  }, [isVideoEnabled, setIsVideoEnabled, isAudioEnabled, setIsAudioEnabled]);
 
   return {
     isAudioEnabled,

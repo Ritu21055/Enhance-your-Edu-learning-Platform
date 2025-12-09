@@ -158,7 +158,89 @@ const MeetingRoom = () => {
   useEffect(() => {
     window.isAudioLocked = isAudioLocked;
     window.isVideoLocked = isVideoLocked;
-  }, [isAudioLocked, isVideoLocked]);
+    console.log('🔒 MeetingRoom: Lock states updated', {
+      isAudioLocked,
+      isVideoLocked,
+      hasActiveSession: !!activeSession,
+      activeSession: activeSession
+    });
+  }, [isAudioLocked, isVideoLocked, activeSession]);
+
+  // CRITICAL: Auto-clear activeSession when time limit expires
+  // This ensures the lock is removed even if the dialog component unmounts
+  useEffect(() => {
+    if (!activeSession || !activeSession.startTime || !activeSession.duration) {
+      return;
+    }
+
+    const calculateRemaining = () => {
+      const elapsed = (Date.now() - activeSession.startTime) / 1000;
+      return Math.max(0, activeSession.duration - elapsed);
+    };
+
+    // Check immediately
+    const initialRemaining = calculateRemaining();
+    if (initialRemaining <= 0) {
+      console.log('🔒 MeetingRoom: Session already expired, clearing activeSession');
+      setActiveSession(null);
+      return;
+    }
+
+    console.log('🔒 MeetingRoom: Starting session expiration timer', {
+      duration: activeSession.duration,
+      startTime: activeSession.startTime,
+      remaining: initialRemaining
+    });
+
+    // Set up timer to check every second
+    const timer = setInterval(() => {
+      const remaining = calculateRemaining();
+      
+      console.log('🔒 MeetingRoom: Timer tick', {
+        remaining: remaining.toFixed(1),
+        duration: activeSession.duration,
+        startTime: activeSession.startTime,
+        currentTime: Date.now()
+      });
+      
+      if (remaining <= 0) {
+        console.log('🔒 MeetingRoom: ⏰⏰⏰ SESSION TIME LIMIT EXPIRED - CLEARING ACTIVE SESSION ⏰⏰⏰');
+        clearInterval(timer);
+        setActiveSession(null);
+        
+        // CRITICAL: Also disable tracks if they're still enabled
+        if (window.localStreamRef?.current) {
+          const stream = window.localStreamRef.current;
+          stream.getTracks().forEach(track => {
+            if (track.kind === 'video' && (activeSession.requestType === 'camera' || activeSession.requestType === 'both')) {
+              console.log('🔒 MeetingRoom: Disabling video track after session expiry');
+              track.enabled = false;
+            }
+            if (track.kind === 'audio' && (activeSession.requestType === 'audio' || activeSession.requestType === 'both')) {
+              console.log('🔒 MeetingRoom: Disabling audio track after session expiry');
+              track.enabled = false;
+            }
+          });
+          
+          // Update video state
+          if ((activeSession.requestType === 'camera' || activeSession.requestType === 'both') && window.setIsVideoEnabled) {
+            window.setIsVideoEnabled(false);
+            console.log('🔒 MeetingRoom: Set video state to disabled after session expiry');
+          }
+          
+          // Update audio state
+          if ((activeSession.requestType === 'audio' || activeSession.requestType === 'both') && window.setIsAudioEnabled) {
+            window.setIsAudioEnabled(false);
+            console.log('🔒 MeetingRoom: Set audio state to disabled after session expiry');
+          }
+        }
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [activeSession]);
   
   // Note: Video state refs (isVideoEnabledRef, setIsVideoEnabled) are exposed to window
   // by useMediaControls hook itself - no need to expose them here
