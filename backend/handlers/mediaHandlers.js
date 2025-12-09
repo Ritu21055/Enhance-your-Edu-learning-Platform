@@ -79,6 +79,7 @@ export default function registerMediaHandlers(socket, io) {
     // participant.id is the socket ID
     const targetSocketId = participant.id;
     console.log(`📸 Sending request to participant ${participant.name} (Socket ID: ${targetSocketId}, participantId: ${participantId})`);
+    console.log(`📸 All participants in meeting:`, meeting.participants.map(p => ({ id: p.id, name: p.name, socketId: p.id })));
     
     // Validate duration (max 10 minutes = 600 seconds)
     const validDuration = Math.min(Math.max(duration, 10), 600);
@@ -95,8 +96,29 @@ export default function registerMediaHandlers(socket, io) {
       timestamp: Date.now()
     };
     
-    console.log(`📸 Emitting camera-mic-request to ${targetSocketId}:`, requestData);
+    console.log(`📸 Emitting camera-mic-request to socket ID: ${targetSocketId}`);
+    console.log(`📸 Request data:`, JSON.stringify(requestData, null, 2));
+    
+    // Check if socket exists in the server's socket list
+    const socketExists = io.sockets.sockets.has(targetSocketId);
+    console.log(`📸 Socket ${targetSocketId} exists in server: ${socketExists}`);
+    
+    if (!socketExists) {
+      console.error(`❌ ERROR: Socket ${targetSocketId} not found in server's socket list!`);
+      console.log(`📸 Available socket IDs:`, Array.from(io.sockets.sockets.keys()));
+    }
+    
+    // Primary: emit directly to socket ID using io.to()
     io.to(targetSocketId).emit('camera-mic-request', requestData);
+    console.log(`📸 ✅ camera-mic-request event emitted to ${targetSocketId}`);
+    
+    // Also emit to meeting room as backup (participant will filter by checking if request is for them)
+    // Include targetSocketId in the data so participant can verify
+    io.to(meetingId).emit('camera-mic-request', {
+      ...requestData,
+      targetSocketId // Include target socket ID so participant can verify it's for them
+    });
+    console.log(`📸 ✅ camera-mic-request event also emitted to meeting room ${meetingId} as backup (with targetSocketId filter)`);
     
     // Set timeout to expire request if no response (30 seconds)
     setTimeout(() => {

@@ -25,20 +25,22 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       return;
     }
 
-    if (!socket.connected) {
-      console.log('📸 ParticipantConsentDialog: Socket not connected');
-      return;
-    }
-
-    console.log('📸 ParticipantConsentDialog: Setting up socket listeners', {
-      socketId: socket.id,
-      connected: socket.connected,
-      meetingId,
-      currentUserId
-    });
+    let isSetup = false;
 
     const handleCameraMicRequest = (data) => {
       console.log('📸 ParticipantConsentDialog: ✅✅✅ Received camera-mic-request:', data);
+      
+      // If request includes targetSocketId, only process if it matches current user's socket ID
+      if (data.targetSocketId && data.targetSocketId !== currentUserId && data.targetSocketId !== socket.id) {
+        console.log('📸 ParticipantConsentDialog: Request is for different participant, ignoring', {
+          targetSocketId: data.targetSocketId,
+          currentUserId,
+          socketId: socket.id
+        });
+        return;
+      }
+      
+      console.log('📸 ParticipantConsentDialog: Processing request for this participant');
       setRequest(data);
       setWarningShown(false);
       setShowWarning(false);
@@ -46,29 +48,85 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
 
     const handleRequestExpired = ({ requestId }) => {
       console.log('📸 ParticipantConsentDialog: Request expired:', requestId);
-      if (request?.requestId === requestId) {
-        setRequest(null);
-        if (onSessionStateChange) {
-          onSessionStateChange(null);
+      setRequest(prevRequest => {
+        if (prevRequest?.requestId === requestId) {
+          if (onSessionStateChange) {
+            onSessionStateChange(null);
+          }
+          return null;
         }
-      }
+        return prevRequest;
+      });
     };
 
-    socket.on('camera-mic-request', handleCameraMicRequest);
-    socket.on('camera-mic-request-expired', handleRequestExpired);
-
-    // Also listen for any socket events to debug
-    socket.onAny((eventName, ...args) => {
+    const handleAnyEvent = (eventName, ...args) => {
       if (eventName === 'camera-mic-request' || eventName === 'camera-mic-request-expired') {
         console.log(`📸 ParticipantConsentDialog: Socket event received: ${eventName}`, args);
       }
-    });
+    };
+
+    const setupListeners = () => {
+      if (!socket.connected) {
+        console.log('📸 ParticipantConsentDialog: Socket not connected, waiting...', {
+          socketId: socket.id,
+          connected: socket.connected
+        });
+        return false;
+      }
+
+      if (isSetup) {
+        console.log('📸 ParticipantConsentDialog: Listeners already set up, skipping');
+        return true;
+      }
+
+      console.log('📸 ParticipantConsentDialog: Setting up socket listeners', {
+        socketId: socket.id,
+        connected: socket.connected,
+        meetingId,
+        currentUserId
+      });
+
+      // Remove any existing listeners first to avoid duplicates
+      socket.off('camera-mic-request', handleCameraMicRequest);
+      socket.off('camera-mic-request-expired', handleRequestExpired);
+      socket.offAny(handleAnyEvent);
+
+      // Set up new listeners
+      socket.on('camera-mic-request', handleCameraMicRequest);
+      socket.on('camera-mic-request-expired', handleRequestExpired);
+      socket.onAny(handleAnyEvent);
+
+      isSetup = true;
+      return true;
+    };
+
+    // Set up listeners immediately if socket is connected
+    setupListeners();
+
+    // Also listen for socket connection events
+    const handleConnect = () => {
+      console.log('📸 ParticipantConsentDialog: Socket connected, setting up listeners');
+      setupListeners();
+    };
+
+    socket.on('connect', handleConnect);
+
+    // Also try to set up listeners after a short delay in case socket connects asynchronously
+    const timeoutId = setTimeout(() => {
+      if (socket.connected && !isSetup) {
+        console.log('📸 ParticipantConsentDialog: Socket connected after delay, setting up listeners');
+        setupListeners();
+      }
+    }, 1000);
 
     return () => {
       console.log('📸 ParticipantConsentDialog: Cleaning up socket listeners');
       socket.off('camera-mic-request', handleCameraMicRequest);
       socket.off('camera-mic-request-expired', handleRequestExpired);
-      socket.offAny();
+      socket.off('connect', handleConnect);
+      socket.offAny(handleAnyEvent);
+      clearTimeout(timeoutId);
+      isSetup = false;
     };
   }, [socket, meetingId, currentUserId, onSessionStateChange]);
 
