@@ -497,11 +497,28 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
         requestType: currentRequest.requestType
       });
       
+      // CRITICAL: Hide video element BEFORE stopping tracks to prevent frozen frame
+      if (currentRequest.requestType === 'camera' || currentRequest.requestType === 'both') {
+        if (window.localVideoRef && window.localVideoRef.current) {
+          const videoElement = window.localVideoRef.current;
+          console.log('📸 ParticipantConsentDialog: Hiding video element BEFORE stopping track');
+          videoElement.style.opacity = '0';
+          videoElement.style.visibility = 'hidden';
+          videoElement.style.display = 'none';
+          videoElement.pause();
+        }
+      }
+      
       tracks.forEach(track => {
         if (track.kind === 'video' && (currentRequest.requestType === 'camera' || currentRequest.requestType === 'both')) {
           console.log('📸 ParticipantConsentDialog: Disabling and stopping video track:', track.id);
           track.enabled = false; // Disable first
-          track.stop(); // Then stop
+          // Small delay before stopping to ensure video is hidden first
+          setTimeout(() => {
+            if (track.readyState !== 'ended') {
+              track.stop(); // Then stop
+            }
+          }, 100);
         }
         if (track.kind === 'audio' && (currentRequest.requestType === 'audio' || currentRequest.requestType === 'both')) {
           console.log('📸 ParticipantConsentDialog: Disabling and stopping audio track:', track.id);
@@ -523,10 +540,28 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
         if (window.localVideoRef && window.localVideoRef.current) {
           const videoElement = window.localVideoRef.current;
           console.log('📸 ParticipantConsentDialog: Hiding local video element directly');
+          
+          // Hide immediately with multiple methods to ensure it's hidden
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.style.display = 'none';
           videoElement.pause();
+          
+          // Also try to load empty source to clear the frozen frame
+          // But keep the stream for audio if needed
+          const videoTracks = stream.getVideoTracks();
+          if (videoTracks.length > 0 && videoTracks[0].readyState === 'ended') {
+            console.log('📸 ParticipantConsentDialog: Video track ended, ensuring video is hidden');
+            // Force hide again after a short delay to catch any delayed updates
+            setTimeout(() => {
+              if (videoElement) {
+                videoElement.style.opacity = '0';
+                videoElement.style.visibility = 'hidden';
+                videoElement.style.display = 'none';
+                videoElement.pause();
+              }
+            }, 100);
+          }
         }
       }
       

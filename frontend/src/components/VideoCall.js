@@ -312,17 +312,44 @@ const VideoCallComponent = memo(({
       }
     };
     
-    // CRITICAL: Listen for track ended event to immediately hide video when track stops
-    const handleTrackEnded = () => {
-      console.log('🎥 VideoCall: Local video track ended, hiding video immediately');
-      if (videoElement) {
-        videoElement.style.opacity = '0';
-        videoElement.style.visibility = 'hidden';
-        videoElement.style.display = 'none';
-        videoElement.pause();
-      }
-      updateVideo();
-    };
+        // CRITICAL: Listen for track ended event to immediately hide video when track stops
+        const handleTrackEnded = () => {
+          console.log('🎥 VideoCall: Local video track ended, hiding video immediately');
+          if (videoElement) {
+            // Hide immediately with multiple methods - do this FIRST before anything else
+            videoElement.style.opacity = '0';
+            videoElement.style.visibility = 'hidden';
+            videoElement.style.display = 'none';
+            videoElement.pause();
+            
+            // Try to clear the video frame by seeking to start
+            try {
+              if (videoElement.currentTime > 0) {
+                videoElement.currentTime = 0;
+              }
+            } catch (e) {
+              // Ignore seek errors
+            }
+            
+            // Force hide multiple times to ensure it stays hidden
+            const forceHide = () => {
+              if (videoElement) {
+                videoElement.style.opacity = '0';
+                videoElement.style.visibility = 'hidden';
+                videoElement.style.display = 'none';
+                videoElement.pause();
+              }
+            };
+            
+            // Hide immediately and again after delays
+            requestAnimationFrame(forceHide);
+            setTimeout(forceHide, 10);
+            setTimeout(forceHide, 50);
+            setTimeout(forceHide, 100);
+            setTimeout(forceHide, 200);
+          }
+          updateVideo();
+        };
 
     // Listen to track events
     videoTrack.addEventListener('mute', handleMute);
@@ -474,9 +501,17 @@ const VideoCallComponent = memo(({
           videoElement.style.display = 'none'; // Also set display to none for complete hiding
           videoElement.pause();
           
-          // If track is stopped/ended, log it for debugging
+          // If track is stopped/ended, also try to clear the currentTime to prevent frozen frame
           if (videoTrack && videoTrack.readyState === 'ended') {
             console.log(`📹 VideoCall: Track ended for ${participantId}, video hidden to prevent frozen frame`);
+            // Try to seek to start to clear the frame
+            try {
+              if (videoElement.currentTime > 0) {
+                videoElement.currentTime = 0;
+              }
+            } catch (e) {
+              // Ignore errors
+            }
           }
         }
         
@@ -496,13 +531,41 @@ const VideoCallComponent = memo(({
         // CRITICAL: Listen for track ended event to immediately hide video when track stops
         if (videoTrack && !videoElement._trackEndedListener) {
           const handleTrackEnded = () => {
-            console.log(`📹 VideoCall: Video track ended for ${participantId}, hiding video element`);
+            console.log(`📹 VideoCall: Video track ended for ${participantId}, hiding video element immediately`);
             const currentElement = remoteVideoRefs.current[participantId];
             if (currentElement) {
+              // Hide immediately with multiple methods
               currentElement.style.opacity = '0';
               currentElement.style.visibility = 'hidden';
               currentElement.style.display = 'none';
               currentElement.pause();
+              
+              // Try to clear the video frame
+              try {
+                if (currentElement.currentTime > 0) {
+                  currentElement.currentTime = 0;
+                }
+              } catch (e) {
+                // Ignore seek errors
+              }
+              
+              // Force hide multiple times to ensure it stays hidden
+              const forceHide = () => {
+                const el = remoteVideoRefs.current[participantId];
+                if (el) {
+                  el.style.opacity = '0';
+                  el.style.visibility = 'hidden';
+                  el.style.display = 'none';
+                  el.pause();
+                }
+              };
+              
+              // Hide immediately and again after delays
+              requestAnimationFrame(forceHide);
+              setTimeout(forceHide, 10);
+              setTimeout(forceHide, 50);
+              setTimeout(forceHide, 100);
+              setTimeout(forceHide, 200);
             }
           };
           
