@@ -391,41 +391,52 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       }
       
       // Update peer connections with the new stream
-      // This will also update the localStream state in useVideoCall hook
+      // CRITICAL: Pass the correct track type based on request type
+      const trackType = requestData.requestType === 'camera' ? 'video' : 
+                       requestData.requestType === 'audio' ? 'audio' : 'both';
+      
       if (window.updateVideoCallPeerConnections) {
-        console.log('📸 ParticipantConsentDialog: Updating peer connections with new stream');
-        window.updateVideoCallPeerConnections(stream, 'both');
+        console.log('📸 ParticipantConsentDialog: Updating peer connections with new stream', {
+          trackType,
+          requestType: requestData.requestType,
+          hasVideo: stream.getVideoTracks().length > 0,
+          hasAudio: stream.getAudioTracks().length > 0
+        });
+        window.updateVideoCallPeerConnections(stream, trackType);
       } else {
         console.error('📸 ParticipantConsentDialog: updateVideoCallPeerConnections not available!');
       }
       
-      // CRITICAL: Also set stream directly on localVideoRef if available
-      // This ensures the video element gets the stream immediately
-      // Try multiple times in case the element isn't ready yet
-      const setVideoElementStream = (attempt = 0) => {
-        if (window.localVideoRef && window.localVideoRef.current) {
-          const videoElement = window.localVideoRef.current;
-          if (videoElement.srcObject !== stream) {
-            videoElement.srcObject = stream;
-            console.log('📸 ParticipantConsentDialog: Set stream directly on localVideoRef element');
-            
-            // Force video to play
-            videoElement.play().catch(err => {
-              console.warn('📸 ParticipantConsentDialog: Video play failed:', err);
-            });
+      // CRITICAL: Only set stream on video element if video is requested
+      // For audio-only requests, we don't need to update the video element
+      if (requestData.requestType === 'camera' || requestData.requestType === 'both') {
+        const setVideoElementStream = (attempt = 0) => {
+          if (window.localVideoRef && window.localVideoRef.current) {
+            const videoElement = window.localVideoRef.current;
+            if (videoElement.srcObject !== stream) {
+              videoElement.srcObject = stream;
+              console.log('📸 ParticipantConsentDialog: Set stream directly on localVideoRef element');
+              
+              // Force video to play
+              videoElement.play().catch(err => {
+                console.warn('📸 ParticipantConsentDialog: Video play failed:', err);
+              });
+            } else {
+              console.log('📸 ParticipantConsentDialog: Video element already has the stream');
+            }
+          } else if (attempt < 5) {
+            // Retry after a short delay if element isn't ready
+            setTimeout(() => setVideoElementStream(attempt + 1), 200);
           } else {
-            console.log('📸 ParticipantConsentDialog: Video element already has the stream');
+            console.warn('📸 ParticipantConsentDialog: Video element not available after retries');
           }
-        } else if (attempt < 5) {
-          // Retry after a short delay if element isn't ready
-          setTimeout(() => setVideoElementStream(attempt + 1), 200);
-        } else {
-          console.warn('📸 ParticipantConsentDialog: Video element not available after retries');
-        }
-      };
-      
-      // Try immediately, then retry if needed
-      setVideoElementStream();
+        };
+        
+        // Try immediately, then retry if needed
+        setVideoElementStream();
+      } else {
+        console.log('📸 ParticipantConsentDialog: Audio-only request, skipping video element update');
+      }
       
       // Emit media state change to notify other participants
       if (socket && socket.connected) {

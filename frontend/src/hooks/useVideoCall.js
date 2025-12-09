@@ -1377,14 +1377,70 @@ const useVideoCall = (meetingId, userName) => {
   const updateAllPeerConnections = useCallback((newStream, trackType = 'both') => {
     // If a new stream is provided (e.g., from camera/mic request approval), update the local stream
     if (newStream && newStream !== streamRef.current) {
-      // Stop old tracks to free up resources
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
+      const oldStream = streamRef.current;
       
-      // Update stream ref and state
-      streamRef.current = newStream;
-      setLocalStream(newStream);
+      // CRITICAL: For audio-only requests, merge audio from new stream with video from old stream
+      // For video-only or both, replace the entire stream
+      if (trackType === 'audio' && oldStream) {
+        const oldVideoTrack = oldStream.getVideoTracks()[0];
+        const newAudioTrack = newStream.getAudioTracks()[0];
+        
+        if (oldVideoTrack && newAudioTrack) {
+          // Create a new stream with old video + new audio
+          const mergedStream = new MediaStream();
+          mergedStream.addTrack(oldVideoTrack);
+          mergedStream.addTrack(newAudioTrack);
+          
+          // Stop only the old audio track (keep video track)
+          const oldAudioTracks = oldStream.getAudioTracks();
+          oldAudioTracks.forEach(track => track.stop());
+          
+          // Stop video track from new stream if it exists (we don't need it)
+          const newVideoTracks = newStream.getVideoTracks();
+          newVideoTracks.forEach(track => track.stop());
+          
+          console.log('📸 useVideoCall: Merged streams - kept old video, added new audio', {
+            hasVideo: mergedStream.getVideoTracks().length > 0,
+            hasAudio: mergedStream.getAudioTracks().length > 0
+          });
+          
+          streamRef.current = mergedStream;
+          setLocalStream(mergedStream);
+          
+          // CRITICAL: Update window.localStreamRef with merged stream
+          if (window.localStreamRef) {
+            window.localStreamRef.current = mergedStream;
+            console.log('📸 useVideoCall: Updated window.localStreamRef with merged stream');
+          }
+        } else {
+          // Fallback: if we can't merge, just use new stream
+          console.warn('📸 useVideoCall: Cannot merge streams, using new stream', {
+            hasOldVideo: !!oldVideoTrack,
+            hasNewAudio: !!newAudioTrack
+          });
+          if (oldStream) {
+            oldStream.getTracks().forEach(track => track.stop());
+          }
+          streamRef.current = newStream;
+          setLocalStream(newStream);
+        }
+      } else {
+        // For video-only or both, replace entire stream
+        // Stop old tracks to free up resources
+        if (oldStream) {
+          oldStream.getTracks().forEach(track => track.stop());
+        }
+        
+        // Update stream ref and state
+        streamRef.current = newStream;
+        setLocalStream(newStream);
+        
+        // CRITICAL: Update window.localStreamRef with new stream
+        if (window.localStreamRef) {
+          window.localStreamRef.current = newStream;
+          console.log('📸 useVideoCall: Updated window.localStreamRef with new stream');
+        }
+      }
     }
     
     // Always use current streamRef - never change stream reference during toggles
