@@ -443,6 +443,13 @@ const VideoCallComponent = memo(({
       return name;
     }
     
+    // Debug: Log when participant is not found
+    if (participantId) {
+      console.warn(`⚠️ VideoCall: Participant ${participantId} not found in participants list. Available participants:`, 
+        participants.map(p => ({ id: p.id, name: p.name }))
+      );
+    }
+    
     // Fallback: use generic name
     return `Participant ${participantId.slice(0, 8)}`;
   };
@@ -623,8 +630,30 @@ const VideoCallComponent = memo(({
 
         {/* Remote Videos */}
         {Object.entries(remoteStreams).map(([participantId, stream]) => {
-          const participantName = getParticipantName(participantId);
-          const participant = participants.find(p => p.id === participantId);
+          // Try to find participant in the list
+          let participant = participants.find(p => p.id === participantId);
+          
+          // If not found, try to find by matching socket ID patterns or check if it's a known participant
+          if (!participant) {
+            // Debug: Log when participant is not found
+            console.warn(`⚠️ VideoCall: Participant ${participantId} not found in participants list when rendering video.`, {
+              participantId,
+              availableParticipants: participants.map(p => ({ id: p.id, name: p.name })),
+              remoteStreamIds: Object.keys(remoteStreams)
+            });
+            
+            // Try to find by partial match (in case of socket ID changes)
+            participant = participants.find(p => 
+              p.id && participantId && (
+                p.id.includes(participantId.slice(0, 8)) || 
+                participantId.includes(p.id.slice(0, 8))
+              )
+            );
+          }
+          
+          const participantName = participant?.name 
+            ? participant.name.replace(' (Host)', '').trim()
+            : getParticipantName(participantId);
           const isHost = participant?.isHost || false;
           
           // Add "(Host)" suffix for host participants
