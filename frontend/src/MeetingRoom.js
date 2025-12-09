@@ -850,13 +850,6 @@ const MeetingRoom = () => {
               </Box>
             )}
             
-            {/* Host Camera/Mic Request Component */}
-            <HostCameraRequest
-              isHost={isHost}
-              socket={socket}
-              meetingId={meetingId}
-              participants={participants}
-            />
           </Box>
         )}
 
