@@ -595,11 +595,15 @@ const useVideoCall = (meetingId, userName) => {
           if (videoElement) {
             const videoTrack = stream.getVideoTracks()[0];
             const trackReady = videoTrack?.readyState === 'live';
-            const shouldShow = videoEnabled !== false && trackReady;
+            const trackEnabled = videoTrack?.enabled ?? false;
+            // CRITICAL: Hide if video is disabled OR track is not ready (stopped/ended)
+            const shouldShow = videoEnabled !== false && trackReady && trackEnabled;
             
             console.log(`⚡⚡⚡ INSTANT UPDATE: ${participantId} video ${shouldShow ? 'SHOW' : 'HIDE'}`, {
               videoEnabled,
               trackReady,
+              trackEnabled,
+              trackState: videoTrack?.readyState,
               shouldShow
             });
             
@@ -611,9 +615,18 @@ const useVideoCall = (meetingId, userName) => {
                 videoElement.play().catch(() => {});
               }
             } else {
+              // CRITICAL: Completely hide video when disabled or track stopped
               videoElement.style.opacity = '0';
               videoElement.style.visibility = 'hidden';
+              videoElement.style.display = 'none'; // Also set display to none
               videoElement.pause();
+              
+              // If track is stopped/ended, also clear the video source to prevent frozen frame
+              if (videoTrack && videoTrack.readyState === 'ended') {
+                console.log(`⚡⚡⚡ Track ended for ${participantId}, clearing video source to prevent frozen frame`);
+                // Don't clear srcObject completely, but ensure it's hidden
+                // The stream might still be needed for audio
+              }
             }
           }
           

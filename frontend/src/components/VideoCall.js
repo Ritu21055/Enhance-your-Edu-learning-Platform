@@ -382,10 +382,20 @@ const VideoCallComponent = memo(({
         
         // Use socket state if available, otherwise fall back to track state
         // CRITICAL: If socket says video is disabled, hide it immediately
-        // If socket says video is enabled, show it (but still check track is ready)
+        // If socket says video is enabled, show it (but still check track is ready AND enabled)
+        // Also hide if track is stopped/ended (readyState !== 'live')
         const isVideoEnabled = socketVideoEnabled !== undefined 
-          ? socketVideoEnabled !== false && trackReady  // If socket says enabled, show (unless track not ready)
+          ? socketVideoEnabled !== false && trackReady && trackEnabled  // If socket says enabled, show (unless track not ready or disabled)
           : trackEnabled && trackReady;  // Fallback to track state
+        
+        console.log(`📹 VideoCall: Updating video for ${participantId}`, {
+          socketVideoEnabled,
+          trackEnabled,
+          trackReady,
+          trackState: videoTrack?.readyState,
+          isVideoEnabled,
+          streamActive: stream.active
+        });
         
         if (isVideoEnabled) {
           // Video is enabled - show and play
@@ -398,11 +408,17 @@ const VideoCallComponent = memo(({
             videoElement.play().catch(() => {});
           }
         } else {
-          // Video is disabled - hide the video element IMMEDIATELY
+          // Video is disabled or track stopped - hide the video element IMMEDIATELY
+          // CRITICAL: Use display: none to completely hide and prevent frozen frame
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.style.display = 'none'; // Also set display to none for complete hiding
           videoElement.pause();
+          
+          // If track is stopped/ended, log it for debugging
+          if (videoTrack && videoTrack.readyState === 'ended') {
+            console.log(`📹 VideoCall: Track ended for ${participantId}, video hidden to prevent frozen frame`);
+          }
         }
         
         // CRITICAL: Mute/unmute audio tracks based on participant's audio state
@@ -417,6 +433,24 @@ const VideoCallComponent = memo(({
             audioTrack.enabled = shouldEnableAudio;
           }
         });
+        
+        // CRITICAL: Listen for track ended event to immediately hide video when track stops
+        if (videoTrack && !videoElement._trackEndedListener) {
+          const handleTrackEnded = () => {
+            console.log(`📹 VideoCall: Video track ended for ${participantId}, hiding video element`);
+            const currentElement = remoteVideoRefs.current[participantId];
+            if (currentElement) {
+              currentElement.style.opacity = '0';
+              currentElement.style.visibility = 'hidden';
+              currentElement.style.display = 'none';
+              currentElement.pause();
+            }
+          };
+          
+          videoTrack.addEventListener('ended', handleTrackEnded);
+          videoElement._trackEndedListener = handleTrackEnded;
+          console.log(`📹 VideoCall: Added track ended listener for ${participantId}`);
+        }
       }
     });
     
@@ -424,9 +458,18 @@ const VideoCallComponent = memo(({
     return () => {
       Object.entries(remoteStreams).forEach(([participantId, stream]) => {
         const videoElement = remoteVideoRefs.current[participantId];
-        if (videoElement && videoElement._cleanupTrackListener) {
-          videoElement._cleanupTrackListener();
-          videoElement._cleanupTrackListener = null;
+        if (videoElement) {
+          if (videoElement._cleanupTrackListener) {
+            videoElement._cleanupTrackListener();
+            videoElement._cleanupTrackListener = null;
+          }
+          if (videoElement._trackEndedListener) {
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+              videoTrack.removeEventListener('ended', videoElement._trackEndedListener);
+            }
+            videoElement._trackEndedListener = null;
+          }
         }
       });
     };
