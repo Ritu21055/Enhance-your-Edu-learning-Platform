@@ -52,9 +52,16 @@ const VideoCallComponent = memo(({
   }, [localStream, isVideoEnabled]);
 
   // CRITICAL: Update video element when localStream changes (e.g., after camera/mic request approval)
+  // BUT: Only enable/play video if isVideoEnabled is true (respect user's choice to turn off)
   useEffect(() => {
     if (!localStream) {
       console.log('🎥 VideoCall: No local stream, skipping video element update');
+      return;
+    }
+
+    // CRITICAL: Respect isVideoEnabled prop - don't force enable if user turned it off
+    if (!isVideoEnabled) {
+      console.log('🎥 VideoCall: Video is disabled, skipping stream update (respecting user choice)');
       return;
     }
 
@@ -73,6 +80,7 @@ const VideoCallComponent = memo(({
         hasVideoTrack: !!videoTrack,
         videoTrackEnabled: videoTrack?.enabled,
         videoTrackReady: videoTrack?.readyState,
+        isVideoEnabled: isVideoEnabled,
         currentSrcObject: videoElement.srcObject?.id,
         elementReady: !!videoElement,
         elementPaused: videoElement.paused
@@ -85,10 +93,10 @@ const VideoCallComponent = memo(({
         videoElement.srcObject = localStream;
       }
 
-      // Ensure video track is enabled and live
-      if (videoTrack) {
+      // CRITICAL: Only enable track if isVideoEnabled is true
+      if (videoTrack && isVideoEnabled) {
         if (!videoTrack.enabled) {
-          console.log('🎥 VideoCall: Enabling video track');
+          console.log('🎥 VideoCall: Enabling video track (video is enabled)');
           videoTrack.enabled = true;
         }
         
@@ -100,11 +108,11 @@ const VideoCallComponent = memo(({
           
           // Wait for track to become live
           const checkLive = setInterval(() => {
-            if (videoTrack.readyState === 'live') {
+            if (videoTrack.readyState === 'live' && isVideoEnabled) {
               console.log('🎥 VideoCall: Video track is now live');
               clearInterval(checkLive);
               // Force a re-render by updating the video element
-              if (videoElement && videoElement.srcObject) {
+              if (videoElement && videoElement.srcObject && isVideoEnabled) {
                 videoElement.play().catch(() => {});
               }
             }
@@ -117,33 +125,50 @@ const VideoCallComponent = memo(({
         } else {
           console.log('🎥 VideoCall: Video track is live and ready');
         }
+      } else if (videoTrack && !isVideoEnabled) {
+        // CRITICAL: If video should be disabled, ensure track is disabled
+        if (videoTrack.enabled) {
+          console.log('🎥 VideoCall: Video is disabled, disabling track');
+          videoTrack.enabled = false;
+        }
       } else {
         console.warn('🎥 VideoCall: No video track found in stream');
       }
 
-      // Force video to be visible and playing
-      videoElement.style.opacity = '1';
-      videoElement.style.visibility = 'visible';
-      videoElement.style.display = 'block';
-      
-      // Play the video with retry logic
-      const playVideo = () => {
-        if (videoElement.paused && localStream.active) {
-          videoElement.play().then(() => {
-            console.log('🎥 VideoCall: Video playing successfully after stream change');
-          }).catch(err => {
-            console.warn('🎥 VideoCall: Error playing video after stream change:', err);
-            // Retry after a short delay
-            setTimeout(() => {
-              if (videoElement && !videoElement.paused) return;
-              console.log('🎥 VideoCall: Retrying video play...');
-              playVideo();
-            }, 500);
-          });
+      // CRITICAL: Only show and play video if isVideoEnabled is true
+      if (isVideoEnabled) {
+        // Force video to be visible and playing
+        videoElement.style.opacity = '1';
+        videoElement.style.visibility = 'visible';
+        videoElement.style.display = 'block';
+        
+        // Play the video with retry logic
+        const playVideo = () => {
+          if (videoElement.paused && localStream.active && isVideoEnabled) {
+            videoElement.play().then(() => {
+              console.log('🎥 VideoCall: Video playing successfully after stream change');
+            }).catch(err => {
+              console.warn('🎥 VideoCall: Error playing video after stream change:', err);
+              // Retry after a short delay
+              setTimeout(() => {
+                if (videoElement && !videoElement.paused) return;
+                if (!isVideoEnabled) return; // Don't retry if video was disabled
+                console.log('🎥 VideoCall: Retrying video play...');
+                playVideo();
+              }, 500);
+            });
+          }
+        };
+        
+        playVideo();
+      } else {
+        // CRITICAL: If video is disabled, hide and pause it
+        videoElement.style.opacity = '0';
+        videoElement.style.visibility = 'hidden';
+        if (!videoElement.paused) {
+          videoElement.pause();
         }
-      };
-      
-      playVideo();
+      }
       
       return true;
     };
@@ -159,7 +184,7 @@ const VideoCallComponent = memo(({
       
       return () => clearTimeout(retryTimeout);
     }
-  }, [localStream, localVideoRef]);
+  }, [localStream, localVideoRef, isVideoEnabled]);
 
   // GLOBAL PROTECTION: Register video element for global protection
   // CRITICAL: Use refs to avoid re-running when unrelated props change
@@ -803,30 +828,32 @@ const VideoCallComponent = memo(({
   }, [totalVideos, otherParticipants]);
 
   // Check if local video is actually enabled
-  // CRITICAL: When a new stream is set (e.g., after camera/mic request approval),
-  // check if the stream has an active video track, not just if it's enabled
+  // CRITICAL: Use isVideoEnabled prop as the primary source of truth
+  // Only check track state as a fallback or for debugging
   const videoTrack = localStream?.getVideoTracks()[0];
-  // If stream exists and has a video track, check if track is enabled and ready
-  // If no video track but stream exists, fall back to isVideoEnabled prop
-  // CRITICAL: For new streams from camera/mic request, the track should be enabled by default
   const isLocalVideoEnabled = useMemo(() => {
     if (!localStream) return false;
+    
+    // CRITICAL: isVideoEnabled prop is the primary source of truth
+    // If user explicitly turned off video, respect that regardless of track state
+    if (!isVideoEnabled) {
+      return false;
+    }
+    
+    // If video should be enabled, check if track exists and is enabled
     if (videoTrack) {
-      // Track exists - check if it's enabled (readyState will be 'live' when active)
-      // Even if readyState is not 'live' yet, if enabled is true, show the video
       const trackEnabled = videoTrack.enabled;
-      const trackReady = videoTrack.readyState === 'live' || videoTrack.readyState === 'ready';
       console.log('🎥 VideoCall: Checking local video enabled state', {
         hasTrack: !!videoTrack,
         trackEnabled,
-        trackReady,
+        isVideoEnabledProp: isVideoEnabled,
         readyState: videoTrack.readyState,
         streamId: localStream.id
       });
-      // Show video if track is enabled (readyState will catch up)
-      return trackEnabled;
+      // Show video if track is enabled AND isVideoEnabled prop is true
+      return trackEnabled && isVideoEnabled;
     }
-    // No video track - fall back to prop
+    // No video track - use prop value
     return isVideoEnabled;
   }, [localStream, videoTrack, isVideoEnabled]);
   const hasLocalStream = !!localStream;
