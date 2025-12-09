@@ -85,19 +85,40 @@ const VideoCallComponent = memo(({
         videoElement.srcObject = localStream;
       }
 
-      // Ensure video track is enabled
+      // Ensure video track is enabled and live
       if (videoTrack) {
         if (!videoTrack.enabled) {
           console.log('🎥 VideoCall: Enabling video track');
           videoTrack.enabled = true;
         }
         
-        // Ensure track is live
+        // Ensure track is live - wait for it if needed
         if (videoTrack.readyState !== 'live') {
           console.log('🎥 VideoCall: Video track not live yet, waiting...', {
             readyState: videoTrack.readyState
           });
+          
+          // Wait for track to become live
+          const checkLive = setInterval(() => {
+            if (videoTrack.readyState === 'live') {
+              console.log('🎥 VideoCall: Video track is now live');
+              clearInterval(checkLive);
+              // Force a re-render by updating the video element
+              if (videoElement && videoElement.srcObject) {
+                videoElement.play().catch(() => {});
+              }
+            }
+          }, 100);
+          
+          // Stop checking after 5 seconds
+          setTimeout(() => {
+            clearInterval(checkLive);
+          }, 5000);
+        } else {
+          console.log('🎥 VideoCall: Video track is live and ready');
         }
+      } else {
+        console.warn('🎥 VideoCall: No video track found in stream');
       }
 
       // Force video to be visible and playing
@@ -782,7 +803,32 @@ const VideoCallComponent = memo(({
   }, [totalVideos, otherParticipants]);
 
   // Check if local video is actually enabled
-  const isLocalVideoEnabled = localStream?.getVideoTracks()[0]?.enabled ?? isVideoEnabled;
+  // CRITICAL: When a new stream is set (e.g., after camera/mic request approval),
+  // check if the stream has an active video track, not just if it's enabled
+  const videoTrack = localStream?.getVideoTracks()[0];
+  // If stream exists and has a video track, check if track is enabled and ready
+  // If no video track but stream exists, fall back to isVideoEnabled prop
+  // CRITICAL: For new streams from camera/mic request, the track should be enabled by default
+  const isLocalVideoEnabled = useMemo(() => {
+    if (!localStream) return false;
+    if (videoTrack) {
+      // Track exists - check if it's enabled (readyState will be 'live' when active)
+      // Even if readyState is not 'live' yet, if enabled is true, show the video
+      const trackEnabled = videoTrack.enabled;
+      const trackReady = videoTrack.readyState === 'live' || videoTrack.readyState === 'ready';
+      console.log('🎥 VideoCall: Checking local video enabled state', {
+        hasTrack: !!videoTrack,
+        trackEnabled,
+        trackReady,
+        readyState: videoTrack.readyState,
+        streamId: localStream.id
+      });
+      // Show video if track is enabled (readyState will catch up)
+      return trackEnabled;
+    }
+    // No video track - fall back to prop
+    return isVideoEnabled;
+  }, [localStream, videoTrack, isVideoEnabled]);
   const hasLocalStream = !!localStream;
   
   // DEBUG: Log rendering state - expanded for visibility
