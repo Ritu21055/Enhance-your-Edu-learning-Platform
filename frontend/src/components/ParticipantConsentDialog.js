@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -19,6 +19,14 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
   const [showWarning, setShowWarning] = useState(false);
   const [warningShown, setWarningShown] = useState(false);
   const [showActiveSessionDialog, setShowActiveSessionDialog] = useState(true);
+  
+  // Use ref to track current request in timer callbacks
+  const requestRef = useRef(null);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    requestRef.current = request;
+  }, [request]);
 
   useEffect(() => {
     if (!socket) {
@@ -48,11 +56,20 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
     };
 
     const handleRequestExpired = ({ requestId }) => {
-      console.log('📸 ParticipantConsentDialog: Request expired:', requestId);
+      console.log('📸 ParticipantConsentDialog: Request expired event received:', requestId);
       // Use setTimeout to avoid setState during render warning
       setTimeout(() => {
         setRequest(prevRequest => {
           if (prevRequest?.requestId === requestId) {
+            // CRITICAL: If request is already approved and session is active,
+            // ignore the backend expired event - let the local timer handle expiration
+            if (prevRequest?.approved && prevRequest?.startTime) {
+              console.log('📸 ParticipantConsentDialog: Request already approved, ignoring backend expired event. Local timer will handle expiration.');
+              return prevRequest; // Keep the request, don't clear it
+            }
+            
+            // Only clear if request is not approved (pending request expired)
+            console.log('📸 ParticipantConsentDialog: Clearing unapproved expired request');
             if (onSessionStateChange) {
               onSessionStateChange(null);
             }
@@ -181,9 +198,16 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
     });
 
     let timer = setInterval(() => {
+      // Use ref to get current request state (avoids stale closure)
+      const currentRequest = requestRef.current;
+      
       // Re-check request to ensure it's still valid
-      if (!request || !request.approved || request.requestId !== requestId) {
-        console.log('📸 ParticipantConsentDialog: Request changed, clearing timer');
+      if (!currentRequest || !currentRequest.approved || currentRequest.requestId !== requestId) {
+        console.log('📸 ParticipantConsentDialog: Request changed or cleared, stopping timer', {
+          hasRequest: !!currentRequest,
+          isApproved: currentRequest?.approved,
+          requestIdMatch: currentRequest?.requestId === requestId
+        });
         clearInterval(timer);
         return;
       }
@@ -200,8 +224,52 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
       });
       
       if (remaining <= 10 && remaining > 0 && !warningShown) {
+        console.log('📸 ParticipantConsentDialog: ⚠️⚠️⚠️ WARNING: Time running out! ⚠️⚠️⚠️', {
+          remaining: remaining.toFixed(1),
+          requestId
+        });
         setShowWarning(true);
         setWarningShown(true);
+        // Auto-open dialog to show warning
+        setShowActiveSessionDialog(true);
+        
+        // Get request type label for notification
+        let requestTypeLabel = 'Camera/Audio';
+        if (currentRequest.requestType === 'camera') {
+          requestTypeLabel = 'Camera';
+        } else if (currentRequest.requestType === 'audio') {
+          requestTypeLabel = 'Audio';
+        } else if (currentRequest.requestType === 'both') {
+          requestTypeLabel = 'Camera & Audio';
+        }
+        
+        // Show browser notification if permission granted
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification('Session Ending Soon', {
+              body: `Your ${requestTypeLabel} access will end in ${Math.floor(remaining)} seconds!`,
+              icon: '/favicon.ico',
+              tag: 'session-warning'
+            });
+          } catch (error) {
+            console.warn('📸 ParticipantConsentDialog: Failed to show notification:', error);
+          }
+        } else if ('Notification' in window && Notification.permission === 'default') {
+          // Request permission for future notifications
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted' && remaining > 0) {
+              try {
+                new Notification('Session Ending Soon', {
+                  body: `Your ${requestTypeLabel} access will end in ${Math.floor(remaining)} seconds!`,
+                  icon: '/favicon.ico',
+                  tag: 'session-warning'
+                });
+              } catch (error) {
+                console.warn('📸 ParticipantConsentDialog: Failed to show notification:', error);
+              }
+            }
+          });
+        }
       }
       
       if (remaining <= 0) {
@@ -410,49 +478,62 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
   };
 
   const handleSessionEnd = () => {
+    // Use ref to get current request (avoids stale closure)
+    const currentRequest = requestRef.current;
+    
     console.log('📸 ParticipantConsentDialog: Ending session', {
-      requestType: request?.requestType,
-      hasStream: !!window.localStreamRef?.current
+      requestType: currentRequest?.requestType,
+      hasStream: !!window.localStreamRef?.current,
+      requestId: currentRequest?.requestId
     });
     
     // CRITICAL: Disable tracks first (turn off video/audio)
-    if (window.localStreamRef?.current && request) {
+    if (window.localStreamRef?.current && currentRequest) {
       const stream = window.localStreamRef.current;
       const tracks = stream.getTracks();
       
+      console.log('📸 ParticipantConsentDialog: Processing tracks for session end', {
+        totalTracks: tracks.length,
+        requestType: currentRequest.requestType
+      });
+      
       tracks.forEach(track => {
-        if (track.kind === 'video' && (request.requestType === 'camera' || request.requestType === 'both')) {
-          console.log('📸 ParticipantConsentDialog: Disabling video track:', track.id);
+        if (track.kind === 'video' && (currentRequest.requestType === 'camera' || currentRequest.requestType === 'both')) {
+          console.log('📸 ParticipantConsentDialog: Disabling and stopping video track:', track.id);
           track.enabled = false; // Disable first
           track.stop(); // Then stop
         }
-        if (track.kind === 'audio' && (request.requestType === 'audio' || request.requestType === 'both')) {
-          console.log('📸 ParticipantConsentDialog: Disabling audio track:', track.id);
+        if (track.kind === 'audio' && (currentRequest.requestType === 'audio' || currentRequest.requestType === 'both')) {
+          console.log('📸 ParticipantConsentDialog: Disabling and stopping audio track:', track.id);
           track.enabled = false; // Disable first
           track.stop(); // Then stop
         }
       });
       
       // Update video state in useMediaControls
-      if (request.requestType === 'camera' || request.requestType === 'both') {
+      if (currentRequest.requestType === 'camera' || currentRequest.requestType === 'both') {
         if (window.setIsVideoEnabled) {
           window.setIsVideoEnabled(false);
           console.log('📸 ParticipantConsentDialog: Set video state to disabled');
+        } else {
+          console.warn('📸 ParticipantConsentDialog: setIsVideoEnabled not available!');
         }
       }
       
       // Update audio state in useMediaControls
-      if (request.requestType === 'audio' || request.requestType === 'both') {
+      if (currentRequest.requestType === 'audio' || currentRequest.requestType === 'both') {
         if (window.setIsAudioEnabled) {
           window.setIsAudioEnabled(false);
           console.log('📸 ParticipantConsentDialog: Set audio state to disabled');
+        } else {
+          console.warn('📸 ParticipantConsentDialog: setIsAudioEnabled not available!');
         }
       }
       
       // Emit media state change to notify others
       if (socket && socket.connected) {
-        const videoEnabled = !(request.requestType === 'camera' || request.requestType === 'both');
-        const audioEnabled = !(request.requestType === 'audio' || request.requestType === 'both');
+        const videoEnabled = !(currentRequest.requestType === 'camera' || currentRequest.requestType === 'both');
+        const audioEnabled = !(currentRequest.requestType === 'audio' || currentRequest.requestType === 'both');
         
         socket.emit('media-state-change', {
           meetingId,
@@ -468,6 +549,11 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
           audioEnabled
         });
       }
+    } else {
+      console.warn('📸 ParticipantConsentDialog: Cannot end session - missing stream or request', {
+        hasStream: !!window.localStreamRef?.current,
+        hasRequest: !!currentRequest
+      });
     }
     
     // Clear active session in parent component
@@ -612,22 +698,33 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
                 />
               </Box>
 
-              {showWarning && timeRemaining <= 10 && (
+              {showWarning && timeRemaining <= 10 && timeRemaining > 0 && (
                 <Alert 
-                  severity="warning" 
-                  sx={{ mb: 2 }}
+                  severity="error" 
+                  sx={{ 
+                    mb: 2,
+                    animation: 'pulse 1s infinite',
+                    '@keyframes pulse': {
+                      '0%, 100%': { opacity: 1 },
+                      '50%': { opacity: 0.7 }
+                    }
+                  }}
                   action={
                     <Button 
                       size="small" 
                       onClick={handleExtend}
                       color="inherit"
+                      variant="outlined"
                     >
                       Request Extension
                     </Button>
                   }
                 >
-                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                    ⚠️ Session ending in {Math.floor(timeRemaining)} seconds!
+                  <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    ⚠️⚠️⚠️ WARNING: Session ending in {Math.floor(timeRemaining)} seconds! ⚠️⚠️⚠️
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    Your {getRequestTypeLabel().toLowerCase()} will be turned off automatically when time expires.
                   </Typography>
                 </Alert>
               )}
