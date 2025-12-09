@@ -862,15 +862,9 @@ const MeetingRoom = () => {
             
             <Button
               variant="contained"
+              color="primary"
               startIcon={<People />}
               onClick={() => setShowBulkRequest(true)}
-              sx={{
-                backgroundColor: '#9c27b0',
-                color: '#fff',
-                '&:hover': {
-                  backgroundColor: '#7b1fa2',
-                },
-              }}
             >
               Request Camera Access
             </Button>
