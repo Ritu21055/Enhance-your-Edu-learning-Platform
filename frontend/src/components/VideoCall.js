@@ -231,7 +231,9 @@ const VideoCallComponent = memo(({
     // CRITICAL: Add a MutationObserver to detect layout changes
     const observer = new MutationObserver(() => {
       // When layout changes (like chat opening), immediately protect video
-      if (shouldBeEnabled && videoTrack && videoElement) {
+      // BUT: Only if video should be enabled (respect user's choice to turn off)
+      const currentShouldBeEnabled = isVideoEnabledRef.current;
+      if (currentShouldBeEnabled && videoTrack && videoElement) {
         if (!videoTrack.enabled) {
           console.warn('🛡️ VideoCall: Layout change detected - track disabled, re-enabling');
           videoTrack.enabled = true;
@@ -242,6 +244,16 @@ const VideoCallComponent = memo(({
         }
         if (videoElement.paused && videoElement.srcObject) {
           videoElement.play().catch(() => {});
+        }
+      } else if (!currentShouldBeEnabled && videoTrack && videoElement) {
+        // CRITICAL: If video should be disabled, ensure it stays disabled
+        if (videoTrack.enabled) {
+          console.log('🛡️ VideoCall: Layout change detected - video disabled, ensuring track is disabled');
+          videoTrack.enabled = false;
+        }
+        if (!videoElement.paused) {
+          console.log('🛡️ VideoCall: Layout change detected - video disabled, pausing element');
+          videoElement.pause();
         }
       }
     });
@@ -288,9 +300,26 @@ const VideoCallComponent = memo(({
       });
     }
     
+    // CRITICAL: Update global protection system with new state
+    // This ensures protection system respects user's choice to turn off video
     setVideoEnabled(isVideoEnabled);
     isVideoEnabledRef.current = isVideoEnabled;
-  }, [isVideoEnabled]);
+    
+    // CRITICAL: If video is disabled, also disable the track immediately
+    if (!isVideoEnabled && localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (videoTrack && videoTrack.enabled) {
+        console.log('🎥 VideoCall: Video disabled - disabling track immediately');
+        videoTrack.enabled = false;
+      }
+      
+      // Also pause the video element
+      if (localVideoRef.current && !localVideoRef.current.paused) {
+        console.log('🎥 VideoCall: Video disabled - pausing video element');
+        localVideoRef.current.pause();
+      }
+    }
+  }, [isVideoEnabled, localStream, localVideoRef]);
 
   // Simple local video display - direct approach
   // CRITICAL: Use props directly for initial setup to ensure video starts

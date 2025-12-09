@@ -81,6 +81,25 @@ const startProtection = () => {
         globalVideoElement.style.width = '100%';
         globalVideoElement.style.height = '100%';
       }
+    } else {
+      // CRITICAL: If video should be disabled, ensure it's actually disabled
+      // Don't let protection interfere when user intentionally turns off video
+      if (globalVideoTrack.enabled) {
+        console.log('🛡️ PROTECTION: Video disabled - disabling track');
+        globalVideoTrack.enabled = false;
+      }
+      
+      // Ensure video element is paused
+      if (!globalVideoElement.paused) {
+        console.log('🛡️ PROTECTION: Video disabled - pausing video element');
+        globalVideoElement.pause();
+      }
+      
+      // Ensure video is hidden
+      if (globalVideoElement.style.opacity !== '0' || globalVideoElement.style.visibility !== 'hidden') {
+        globalVideoElement.style.opacity = '0';
+        globalVideoElement.style.visibility = 'hidden';
+      }
     }
   }, 50); // Very frequent - catch issues immediately
   
