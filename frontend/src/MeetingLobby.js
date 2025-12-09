@@ -80,7 +80,7 @@ const MeetingLobby = () => {
     setSocket(newSocket);
 
     let connectionTimeout;
-    
+
     newSocket.on('connect', () => {
       console.log('✅ Lobby: Connected to server at:', backendUrl);
       console.log('✅ Lobby: Socket ID:', newSocket.id);
@@ -139,24 +139,24 @@ const MeetingLobby = () => {
       
       setMeetingInfo(data);
       
-      const currentUsername = usernameRef.current || username;
-      
-      if (!currentUsername || currentUsername.trim() === '') {
+        const currentUsername = usernameRef.current || username;
+        
+        if (!currentUsername || currentUsername.trim() === '') {
         setError('Username is required to join the meeting');
-        return;
-      }
-      
-      const finalUsername = currentUsername.trim();
-      localStorage.setItem(`approved_${meetingId}`, 'true');
-      
-      const titleForStorage = meetingTitleRef.current || meetingTitle;
-      const finalMeetingTitle = titleForStorage.trim() || `Meeting ${meetingId}`;
-      
-      const meeting = createMeeting(meetingId, finalMeetingTitle, [finalUsername]);
-      storeMeeting(meeting).catch(error => {
-        console.error('Failed to store meeting:', error);
-      });
-      
+          return;
+        }
+        
+        const finalUsername = currentUsername.trim();
+        localStorage.setItem(`approved_${meetingId}`, 'true');
+        
+        const titleForStorage = meetingTitleRef.current || meetingTitle;
+        const finalMeetingTitle = titleForStorage.trim() || `Meeting ${meetingId}`;
+        
+        const meeting = createMeeting(meetingId, finalMeetingTitle, [finalUsername]);
+        storeMeeting(meeting).catch(error => {
+          console.error('Failed to store meeting:', error);
+        });
+        
       // Host navigates directly, participants join directly (password already verified if required)
       if (isActuallyHost) {
         setIsHost(true);

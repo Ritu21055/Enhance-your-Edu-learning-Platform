@@ -269,12 +269,16 @@ const VideoCallComponent = memo(({
           videoElement.play().catch(() => {});
         }
       } else {
-        // Hide video - opacity/visibility only (element still takes space - no layout shift)
+        // Hide video - completely hide when disabled or track stopped
         videoElement.style.opacity = '0';
         videoElement.style.visibility = 'hidden';
-        videoElement.style.display = 'block';
-        videoElement.style.width = '100%';
-        videoElement.style.height = '100%';
+        videoElement.style.display = 'none'; // Use display: none to completely hide
+        videoElement.pause(); // Pause the video
+        
+        // If track is stopped/ended, log it
+        if (videoTrack.readyState === 'ended') {
+          console.log('🎥 VideoCall: Local video track ended, video hidden');
+        }
       }
     };
 
@@ -322,6 +326,22 @@ const VideoCallComponent = memo(({
       
       // Only protect if video should be enabled (respect user's choice to turn off)
       if (shouldBeEnabled) {
+        // CRITICAL: Also check if track is still live (not ended/stopped)
+        const trackReady = videoTrack.readyState === 'live';
+        
+        if (!trackReady) {
+          console.log('🎥 VideoCall: Track not ready, hiding video', {
+            readyState: videoTrack.readyState,
+            shouldBeEnabled
+          });
+          // Track is stopped/ended, hide video
+          videoElement.style.opacity = '0';
+          videoElement.style.visibility = 'hidden';
+          videoElement.style.display = 'none';
+          videoElement.pause();
+          return; // Don't protect if track is stopped
+        }
+        
         // Ensure track is enabled
         if (!videoTrack.enabled) {
           console.warn('🎥 VideoCall: Track was disabled, re-enabling');
@@ -340,10 +360,21 @@ const VideoCallComponent = memo(({
             console.warn('🎥 VideoCall: Video was hidden, making visible');
             videoElement.style.opacity = '1';
             videoElement.style.visibility = 'visible';
+            videoElement.style.display = 'block';
           }
           if (videoElement.paused && videoElement.srcObject) {
             videoElement.play().catch(() => {});
           }
+        }
+      } else {
+        // Video should be disabled - ensure it's hidden
+        if (videoElement.style.display !== 'none' && 
+            (videoElement.style.opacity !== '0' || videoElement.style.visibility !== 'hidden')) {
+          console.log('🎥 VideoCall: Video should be disabled, hiding it');
+          videoElement.style.opacity = '0';
+          videoElement.style.visibility = 'hidden';
+          videoElement.style.display = 'none';
+          videoElement.pause();
         }
       }
       

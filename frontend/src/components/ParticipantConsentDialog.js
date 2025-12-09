@@ -518,6 +518,16 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
         } else {
           console.warn('📸 ParticipantConsentDialog: setIsVideoEnabled not available!');
         }
+        
+        // CRITICAL: Also directly hide the local video element immediately
+        if (window.localVideoRef && window.localVideoRef.current) {
+          const videoElement = window.localVideoRef.current;
+          console.log('📸 ParticipantConsentDialog: Hiding local video element directly');
+          videoElement.style.opacity = '0';
+          videoElement.style.visibility = 'hidden';
+          videoElement.style.display = 'none';
+          videoElement.pause();
+        }
       }
       
       // Update audio state in useMediaControls
