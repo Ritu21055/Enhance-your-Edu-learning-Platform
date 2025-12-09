@@ -18,6 +18,7 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [warningShown, setWarningShown] = useState(false);
+  const [showActiveSessionDialog, setShowActiveSessionDialog] = useState(true);
 
   useEffect(() => {
     if (!socket) {
@@ -206,6 +207,7 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
     // Update state immediately to close request dialog and show active session dialog
     setRequest(approvedRequest);
     setTimeRemaining(requestData.duration); // Initialize time remaining
+    setShowActiveSessionDialog(true); // Show active session dialog initially
     
     // Emit response immediately
     socket.emit('camera-mic-request-response', {
@@ -233,11 +235,64 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
-      if (window.updateVideoCallPeerConnections) {
-        window.updateVideoCallPeerConnections(stream, 'both');
+      console.log('📸 ParticipantConsentDialog: Media access granted successfully', {
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length,
+        requestType: requestData.requestType
+      });
+      
+      // CRITICAL: Enable tracks based on request type
+      if (requestData.requestType === 'camera' || requestData.requestType === 'both') {
+        const videoTracks = stream.getVideoTracks();
+        videoTracks.forEach(track => {
+          track.enabled = true;
+          console.log('📸 ParticipantConsentDialog: Video track enabled:', track.id);
+        });
+        
+        // Update video state in useMediaControls
+        if (window.setIsVideoEnabled) {
+          window.setIsVideoEnabled(true);
+          console.log('📸 ParticipantConsentDialog: Video state set to enabled');
+        }
       }
       
-      console.log('📸 ParticipantConsentDialog: Media access granted successfully');
+      if (requestData.requestType === 'audio' || requestData.requestType === 'both') {
+        const audioTracks = stream.getAudioTracks();
+        audioTracks.forEach(track => {
+          track.enabled = true;
+          console.log('📸 ParticipantConsentDialog: Audio track enabled:', track.id);
+        });
+        
+        // Note: Audio state is managed differently, but we ensure track is enabled
+      }
+      
+      // Update peer connections with the new stream
+      if (window.updateVideoCallPeerConnections) {
+        console.log('📸 ParticipantConsentDialog: Updating peer connections with new stream');
+        window.updateVideoCallPeerConnections(stream, 'both');
+      } else {
+        console.error('📸 ParticipantConsentDialog: updateVideoCallPeerConnections not available!');
+      }
+      
+      // Also update localStreamRef for screen share protection
+      if (window.localStreamRef) {
+        window.localStreamRef.current = stream;
+      }
+      
+      // Emit media state change to notify other participants
+      if (socket && socket.connected) {
+        socket.emit('media-state-change', {
+          meetingId,
+          participantId: currentUserId,
+          videoEnabled: requestData.requestType === 'camera' || requestData.requestType === 'both',
+          audioEnabled: requestData.requestType === 'audio' || requestData.requestType === 'both',
+          hasVideo: stream.getVideoTracks().length > 0,
+          hasAudio: stream.getAudioTracks().length > 0,
+          timestamp: Date.now()
+        });
+        console.log('📸 ParticipantConsentDialog: Media state change emitted');
+      }
+      
     } catch (error) {
       console.error('📸 ParticipantConsentDialog: Error accessing media:', error);
       // If media access fails, end the session
@@ -296,6 +351,7 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
     setTimeRemaining(0);
     setShowWarning(false);
     setWarningShown(false);
+    setShowActiveSessionDialog(false);
   };
 
   const handleExtend = () => {
@@ -390,11 +446,12 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
 
       {request.approved && (
         <Dialog 
-          open={!!request && request.approved} 
+          open={!!request && request.approved && showActiveSessionDialog} 
           onClose={() => {
             // Allow closing the dialog, but keep the session active
             // The session will still be locked until time expires
-            console.log('📸 ParticipantConsentDialog: Dialog closed by user, but session remains active');
+            console.log('📸 ParticipantConsentDialog: Active session dialog closed by user, but session remains active');
+            setShowActiveSessionDialog(false);
           }}
           maxWidth="sm"
           fullWidth
