@@ -44,12 +44,10 @@ const useVideoCall = (meetingId, userName) => {
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('🔌 useVideoCall: Socket connected, socket ID:', newSocket.id);
       setSocketConnected(true);
       
       // Process queued signals now that socket is ready
       if (signalQueueRef.current.length > 0) {
-        console.log(`📤 Processing ${signalQueueRef.current.length} queued signals`);
         signalQueueRef.current.forEach(({ to, from, signal }) => {
           if (socketRef.current && socketRef.current.id) {
             socketRef.current.emit('signal', { to, from: socketRef.current.id, signal });
@@ -77,16 +75,6 @@ const useVideoCall = (meetingId, userName) => {
       const hostPassword = sessionStorage.getItem(`meeting_host_password_${meetingId}`);
       const hasHostPassword = hostPassword !== null; // null means not set, empty string means host set empty password
       
-      console.log('📤 useVideoCall: Emitting join-meeting:', { 
-        meetingId, 
-        userName,
-        urlIsHost: urlIsHost,
-        isApproved,
-        isWaiting,
-        hasVerifiedPassword: hasVerifiedPassword,
-        hasHostPassword: hasHostPassword
-      });
-      
       // CRITICAL: If password was verified in lobby, include it and set isHost to false
       // Password verification means user is a participant, not host
       const joinData = { 
@@ -97,14 +85,12 @@ const useVideoCall = (meetingId, userName) => {
       
       if (hasVerifiedPassword) {
         joinData.password = verifiedPassword;
-        console.log('🔒 Including verified password from sessionStorage');
       }
       
       // CRITICAL: If host password was set in lobby, include it as setPassword
       // This allows the host to reclaim their meeting when they reconnect
       if (hasHostPassword && urlIsHost && !hasVerifiedPassword) {
         joinData.setPassword = hostPassword || null; // Empty string becomes null, actual password stays as is
-        console.log('🔒 Including host password as setPassword from sessionStorage');
       }
       
       newSocket.emit('join-meeting', joinData);
@@ -115,7 +101,6 @@ const useVideoCall = (meetingId, userName) => {
       // Clear verified password from sessionStorage after successful join
       if (sessionStorage.getItem(`meeting_password_${meetingId}`)) {
         sessionStorage.removeItem(`meeting_password_${meetingId}`);
-        console.log('🔒 Cleared verified password from sessionStorage after successful join');
       }
       const { meeting, isHost: userIsHost } = data;
       
@@ -124,22 +109,11 @@ const useVideoCall = (meetingId, userName) => {
       const actualHostId = meeting?.hostId;
       const isActuallyHost = actualHostId === newSocket.id;
       
-      console.log('📥 Meeting-joined event received:', {
-        socketId: newSocket.id,
-        meetingHostId: actualHostId,
-        isActuallyHost: isActuallyHost,
-        backendIsHost: userIsHost,
-        participants: meeting?.participants?.length || 0,
-        participantsList: meeting?.participants?.map(p => ({ id: p.id, name: p.name, isHost: p.isHost })) || []
-      });
-      
       // Use actual host check, not just the provided value
       const hostStatus = isActuallyHost;
       
       setIsHost(hostStatus);
       isHostRef.current = hostStatus;
-      
-      console.log('✅ Host status set:', hostStatus);
       
       const meetingParticipants = meeting?.participants || [];
       setParticipants(meetingParticipants);
@@ -149,29 +123,16 @@ const useVideoCall = (meetingId, userName) => {
       // CRITICAL: Initialize media if not already initialized
       // Both host and participant need media to establish connections
       if (!isInitializedRef.current || !streamRef.current) {
-        console.log('🎥 Initializing media for meeting connection...');
-        console.log('🎥 User type:', hostStatus ? 'Host' : 'Participant');
         try {
           const stream = await initializeMedia();
-          console.log('✅ Media initialized successfully');
-          console.log('✅ Stream details:', {
-            streamId: stream?.id,
-            active: stream?.active,
-            videoTracks: stream?.getVideoTracks().length,
-            audioTracks: stream?.getAudioTracks().length,
-            videoEnabled: stream?.getVideoTracks()[0]?.enabled,
-            audioEnabled: stream?.getAudioTracks()[0]?.enabled
-          });
           
           // CRITICAL: Ensure local stream state is updated
           if (stream && stream !== streamRef.current) {
-            console.log('🔄 Updating local stream state');
             setLocalStream(stream);
           }
           
           // CRITICAL: Process any signals that arrived before media was ready
           if (earlySignalQueueRef.current.length > 0) {
-            console.log(`📦 Processing ${earlySignalQueueRef.current.length} queued signals that arrived before media was ready`);
             // Sort signals: offers first, then answers, then ICE candidates
             const sortedSignals = earlySignalQueueRef.current.sort((a, b) => {
               const typeOrder = { offer: 0, answer: 1, candidate: 2 };
@@ -179,20 +140,12 @@ const useVideoCall = (meetingId, userName) => {
             });
             
             for (const { from, signal } of sortedSignals) {
-              console.log(`📦 Processing queued signal from ${from}:`, {
-                signalType: signal.type,
-                hasSDP: !!signal.sdp,
-                hasCandidate: !!signal.candidate
-              });
-              
               // Check if peer already exists (might have been created by meeting-joined handler)
               if (peersRef.current[from]) {
-                console.log(`✅ Peer exists for ${from}, processing signal directly`);
                 try {
                   peersRef.current[from].signal(signal);
-                  console.log(`✅ Queued signal processed successfully for ${from}`);
                 } catch (error) {
-                  console.error(`❌ Error processing queued signal for ${from}:`, error);
+                  console.error(`Error processing queued signal for ${from}:`, error);
                 }
               } else {
                 // Create peer connection and process signal
@@ -209,15 +162,6 @@ const useVideoCall = (meetingId, userName) => {
                   isInitiator = newSocket.id < from;
                 }
                 
-                console.log(`🔗 Creating peer connection from queued signal:`, {
-                  from,
-                  mySocketId: newSocket.id,
-                  isInitiator,
-                  signalType: signal.type,
-                  senderIsHost,
-                  iAmHost: isHostRef.current
-                });
-                
                 if (createPeerConnectionRef.current) {
                   createPeerConnectionRef.current(from, isInitiator);
                   // Process signal after peer is created
@@ -225,12 +169,9 @@ const useVideoCall = (meetingId, userName) => {
                     if (peersRef.current[from]) {
                       try {
                         peersRef.current[from].signal(signal);
-                        console.log(`✅ Queued signal processed after peer creation for ${from}`);
                       } catch (error) {
-                        console.error(`❌ Error processing queued signal after peer creation:`, error);
+                        console.error(`Error processing queued signal after peer creation:`, error);
                       }
-                    } else {
-                      console.error(`❌ Peer not created for queued signal from ${from}`);
                     }
                   }, 200);
                 }
@@ -291,27 +232,12 @@ const useVideoCall = (meetingId, userName) => {
                 isInitiator = newSocket.id < participant.id;
               }
               
-              console.log(`🔗🔗🔗🔗🔗 CREATING PEER CONNECTION 🔗🔗🔗🔗🔗`);
-              console.log(`🔗 Connection details:`, {
-                from: newSocket.id,
-                to: participant.id,
-                fromName: 'You',
-                toName: participant.name,
-                isInitiator: isInitiator,
-                iAmHost: hostStatus,
-                theyAreHost: participantIsHost,
-                streamReady: streamReady,
-                hasStream: !!streamRef.current,
-                streamActive: streamRef.current?.active || false
-              });
-              
               // Create connection immediately if stream is ready, otherwise wait
               const createConnection = () => {
                 if (createPeerConnectionRef.current) {
-                  console.log(`🚀 Creating connection NOW to ${participant.name} (${participant.id})`);
                   createPeerConnectionRef.current(participant.id, isInitiator);
                 } else {
-                  console.error('❌ createPeerConnection not available!');
+                  console.error('createPeerConnection not available!');
                 }
               };
               
@@ -322,20 +248,13 @@ const useVideoCall = (meetingId, userName) => {
                 // Stream not ready, wait a bit
                 setTimeout(createConnection, 300);
               }
-            } else {
-              console.log(`⏭️ Skipping connection to ${participant.name}:`, {
-                isSelf: participant.id === newSocket.id,
-                hasExistingConnection: !!peersRef.current[participant.id]
-              });
             }
           });
         } else {
-          console.warn('⚠️ createPeerConnection not ready, will retry when available');
           // Retry when function becomes available (faster polling)
           const checkStream = setInterval(() => {
             if (createPeerConnectionRef.current) {
               clearInterval(checkStream);
-              console.log('✅ createPeerConnection ready, creating connections now');
               meetingParticipants.forEach((participant) => {
                 if (participant.id !== newSocket.id && !peersRef.current[participant.id]) {
                   let isInitiator = false;
@@ -344,22 +263,18 @@ const useVideoCall = (meetingId, userName) => {
                   } else {
                     isInitiator = newSocket.id < participant.id;
                   }
-                  console.log(`🔗 Retry: Creating connection to ${participant.name} (${participant.id}), initiator: ${isInitiator}`);
                   // Create immediately without delay
                   createPeerConnectionRef.current(participant.id, isInitiator);
                 }
               });
             }
-          }, 100); // Reduced from 500ms to 100ms for faster retry
+          }, 100);
           
-          // Clear interval after 10 seconds (reduced from 15)
+          // Clear interval after 10 seconds
           setTimeout(() => {
             clearInterval(checkStream);
-            console.warn('⏱️ Connection retry timeout');
           }, 10000);
         }
-      } else {
-        console.log('📋 No existing participants to connect to');
       }
       
       // CRITICAL FALLBACK: If hostId exists but host is not in participants list, create connection to host
@@ -367,14 +282,13 @@ const useVideoCall = (meetingId, userName) => {
       if (!hostStatus && actualHostId && actualHostId !== newSocket.id) {
         const hostInParticipants = meetingParticipants.find(p => p.id === actualHostId);
         if (!hostInParticipants) {
-          console.log(`⚠️ Host ${actualHostId} not in participants list, but hostId exists. Creating connection to host...`);
-          // Wait for stream and create connection to host (faster)
+          // Wait for stream and create connection to host
           const waitForStream = async (maxAttempts = 10) => {
             for (let i = 0; i < maxAttempts; i++) {
               if (streamRef.current && isInitializedRef.current) {
                 return true;
               }
-              await new Promise(resolve => setTimeout(resolve, 100)); // Reduced from 300ms to 100ms
+              await new Promise(resolve => setTimeout(resolve, 100));
             }
             return false;
           };
@@ -382,12 +296,11 @@ const useVideoCall = (meetingId, userName) => {
           const streamReady = await waitForStream();
           if (createPeerConnectionRef.current && !peersRef.current[actualHostId]) {
             // Participant connects to host, so participant is NOT initiator
-            console.log(`🔗 Creating fallback connection to host ${actualHostId}, initiator: false, streamReady: ${streamReady}`);
             setTimeout(() => {
               if (createPeerConnectionRef.current) {
                 createPeerConnectionRef.current(actualHostId, false);
               }
-            }, streamReady ? 100 : 300); // Reduced delay
+            }, streamReady ? 100 : 300);
           }
         }
       }
@@ -395,17 +308,10 @@ const useVideoCall = (meetingId, userName) => {
 
     // Handle meeting info (for reconnections when socket ID changes)
     newSocket.on('meeting-info', (data) => {
-      console.log('📥 Meeting-info event received (reconnection):', data);
       const { hostId, isHost: userIsHost, participants: meetingParticipants } = data;
       
       // Check if this socket is the host
       const isActuallyHost = hostId === newSocket.id;
-      console.log('🔍 Meeting-info host check:', {
-        socketId: newSocket.id,
-        hostId: hostId,
-        isActuallyHost: isActuallyHost,
-        backendIsHost: userIsHost
-      });
       
       setIsHost(isActuallyHost);
       isHostRef.current = isActuallyHost;
@@ -419,14 +325,6 @@ const useVideoCall = (meetingId, userName) => {
     newSocket.on('participant-joined', async (data) => {
       const { participant, meeting } = data;
       
-      console.log('📥 Participant-joined event received:', {
-        participantId: participant?.id,
-        participantName: participant?.name,
-        isHost: participant?.isHost,
-        isApproved: participant?.isApproved,
-        mySocketId: newSocket.id
-      });
-      
       if (participant) {
         // Only process approved participants or hosts
         // CRITICAL: Hosts don't need approval, they're always approved
@@ -437,16 +335,8 @@ const useVideoCall = (meetingId, userName) => {
           : !participant.isHost; // If undefined, assume approved if not host (they joined with password)
         
         if (!isApproved && !participant.isHost) {
-          console.log('⏭️ Skipping unapproved participant:', participant.name);
-          console.log(`  - isApproved: ${participant.isApproved}, isHost: ${participant.isHost}`);
           return;
         }
-        
-        console.log(`✅ Processing participant: ${participant.name}`, {
-          isApproved,
-          isHost: participant.isHost,
-          participantId: participant.id
-        });
 
         // CRITICAL: Check if this is a reconnection (same username, different socket ID)
         const previousSocketId = usernameToSocketIdRef.current[participant.name];
@@ -454,23 +344,19 @@ const useVideoCall = (meetingId, userName) => {
         
         // Check if this user is already in the process of reconnecting
         if (reconnectingUsersRef.current.has(participant.name)) {
-          console.log(`⏸️ User ${participant.name} is already reconnecting, skipping duplicate event`);
           return;
         }
         
         if (isReconnection) {
-          console.log(`🔄 User ${participant.name} reconnected: ${previousSocketId} -> ${participant.id}`);
-          
           // Mark user as reconnecting
           reconnectingUsersRef.current.add(participant.name);
           
           // Clean up old peer connection
           if (peersRef.current[previousSocketId]) {
-            console.log(`🧹 Cleaning up old peer connection for ${participant.name} (${previousSocketId})`);
             try {
               peersRef.current[previousSocketId].destroy();
             } catch (error) {
-              console.warn(`⚠️ Error destroying old peer:`, error);
+              console.warn(`Error destroying old peer:`, error);
             }
             delete peersRef.current[previousSocketId];
           }
@@ -1525,39 +1411,6 @@ const useVideoCall = (meetingId, userName) => {
     }
   }, []);
 
-  // Function to update local stream (for camera/mic request approval)
-  const updateLocalStream = useCallback((newStream) => {
-    console.log('🔄 useVideoCall: Updating local stream', {
-      hasNewStream: !!newStream,
-      newStreamId: newStream?.id,
-      currentStreamId: streamRef.current?.id,
-      videoTracks: newStream?.getVideoTracks().length,
-      audioTracks: newStream?.getAudioTracks().length
-    });
-    
-    // Stop old stream tracks if they exist
-    if (streamRef.current) {
-      const oldStream = streamRef.current;
-      console.log('🔄 useVideoCall: Stopping old stream tracks');
-      oldStream.getTracks().forEach(track => {
-        track.stop();
-        console.log('🔄 useVideoCall: Stopped track:', track.kind, track.id);
-      });
-    }
-    
-    // Update stream ref and state
-    streamRef.current = newStream;
-    setLocalStream(newStream);
-    
-    // Update all peer connections with the new stream
-    if (newStream) {
-      console.log('🔄 useVideoCall: Updating all peer connections with new stream');
-      updateAllPeerConnections(newStream, 'both');
-    }
-    
-    console.log('✅ useVideoCall: Local stream updated successfully');
-  }, [updateAllPeerConnections]);
-
   return {
     // Streams
     localStream,
@@ -1578,8 +1431,7 @@ const useVideoCall = (meetingId, userName) => {
     // Functions
     initializeMedia,
     forceConnection,
-    updateAllPeerConnections,
-    updateLocalStream
+    updateAllPeerConnections
   };
 };
 

@@ -35,8 +35,6 @@ import FatigueAlert from './components/FatigueAlert';
 import AudioTroubleshooter from './components/AudioTroubleshooter';
 import CompatibilityTestResults from './components/CompatibilityTestResults';
 import QuestionSuggestion from './components/QuestionSuggestion';
-import HostCameraRequest from './components/HostCameraRequest';
-import ParticipantConsentDialog from './components/ParticipantConsentDialog';
 
 // Import device compatibility utilities
 import { runCompatibilityTest, getErrorMessage, getRecommendations } from './utils/deviceCompatibility';
@@ -103,8 +101,7 @@ const MeetingRoom = () => {
     socket,
     forceConnection,
     updateAllPeerConnections,
-    participantMediaState,
-    updateLocalStream
+    participantMediaState
   } = useVideoCall(meetingId, finalUserName);
 
 
@@ -1090,42 +1087,6 @@ const MeetingRoom = () => {
       )}
 
 
-      {/* Participant Consent Dialog */}
-      <ParticipantConsentDialog
-        socket={socket}
-        meetingId={meetingId}
-        currentUserId={socket?.id}
-        onCameraMicToggle={(isActive, stream) => {
-          console.log('📹 Camera/Mic toggled:', { isActive, stream, hasUpdateLocalStream: !!updateLocalStream });
-          if (isActive && stream) {
-            // Replace the local stream with the new stream from consent dialog
-            console.log('🔄 Replacing local stream with consent stream');
-            
-            // Update the local stream in useVideoCall hook
-            if (updateLocalStream) {
-              updateLocalStream(stream);
-              console.log('✅ Consent stream integrated with peer connections');
-            } else {
-              console.error('❌ updateLocalStream function not available');
-            }
-          } else {
-            // Turn off camera/mic - session ended
-            console.log('🔄 Camera/Mic session ended - stopping consent stream');
-            if (window.consentStream) {
-              // Stop the consent stream
-              window.consentStream.getTracks().forEach(track => {
-                track.stop();
-                console.log('🔄 Stopped consent stream track:', track.kind);
-              });
-              window.consentStream = null;
-            }
-            
-            // Note: The original stream should be restored by the participant manually
-            // or the system will reinitialize when needed
-            console.log('✅ Consent stream stopped');
-          }
-        }}
-      />
 
       {/* Highlight Toast Notification */}
       {showHighlightFeedback && (

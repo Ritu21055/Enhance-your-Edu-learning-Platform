@@ -25,166 +25,10 @@ const VideoCallComponent = memo(({
   
   // Update refs when props change (but don't cause re-renders)
   useEffect(() => {
-    // CRITICAL: Log prop changes to detect unexpected changes
-    console.log('🎥🎥🎥 VideoCall: Component props changed', {
-      isVideoEnabled,
-      previousRefValue: isVideoEnabledRef.current,
-      hasStream: !!localStream,
-      streamId: localStream?.id,
-      timestamp: Date.now()
-    });
-    
-    // CRITICAL: Check if video is being disabled unexpectedly
-    if (isVideoEnabledRef.current === true && isVideoEnabled === false) {
-      console.error('🎥🎥🎥 ❌❌❌ VIDEO PROP CHANGED FROM TRUE TO FALSE IN REFS UPDATE!', {
-        previousValue: isVideoEnabledRef.current,
-        newValue: isVideoEnabled,
-        stackTrace: new Error().stack
-      });
-    }
-    
     localStreamRef.current = localStream;
     isVideoEnabledRef.current = isVideoEnabled;
-    console.log('🎥 VideoCall: Refs updated', { 
-      hasStream: !!localStream, 
-      isEnabled: isVideoEnabled 
-    });
   }, [localStream, isVideoEnabled]);
 
-  // CRITICAL: Update video element when localStream changes (e.g., after camera/mic request approval)
-  // BUT: Only enable/play video if isVideoEnabled is true (respect user's choice to turn off)
-  useEffect(() => {
-    if (!localStream) {
-      console.log('🎥 VideoCall: No local stream, skipping video element update');
-      return;
-    }
-
-    // CRITICAL: Respect isVideoEnabled prop - don't force enable if user turned it off
-    if (!isVideoEnabled) {
-      console.log('🎥 VideoCall: Video is disabled, skipping stream update (respecting user choice)');
-      return;
-    }
-
-    // Wait a bit for the video element to be available if it's being rendered
-    const updateVideoElement = () => {
-      const videoElement = localVideoRef.current;
-      if (!videoElement) {
-        console.log('🎥 VideoCall: Video element not ready yet, will retry...');
-        return false;
-      }
-
-      const videoTrack = localStream.getVideoTracks()[0];
-      
-      console.log('🎥 VideoCall: Local stream changed, updating video element', {
-        streamId: localStream.id,
-        hasVideoTrack: !!videoTrack,
-        videoTrackEnabled: videoTrack?.enabled,
-        videoTrackReady: videoTrack?.readyState,
-        isVideoEnabled: isVideoEnabled,
-        currentSrcObject: videoElement.srcObject?.id,
-        elementReady: !!videoElement,
-        elementPaused: videoElement.paused
-      });
-
-      // CRITICAL: Always update srcObject when stream changes (even if same reference)
-      // This ensures the video element picks up the new stream
-      if (videoElement.srcObject !== localStream) {
-        console.log('🎥 VideoCall: Setting new srcObject for local video');
-        videoElement.srcObject = localStream;
-      }
-
-      // CRITICAL: Only enable track if isVideoEnabled is true
-      if (videoTrack && isVideoEnabled) {
-        if (!videoTrack.enabled) {
-          console.log('🎥 VideoCall: Enabling video track (video is enabled)');
-          videoTrack.enabled = true;
-        }
-        
-        // Ensure track is live - wait for it if needed
-        if (videoTrack.readyState !== 'live') {
-          console.log('🎥 VideoCall: Video track not live yet, waiting...', {
-            readyState: videoTrack.readyState
-          });
-          
-          // Wait for track to become live
-          const checkLive = setInterval(() => {
-            if (videoTrack.readyState === 'live' && isVideoEnabled) {
-              console.log('🎥 VideoCall: Video track is now live');
-              clearInterval(checkLive);
-              // Force a re-render by updating the video element
-              if (videoElement && videoElement.srcObject && isVideoEnabled) {
-                videoElement.play().catch(() => {});
-              }
-            }
-          }, 100);
-          
-          // Stop checking after 5 seconds
-          setTimeout(() => {
-            clearInterval(checkLive);
-          }, 5000);
-        } else {
-          console.log('🎥 VideoCall: Video track is live and ready');
-        }
-      } else if (videoTrack && !isVideoEnabled) {
-        // CRITICAL: If video should be disabled, ensure track is disabled
-        if (videoTrack.enabled) {
-          console.log('🎥 VideoCall: Video is disabled, disabling track');
-          videoTrack.enabled = false;
-        }
-      } else {
-        console.warn('🎥 VideoCall: No video track found in stream');
-      }
-
-      // CRITICAL: Only show and play video if isVideoEnabled is true
-      if (isVideoEnabled) {
-        // Force video to be visible and playing
-        videoElement.style.opacity = '1';
-        videoElement.style.visibility = 'visible';
-        videoElement.style.display = 'block';
-        
-        // Play the video with retry logic
-        const playVideo = () => {
-          if (videoElement.paused && localStream.active && isVideoEnabled) {
-            videoElement.play().then(() => {
-              console.log('🎥 VideoCall: Video playing successfully after stream change');
-            }).catch(err => {
-              console.warn('🎥 VideoCall: Error playing video after stream change:', err);
-              // Retry after a short delay
-              setTimeout(() => {
-                if (videoElement && !videoElement.paused) return;
-                if (!isVideoEnabled) return; // Don't retry if video was disabled
-                console.log('🎥 VideoCall: Retrying video play...');
-                playVideo();
-              }, 500);
-            });
-          }
-        };
-        
-        playVideo();
-      } else {
-        // CRITICAL: If video is disabled, hide and pause it
-        videoElement.style.opacity = '0';
-        videoElement.style.visibility = 'hidden';
-        if (!videoElement.paused) {
-          videoElement.pause();
-        }
-      }
-      
-      return true;
-    };
-
-    // Try immediately
-    if (!updateVideoElement()) {
-      // If element not ready, retry after a short delay
-      const retryTimeout = setTimeout(() => {
-        if (!updateVideoElement()) {
-          console.warn('🎥 VideoCall: Video element still not ready after retry');
-        }
-      }, 200);
-      
-      return () => clearTimeout(retryTimeout);
-    }
-  }, [localStream, localVideoRef, isVideoEnabled]);
 
   // GLOBAL PROTECTION: Register video element for global protection
   // CRITICAL: Use refs to avoid re-running when unrelated props change
@@ -211,13 +55,11 @@ const VideoCallComponent = memo(({
 
     // CRITICAL: Force immediate setup
     if (videoElement.srcObject !== stream) {
-      console.log('🛡️ VideoCall: Force setting srcObject in protection');
       videoElement.srcObject = stream;
     }
 
     // Ensure track is enabled if it should be
     if (shouldBeEnabled && !videoTrack.enabled) {
-      console.log('🛡️ VideoCall: Force enabling track in protection');
       videoTrack.enabled = true;
     }
 
@@ -248,11 +90,9 @@ const VideoCallComponent = memo(({
       } else if (!currentShouldBeEnabled && videoTrack && videoElement) {
         // CRITICAL: If video should be disabled, ensure it stays disabled
         if (videoTrack.enabled) {
-          console.log('🛡️ VideoCall: Layout change detected - video disabled, ensuring track is disabled');
           videoTrack.enabled = false;
         }
         if (!videoElement.paused) {
-          console.log('🛡️ VideoCall: Layout change detected - video disabled, pausing element');
           videoElement.pause();
         }
       }
@@ -284,22 +124,6 @@ const VideoCallComponent = memo(({
 
   // Update global enabled state when prop changes
   useEffect(() => {
-    console.log('🎥🎥🎥 VideoCall: isVideoEnabled prop changed', {
-      newValue: isVideoEnabled,
-      previousValue: isVideoEnabledRef.current,
-      stackTrace: new Error().stack,
-      timestamp: Date.now()
-    });
-    
-    // CRITICAL: Check if video is being disabled unexpectedly
-    if (isVideoEnabledRef.current === true && isVideoEnabled === false) {
-      console.error('🎥🎥🎥 ❌❌❌ VIDEO PROP CHANGED FROM TRUE TO FALSE!', {
-        previousValue: isVideoEnabledRef.current,
-        newValue: isVideoEnabled,
-        stackTrace: new Error().stack
-      });
-    }
-    
     // CRITICAL: Update global protection system with new state
     // This ensures protection system respects user's choice to turn off video
     setVideoEnabled(isVideoEnabled);
@@ -309,13 +133,11 @@ const VideoCallComponent = memo(({
     if (!isVideoEnabled && localStream) {
       const videoTrack = localStream.getVideoTracks()[0];
       if (videoTrack && videoTrack.enabled) {
-        console.log('🎥 VideoCall: Video disabled - disabling track immediately');
         videoTrack.enabled = false;
       }
       
       // Also pause the video element
       if (localVideoRef.current && !localVideoRef.current.paused) {
-        console.log('🎥 VideoCall: Video disabled - pausing video element');
         localVideoRef.current.pause();
       }
     }
@@ -325,10 +147,6 @@ const VideoCallComponent = memo(({
   // CRITICAL: Use props directly for initial setup to ensure video starts
   useEffect(() => {
     if (!localStream || !localVideoRef.current) {
-      console.log('🎥 VideoCall: No stream or video element yet', {
-        hasStream: !!localStream,
-        hasElement: !!localVideoRef.current
-      });
       return;
     }
 
@@ -336,16 +154,8 @@ const VideoCallComponent = memo(({
     const videoTrack = localStream.getVideoTracks()[0];
     
     if (!videoTrack) {
-      console.log('🎥 VideoCall: No video track found in stream');
       return;
     }
-
-    console.log('🎥 VideoCall: Initial setup', {
-      trackEnabled: videoTrack.enabled,
-      isVideoEnabled: isVideoEnabled,
-      hasSrcObject: !!videoElement.srcObject,
-      streamId: localStream.id
-    });
 
     // CRITICAL: Set srcObject first - this is the most important
     if (videoElement.srcObject !== localStream) {
@@ -435,71 +245,6 @@ const VideoCallComponent = memo(({
       const currentStream = localStream; // Use prop directly
       const trackEnabled = videoTrack.enabled;
       
-      // CRITICAL: Also check refs for debugging
-      const refValue = isVideoEnabledRef.current;
-      const streamRef = localStreamRef.current;
-      
-      // CRITICAL: Track when updateVideo is called and what values it receives
-      // This will help us catch when video is being hidden unexpectedly
-      const updateVideoCallId = Math.random().toString(36).substr(2, 9);
-      const timestamp = Date.now();
-      
-      // CRITICAL: Always log when hiding video to catch the issue
-      if (!shouldBeEnabled || !trackEnabled) {
-        console.error('🎥🎥🎥❌❌❌ VideoCall: updateVideo - HIDING VIDEO', {
-          callId: updateVideoCallId,
-          shouldBeEnabled,
-          trackEnabled,
-          refValue,
-          hasStream: !!currentStream,
-          hasStreamRef: !!streamRef,
-          hasSrcObject: !!videoElement.srcObject,
-          reason: !shouldBeEnabled ? 'state is false' : 'track is disabled',
-          isVideoEnabledProp: isVideoEnabled,
-          isVideoEnabledRef: isVideoEnabledRef.current,
-          videoTrackEnabled: videoTrack.enabled,
-          timestamp: timestamp,
-          stackTrace: new Error().stack
-        });
-        
-        // CRITICAL: If video should be enabled but is being hidden, check if it's after audio toggle
-        if (refValue === true && shouldBeEnabled === false) {
-          const timeSinceAudioToggle = Date.now() - (window.lastAudioToggleTime || 0);
-          if (timeSinceAudioToggle < 5000) {
-            console.error('🎥🎥🎥 ❌❌❌ CRITICAL: updateVideo hiding video after audio toggle!', {
-              timeSinceAudioToggle,
-              shouldBeEnabled,
-              refValue,
-              trackEnabled,
-              stackTrace: new Error().stack
-            });
-          }
-        }
-      } else {
-        // CRITICAL: Always log when showing video if it's after audio toggle
-        const timeSinceAudioToggle = window.lastAudioToggleTime ? (timestamp - window.lastAudioToggleTime) : Infinity;
-        const isAfterAudioToggle = timeSinceAudioToggle < 5000;
-        
-        if (isAfterAudioToggle || Math.random() < 0.1) {
-          console.log('🎥🎥🎥 VideoCall: updateVideo - SHOWING VIDEO', {
-            callId: updateVideoCallId,
-            shouldBeEnabled,
-            trackEnabled,
-            refValue,
-            hasStream: !!currentStream,
-            hasSrcObject: !!videoElement.srcObject,
-            timestamp: timestamp,
-            timeSinceAudioToggle: timeSinceAudioToggle < 5000 ? timeSinceAudioToggle : null,
-            currentOpacity: videoElement.style.opacity,
-            currentVisibility: videoElement.style.visibility,
-            computedOpacity: window.getComputedStyle(videoElement).opacity,
-            computedVisibility: window.getComputedStyle(videoElement).visibility,
-            videoPaused: videoElement.paused,
-            videoReadyState: videoElement.readyState
-          });
-        }
-      }
-      
       if (shouldBeEnabled && trackEnabled) {
         // CRITICAL: Check if video is actually visible before showing
         const wasHidden = videoElement.style.opacity === '0' || 
@@ -516,40 +261,12 @@ const VideoCallComponent = memo(({
         
         // Ensure srcObject is set
         if (videoElement.srcObject !== currentStream && currentStream) {
-          console.warn('🎥 VideoCall: Restoring srcObject in updateVideo', {
-            hadSrcObject: !!videoElement.srcObject,
-            newStreamId: currentStream.id,
-            callId: updateVideoCallId
-          });
           videoElement.srcObject = currentStream;
         }
         
         // Play if paused
         if (videoElement.paused && videoElement.srcObject) {
-          const playPromise = videoElement.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(err => {
-              console.error('🎥 VideoCall: Error playing video after show', {
-                error: err,
-                callId: updateVideoCallId,
-                hasSrcObject: !!videoElement.srcObject,
-                readyState: videoElement.readyState
-              });
-            });
-          }
-        }
-        
-        // CRITICAL: If video was hidden and we're showing it after audio toggle, log it
-        if (wasHidden) {
-          const timeSinceAudioToggle = window.lastAudioToggleTime ? (Date.now() - window.lastAudioToggleTime) : Infinity;
-          if (timeSinceAudioToggle < 5000) {
-            console.warn('🎥🎥🎥 VideoCall: Video was hidden, now showing after audio toggle', {
-              callId: updateVideoCallId,
-              timeSinceAudioToggle,
-              wasHidden,
-              nowVisible: true
-            });
-          }
+          videoElement.play().catch(() => {});
         }
       } else {
         // Hide video - opacity/visibility only (element still takes space - no layout shift)
@@ -645,21 +362,10 @@ const VideoCallComponent = memo(({
 
   // Update remote video streams
   useEffect(() => {
-    console.log('📹 Updating remote video streams:', {
-      streamCount: Object.keys(remoteStreams).length,
-      participantIds: Object.keys(remoteStreams)
-    });
-    
     Object.entries(remoteStreams).forEach(([participantId, stream]) => {
       const videoElement = remoteVideoRefs.current[participantId];
       if (videoElement) {
         if (videoElement.srcObject !== stream) {
-          console.log(`📹 Setting srcObject for ${participantId}:`, {
-            streamId: stream.id,
-            active: stream.active,
-            videoTracks: stream.getVideoTracks().length,
-            audioTracks: stream.getAudioTracks().length
-          });
           videoElement.srcObject = stream;
         }
         
@@ -681,14 +387,6 @@ const VideoCallComponent = memo(({
           ? socketVideoEnabled !== false && trackReady  // If socket says enabled, show (unless track not ready)
           : trackEnabled && trackReady;  // Fallback to track state
         
-        console.log(`🎥 Video visibility check for ${participantId}:`, {
-          socketVideoEnabled,
-          trackEnabled,
-          trackReady,
-          isVideoEnabled,
-          socketMediaState
-        });
-        
         if (isVideoEnabled) {
           // Video is enabled - show and play
           videoElement.style.opacity = '1';
@@ -697,19 +395,10 @@ const VideoCallComponent = memo(({
           
           // Ensure video is playing
           if (videoElement.paused && stream.active) {
-            console.log(`▶️ Playing remote video for ${participantId}`);
-            videoElement.play().catch(err => {
-              console.error(`❌ Error playing remote video for ${participantId}:`, err);
-            });
+            videoElement.play().catch(() => {});
           }
         } else {
           // Video is disabled - hide the video element IMMEDIATELY
-          console.log(`🚫 Video disabled for ${participantId} - hiding video element IMMEDIATELY`, {
-            socketVideoEnabled,
-            trackEnabled,
-            trackReady,
-            socketMediaState
-          });
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.style.display = 'none'; // Also set display to none for complete hiding
@@ -718,33 +407,16 @@ const VideoCallComponent = memo(({
         
         // CRITICAL: Mute/unmute audio tracks based on participant's audio state
         const audioTracks = stream.getAudioTracks();
-        audioTracks.forEach((audioTrack, index) => {
+        audioTracks.forEach((audioTrack) => {
           // Use socket state if available, otherwise fall back to track state
           const shouldEnableAudio = socketAudioEnabled !== undefined
             ? socketAudioEnabled !== false  // If socket says enabled, enable (unless explicitly false)
             : audioTrack.enabled;  // Fallback to current track state
           
-          const currentEnabled = audioTrack.enabled;
-          
-          if (currentEnabled !== shouldEnableAudio) {
-            console.log(`🔊 Audio muting check for ${participantId} track ${index}:`, {
-              socketAudioEnabled,
-              currentEnabled,
-              shouldEnableAudio,
-              trackReady: audioTrack.readyState === 'live'
-            });
-            
+          if (audioTrack.enabled !== shouldEnableAudio) {
             audioTrack.enabled = shouldEnableAudio;
-            
-            if (shouldEnableAudio) {
-              console.log(`🔊✅ Unmuted audio track ${index} for ${participantId}`);
-            } else {
-              console.log(`🔊🔇 Muted audio track ${index} for ${participantId}`);
-            }
           }
         });
-      } else {
-        console.warn(`⚠️ No video element found for participant ${participantId}`);
       }
     });
     
@@ -762,41 +434,17 @@ const VideoCallComponent = memo(({
 
   // Get participant name
   const getParticipantName = (participantId) => {
-    console.log(`🔍🔍🔍 DEBUG: getParticipantName called for ${participantId}:`, {
-      participantId,
-      participantsCount: participants.length,
-      participantsList: participants.map(p => ({ id: p.id, name: p.name })),
-      currentUserId,
-      searchingFor: participantId
-    });
-    
     // CRITICAL: Search in participants list
     const participant = participants.find(p => p.id === participantId);
-    console.log(`🔍🔍🔍 DEBUG: Participant search result:`, {
-      found: !!participant,
-      participant: participant ? { id: participant.id, name: participant.name } : null
-    });
     
     if (participant && participant.name) {
       // Remove "(Host)" suffix if present for cleaner display
       const name = participant.name.replace(' (Host)', '').trim();
-      console.log(`✅✅✅ Found participant name for ${participantId}: "${name}"`);
       return name;
     }
     
-    // Fallback: try to find in remoteStreams metadata or use generic name
-    console.warn(`⚠️⚠️⚠️ Participant name not found for ${participantId}`, {
-      participantId,
-      participantsList: participants.map(p => ({ id: p.id, name: p.name })),
-      participantIds: participants.map(p => p.id),
-      currentUserId,
-      allParticipants: participants
-    });
-    
-    // Try to extract name from participantId or use generic name
-    const fallbackName = `Participant ${participantId.slice(0, 8)}`;
-    console.log(`📝 Using fallback name for ${participantId}: ${fallbackName}`);
-    return fallbackName;
+    // Fallback: use generic name
+    return `Participant ${participantId.slice(0, 8)}`;
   };
 
   // Filter out current user
@@ -827,22 +475,6 @@ const VideoCallComponent = memo(({
     const hasLocal = !!localStream; // Always count local video if stream exists
     // Use the maximum to ensure all videos are shown
     const count = Math.max(remoteStreamCount, participantCount) + (hasLocal ? 1 : 0);
-    // Expanded logging for debugging
-    console.log('📊 Video count calculation:');
-    console.log('  - remoteStreamCount:', remoteStreamCount);
-    console.log('  - participantCount:', participantCount);
-    console.log('  - hasLocalStream:', hasLocal);
-    console.log('  - localStreamId:', localStream?.id);
-    console.log('  - localStreamTracks:', localStream ? {
-      video: localStream.getVideoTracks().length,
-      audio: localStream.getAudioTracks().length,
-      videoEnabled: localStream.getVideoTracks()[0]?.enabled
-    } : null);
-    console.log('  - totalVideos:', count);
-    console.log('  - remoteStreamIds:', Object.keys(remoteStreams));
-    console.log('  - participantIds:', otherParticipants.map(p => p.id));
-    console.log('  - currentUserId:', currentUserId);
-    console.log('  - allParticipants:', participants.map(p => ({ id: p.id, name: p.name })));
     return count;
   }, [otherParticipants.length, remoteStreams, localStream, currentUserId, participants]);
 
@@ -872,13 +504,6 @@ const VideoCallComponent = memo(({
     // If video should be enabled, check if track exists and is enabled
     if (videoTrack) {
       const trackEnabled = videoTrack.enabled;
-      console.log('🎥 VideoCall: Checking local video enabled state', {
-        hasTrack: !!videoTrack,
-        trackEnabled,
-        isVideoEnabledProp: isVideoEnabled,
-        readyState: videoTrack.readyState,
-        streamId: localStream.id
-      });
       // Show video if track is enabled AND isVideoEnabled prop is true
       return trackEnabled && isVideoEnabled;
     }
@@ -886,34 +511,6 @@ const VideoCallComponent = memo(({
     return isVideoEnabled;
   }, [localStream, videoTrack, isVideoEnabled]);
   const hasLocalStream = !!localStream;
-  
-  // DEBUG: Log rendering state - expanded for visibility
-  console.log('🎬 VideoCall Render State:');
-  console.log('  - hasLocalStream:', hasLocalStream);
-  console.log('  - isLocalVideoEnabled:', isLocalVideoEnabled);
-  console.log('  - localStreamId:', localStream?.id);
-  console.log('  - remoteStreamCount:', Object.keys(remoteStreams).length);
-  console.log('  - remoteStreamIds:', Object.keys(remoteStreams));
-  console.log('  - totalVideos:', totalVideos);
-  console.log('  - gridLayoutClass:', gridLayoutClass);
-  console.log('  - participantsCount:', participants.length);
-  console.log('  - participants:', participants.map(p => ({ id: p.id, name: p.name })));
-  console.log('  - currentUserId:', currentUserId);
-  console.log('  - Will render local video?', hasLocalStream);
-  console.log('  - Will render remote videos?', Object.keys(remoteStreams).length > 0);
-  
-  // DEBUG: Check participant name matching for remote streams
-  Object.keys(remoteStreams).forEach(participantId => {
-    const participant = participants.find(p => p.id === participantId);
-    console.log(`🔍🔍🔍 DEBUG: Participant name lookup for remote stream ${participantId}:`, {
-      found: !!participant,
-      participant: participant ? { id: participant.id, name: participant.name, isHost: participant.isHost } : null,
-      allParticipantIds: participants.map(p => p.id),
-      allParticipantNames: participants.map(p => p.name),
-      remoteStreamIds: Object.keys(remoteStreams),
-      currentUserId
-    });
-  });
   
   return (
     <Box className="video-call-container">
@@ -942,24 +539,12 @@ const VideoCallComponent = memo(({
                     const videoTrack = localStream.getVideoTracks()[0];
                     const needsUpdate = el.srcObject !== localStream;
                     
-                    console.log('🎥🎥🎥 Setting local video srcObject in ref callback:', {
-                      streamId: localStream.id,
-                      hasVideoTrack: localStream.getVideoTracks().length > 0,
-                      videoTrackEnabled: videoTrack?.enabled,
-                      videoTrackReady: videoTrack?.readyState,
-                      elementReady: !!el,
-                      currentSrcObject: el.srcObject?.id,
-                      needsUpdate: needsUpdate,
-                      streamActive: localStream.active
-                    });
-                    
                     if (needsUpdate) {
                       el.srcObject = localStream;
                     }
                     
                     // Ensure video track is enabled
                     if (videoTrack && !videoTrack.enabled) {
-                      console.log('🎥🎥🎥 Enabling video track in ref callback');
                       videoTrack.enabled = true;
                     }
                     
@@ -971,10 +556,7 @@ const VideoCallComponent = memo(({
                     // Force play immediately with retry
                     const playVideo = () => {
                       if (el && el.srcObject && localStream.active) {
-                        el.play().then(() => {
-                          console.log('🎥🎥🎥 Local video playing successfully in ref callback');
-                        }).catch(err => {
-                          console.warn('🎥 Local video play error in ref callback:', err);
+                        el.play().catch(() => {
                           // Retry after a short delay
                           setTimeout(() => {
                             if (el && !el.paused) return;
@@ -993,7 +575,6 @@ const VideoCallComponent = memo(({
                   
                   if (computedStyle.opacity === '0' || computedStyle.visibility === 'hidden' ||
                       el.style.opacity === '0' || el.style.visibility === 'hidden') {
-                    console.log('🎥🎥🎥 Local video was hidden, forcing visibility');
                     el.style.opacity = '1';
                     el.style.visibility = 'visible';
                     el.style.display = 'block';
@@ -1042,29 +623,12 @@ const VideoCallComponent = memo(({
 
         {/* Remote Videos */}
         {Object.entries(remoteStreams).map(([participantId, stream]) => {
-          console.log(`🔍🔍🔍 DEBUG: Rendering remote video for participantId: ${participantId}`);
-          console.log(`  - All participants:`, participants.map(p => ({ id: p.id, name: p.name, isHost: p.isHost })));
-          console.log(`  - Current user ID: ${currentUserId}`);
-          console.log(`  - Remote stream IDs:`, Object.keys(remoteStreams));
-          console.log(`  - Looking for participant with ID: ${participantId}`);
-          
           const participantName = getParticipantName(participantId);
           const participant = participants.find(p => p.id === participantId);
           const isHost = participant?.isHost || false;
           
           // Add "(Host)" suffix for host participants
           const displayName = isHost ? `${participantName} (Host)` : participantName;
-          
-          console.log(`🎥🎥🎥 Rendering remote video for ${participantName} (${participantId}):`);
-          console.log(`  - streamId: ${stream.id}`);
-          console.log(`  - active: ${stream.active}`);
-          console.log(`  - videoTracks: ${stream.getVideoTracks().length}`);
-          console.log(`  - audioTracks: ${stream.getAudioTracks().length}`);
-          console.log(`  - participantName: "${participantName}"`);
-          console.log(`  - isHost: ${isHost}`);
-          console.log(`  - displayName: "${displayName}"`);
-          console.log(`  - participantsList:`, participants.map(p => ({ id: p.id, name: p.name })));
-          console.log(`  - Will render label with text: "${displayName || `Participant ${participantId.slice(0, 8)}`}"`);
           
           return (
             <Box 
@@ -1082,7 +646,6 @@ const VideoCallComponent = memo(({
                     el.setAttribute('data-participant-id', participantId);
                     
                     if (el.srcObject !== stream) {
-                      console.log(`📹 Setting srcObject for ${participantName} (${participantId})`);
                       el.srcObject = stream;
                     }
                     
@@ -1110,15 +673,10 @@ const VideoCallComponent = memo(({
                       
                       // Ensure video plays
                       if (stream.active) {
-                        el.play().catch(err => {
-                          console.error(`❌ Error playing remote video for ${participantName}:`, err);
-                        });
-                      } else {
-                        console.warn(`⚠️ Stream for ${participantName} is not active yet`);
+                        el.play().catch(() => {});
                       }
                     } else {
                       // Video is disabled - hide the video element
-                      console.log(`🚫 Video disabled for ${participantName} (${participantId}) - hiding video element`);
                       el.style.opacity = '0';
                       el.style.visibility = 'hidden';
                       el.pause();
@@ -1128,33 +686,61 @@ const VideoCallComponent = memo(({
                     const audioTracks = stream.getAudioTracks();
                     const socketAudioEnabled = socketMediaState?.audioEnabled;
                     
-                    audioTracks.forEach((audioTrack, index) => {
+                    audioTracks.forEach((audioTrack) => {
                       // Use socket state if available, otherwise fall back to track state
                       const shouldEnableAudio = socketAudioEnabled !== undefined
                         ? socketAudioEnabled !== false  // If socket says enabled, enable (unless explicitly false)
                         : audioTrack.enabled;  // Fallback to current track state
                       
                       if (audioTrack.enabled !== shouldEnableAudio) {
-                        console.log(`🔊 Setting audio track ${index} for ${participantName}: ${shouldEnableAudio ? 'ENABLE' : 'DISABLE'}`, {
-                          socketAudioEnabled,
-                          currentEnabled: audioTrack.enabled,
-                          shouldEnableAudio
-                        });
                         audioTrack.enabled = shouldEnableAudio;
                       }
                     });
                     
-                    if (wasNew) {
-                      console.log(`✅ Remote video element created for ${participantName}`);
-                      console.log(`  - Video track enabled: ${isVideoEnabled}`);
-                      console.log(`  - Audio tracks: ${audioTracks.length}, socket audio enabled: ${socketAudioEnabled}`);
-                      
+                    if (wasNew && videoTrack) {
                       // Set up listener for track enabled state changes
-                      if (videoTrack) {
-                        const handleEnabledChange = () => {
-                          const enabled = videoTrack.enabled;
-                          console.log(`🎥 Track enabled state changed for ${participantName}: ${enabled}`);
-                          if (enabled) {
+                      const handleEnabledChange = () => {
+                        const enabled = videoTrack.enabled;
+                        const socketVideoEnabled = socketMediaState?.videoEnabled;
+                        const shouldShow = socketVideoEnabled !== undefined 
+                          ? socketVideoEnabled && videoTrack.readyState === 'live'
+                          : enabled && videoTrack.readyState === 'live';
+                        
+                        if (shouldShow) {
+                          el.style.opacity = '1';
+                          el.style.visibility = 'visible';
+                          el.style.display = 'block';
+                          el.play().catch(() => {});
+                        } else {
+                          el.style.opacity = '0';
+                          el.style.visibility = 'hidden';
+                          el.pause();
+                        }
+                      };
+                      
+                      // Listen for mute/unmute events (when camera is toggled)
+                      videoTrack.addEventListener('mute', handleEnabledChange);
+                      videoTrack.addEventListener('unmute', handleEnabledChange);
+                      
+                      // Also check enabled property periodically (faster check for responsiveness)
+                      const checkInterval = setInterval(() => {
+                        const currentEnabled = videoTrack.enabled;
+                        const lastEnabled = videoTrack._lastEnabledState ?? currentEnabled;
+                        
+                        // Also check socket media state
+                        const socketVideoEnabled = socketMediaState?.videoEnabled;
+                        const lastSocketState = videoTrack._lastSocketVideoEnabled;
+                        
+                        if (currentEnabled !== lastEnabled || socketVideoEnabled !== lastSocketState) {
+                          videoTrack._lastEnabledState = currentEnabled;
+                          videoTrack._lastSocketVideoEnabled = socketVideoEnabled;
+                          
+                          // Use socket state if available, otherwise use track state
+                          const shouldShow = socketVideoEnabled !== undefined 
+                            ? socketVideoEnabled && videoTrack.readyState === 'live'
+                            : currentEnabled && videoTrack.readyState === 'live';
+                          
+                          if (shouldShow) {
                             el.style.opacity = '1';
                             el.style.visibility = 'visible';
                             el.style.display = 'block';
@@ -1164,58 +750,17 @@ const VideoCallComponent = memo(({
                             el.style.visibility = 'hidden';
                             el.pause();
                           }
-                        };
-                        
-                        // Listen for mute/unmute events (when camera is toggled)
-                        videoTrack.addEventListener('mute', handleEnabledChange);
-                        videoTrack.addEventListener('unmute', handleEnabledChange);
-                        
-                        // Also check enabled property periodically (faster check for responsiveness)
-                        const checkInterval = setInterval(() => {
-                          const currentEnabled = videoTrack.enabled;
-                          const lastEnabled = videoTrack._lastEnabledState ?? currentEnabled;
-                          
-                          // Also check socket media state (reuse socketMediaState from outer scope)
-                          const socketVideoEnabled = socketMediaState?.videoEnabled;
-                          const lastSocketState = videoTrack._lastSocketVideoEnabled;
-                          
-                          if (currentEnabled !== lastEnabled || socketVideoEnabled !== lastSocketState) {
-                            videoTrack._lastEnabledState = currentEnabled;
-                            videoTrack._lastSocketVideoEnabled = socketVideoEnabled;
-                            
-                            // Use socket state if available, otherwise use track state
-                            const shouldShow = socketVideoEnabled !== undefined 
-                              ? socketVideoEnabled && videoTrack.readyState === 'live'
-                              : currentEnabled && videoTrack.readyState === 'live';
-                            
-                            console.log(`🔄 Periodic check for ${participantName}:`, {
-                              trackEnabled: currentEnabled,
-                              socketVideoEnabled,
-                              shouldShow
-                            });
-                            
-                            if (shouldShow) {
-                              el.style.opacity = '1';
-                              el.style.visibility = 'visible';
-                              el.style.display = 'block';
-                              el.play().catch(() => {});
-                            } else {
-                              el.style.opacity = '0';
-                              el.style.visibility = 'hidden';
-                              el.pause();
-                            }
-                          }
-                        }, 100); // Check every 100ms for faster response
-                        
-                        videoTrack._lastEnabledState = videoTrack.enabled;
-                        
-                        // Clean up on unmount
-                        el._cleanupTrackListener = () => {
-                          videoTrack.removeEventListener('mute', handleEnabledChange);
-                          videoTrack.removeEventListener('unmute', handleEnabledChange);
-                          clearInterval(checkInterval);
-                        };
-                      }
+                        }
+                      }, 100); // Check every 100ms for faster response
+                      
+                      videoTrack._lastEnabledState = videoTrack.enabled;
+                      
+                      // Clean up on unmount
+                      el._cleanupTrackListener = () => {
+                        videoTrack.removeEventListener('mute', handleEnabledChange);
+                        videoTrack.removeEventListener('unmute', handleEnabledChange);
+                        clearInterval(checkInterval);
+                      };
                     }
                     
                     // CRITICAL: Ensure remote video is un-mirrored (remote cameras also provide mirrored feed)

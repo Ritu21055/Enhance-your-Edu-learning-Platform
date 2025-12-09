@@ -50,43 +50,6 @@ export default function registerMediaHandlers(socket, io) {
     console.log(`🔗 FORCE: Forwarded force connection request to ${targetId}`);
   });
 
-  // Handle host camera/mic requests
-  socket.on('host-request-camera-mic', (data) => {
-    console.log(`📤 Host ${socket.id} requesting camera/mic access:`, data);
-    
-    const meeting = activeMeetings.get(data.meetingId);
-    if (!meeting) {
-      console.log(`❌ Meeting ${data.meetingId} not found`);
-      return;
-    }
-    
-    // Check if the requester is the host
-    if (meeting.hostId !== socket.id) {
-      console.log(`❌ Only host can request camera/mic access. Requester: ${socket.id}, Host: ${meeting.hostId}`);
-      return;
-    }
-    
-    // Send request to all participants except host
-    const participants = meeting.participants.filter(p => p.id !== meeting.hostId);
-    console.log(`📤 Sending camera/mic request to ${participants.length} participants`);
-    
-    participants.forEach(participant => {
-      socket.to(participant.id).emit('host-camera-mic-request', {
-        ...data,
-        requestId: data.timestamp,
-        hostName: meeting.host
-      });
-    });
-    
-    // Set timeout to expire the request
-    setTimeout(() => {
-      participants.forEach(participant => {
-        socket.to(participant.id).emit('camera-mic-request-expired', {
-          requestId: data.timestamp
-        });
-      });
-    }, 30000); // 30 seconds to respond
-  });
 
   // Handle media state changes (camera/audio toggle) with intelligent recording
   socket.on('media-state-change', (data) => {
@@ -174,69 +137,6 @@ export default function registerMediaHandlers(socket, io) {
     console.log(`📡 Media state change broadcasted to meeting ${data.meetingId}`);
   });
 
-  // Handle participant approval of camera/mic request
-  socket.on('camera-mic-request-approved', (data) => {
-    console.log(`✅ Participant ${data.participantId} approved camera/mic request:`, data);
-    
-    const meeting = activeMeetings.get(data.meetingId);
-    if (!meeting) {
-      console.log(`❌ Meeting ${data.meetingId} not found`);
-      return;
-    }
-    
-    // Notify host about approval
-    socket.to(meeting.hostId).emit('participant-camera-mic-approved', {
-      participantId: data.participantId,
-      requestId: data.requestId,
-      streamId: data.streamId
-    });
-    
-    // Set timeout to automatically end the session
-    setTimeout(() => {
-      socket.to(meeting.hostId).emit('participant-camera-mic-session-ended', {
-        participantId: data.participantId,
-        requestId: data.requestId
-      });
-      
-      socket.to(data.participantId).emit('camera-mic-session-ended', {
-        requestId: data.requestId
-      });
-    }, data.duration * 1000); // Convert seconds to milliseconds
-  });
-
-  // Handle participant denial of camera/mic request
-  socket.on('camera-mic-request-denied', (data) => {
-    console.log(`❌ Participant ${data.participantId} denied camera/mic request:`, data);
-    
-    const meeting = activeMeetings.get(data.meetingId);
-    if (!meeting) {
-      console.log(`❌ Meeting ${data.meetingId} not found`);
-      return;
-    }
-    
-    // Notify host about denial
-    socket.to(meeting.hostId).emit('participant-camera-mic-denied', {
-      participantId: data.participantId,
-      requestId: data.requestId
-    });
-  });
-
-  // Handle camera/mic session ended
-  socket.on('camera-mic-session-ended', (data) => {
-    console.log(`⏰ Camera/mic session ended for participant ${data.participantId}:`, data);
-    
-    const meeting = activeMeetings.get(data.meetingId);
-    if (!meeting) {
-      console.log(`❌ Meeting ${data.meetingId} not found`);
-      return;
-    }
-    
-    // Notify host that session ended
-    socket.to(meeting.hostId).emit('participant-camera-mic-session-ended', {
-      participantId: data.participantId,
-      requestId: data.requestId
-    });
-  });
 
   // Handle screen sharing changes (start/stop with stream info)
   socket.on('screen-share-change', ({ meetingId, participantId, isSharing, streamId }) => {
