@@ -1,0 +1,40 @@
+{
+  "meeting": {
+    "id": "K1D5Z0",
+    "title": "Meeting K1D5Z0",
+    "participants": 1,
+    "createdAt": "2025-12-09T13:28:42.919Z",
+    "endedAt": "2025-12-09T13:28:35.843Z",
+    "duration": 0,
+    "status": "completed"
+  },
+  "highlights": {
+    "total": 0,
+    "data": [],
+    "summary": {
+      "totalHighlights": 0,
+      "byType": {},
+      "byPriority": {},
+      "byParticipant": {},
+      "timeline": []
+    }
+  },
+  "recording": null,
+  "highlightReel": null,
+  "transcript": {
+    "totalEntries": 0,
+    "data": [],
+    "fullTranscript": ""
+  },
+  "sentiment": null,
+  "metadata": {
+    "savedAt": "2025-12-09T13:28:35.846Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": true,
+      "questionGeneration": true,
+      "sentimentAnalysis": false,
+      "transcription": false
+    }
+  }
+}

@@ -49,15 +49,18 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
 
     const handleRequestExpired = ({ requestId }) => {
       console.log('📸 ParticipantConsentDialog: Request expired:', requestId);
-      setRequest(prevRequest => {
-        if (prevRequest?.requestId === requestId) {
-          if (onSessionStateChange) {
-            onSessionStateChange(null);
+      // Use setTimeout to avoid setState during render warning
+      setTimeout(() => {
+        setRequest(prevRequest => {
+          if (prevRequest?.requestId === requestId) {
+            if (onSessionStateChange) {
+              onSessionStateChange(null);
+            }
+            return null;
           }
-          return null;
-        }
-        return prevRequest;
-      });
+          return prevRequest;
+        });
+      }, 0);
     };
 
     const handleAnyEvent = (eventName, ...args) => {
@@ -266,7 +269,20 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
         // Note: Audio state is managed differently, but we ensure track is enabled
       }
       
+      // CRITICAL: Update localStreamRef FIRST so video element can access it
+      if (window.localStreamRef) {
+        window.localStreamRef.current = stream;
+        console.log('📸 ParticipantConsentDialog: Updated window.localStreamRef with new stream');
+      }
+      
+      // Also update streamRef if it exists
+      if (window.streamRef) {
+        window.streamRef.current = stream;
+        console.log('📸 ParticipantConsentDialog: Updated window.streamRef with new stream');
+      }
+      
       // Update peer connections with the new stream
+      // This will also update the localStream state in useVideoCall hook
       if (window.updateVideoCallPeerConnections) {
         console.log('📸 ParticipantConsentDialog: Updating peer connections with new stream');
         window.updateVideoCallPeerConnections(stream, 'both');
@@ -274,10 +290,33 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
         console.error('📸 ParticipantConsentDialog: updateVideoCallPeerConnections not available!');
       }
       
-      // Also update localStreamRef for screen share protection
-      if (window.localStreamRef) {
-        window.localStreamRef.current = stream;
-      }
+      // CRITICAL: Also set stream directly on localVideoRef if available
+      // This ensures the video element gets the stream immediately
+      // Try multiple times in case the element isn't ready yet
+      const setVideoElementStream = (attempt = 0) => {
+        if (window.localVideoRef && window.localVideoRef.current) {
+          const videoElement = window.localVideoRef.current;
+          if (videoElement.srcObject !== stream) {
+            videoElement.srcObject = stream;
+            console.log('📸 ParticipantConsentDialog: Set stream directly on localVideoRef element');
+            
+            // Force video to play
+            videoElement.play().catch(err => {
+              console.warn('📸 ParticipantConsentDialog: Video play failed:', err);
+            });
+          } else {
+            console.log('📸 ParticipantConsentDialog: Video element already has the stream');
+          }
+        } else if (attempt < 5) {
+          // Retry after a short delay if element isn't ready
+          setTimeout(() => setVideoElementStream(attempt + 1), 200);
+        } else {
+          console.warn('📸 ParticipantConsentDialog: Video element not available after retries');
+        }
+      };
+      
+      // Try immediately, then retry if needed
+      setVideoElementStream();
       
       // Emit media state change to notify other participants
       if (socket && socket.connected) {

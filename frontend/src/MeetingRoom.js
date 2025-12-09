@@ -137,6 +137,17 @@ const MeetingRoom = () => {
     };
   }, [localStream]);
   
+  // Expose localVideoRef to window for ParticipantConsentDialog
+  useEffect(() => {
+    if (localVideoRef) {
+      window.localVideoRef = localVideoRef;
+      console.log('✅ MeetingRoom: Exposed localVideoRef to window');
+    }
+    return () => {
+      // Keep ref available even after cleanup
+    };
+  }, [localVideoRef]);
+  
   // Calculate lock states based on active session
   const isAudioLocked = activeSession && 
     (activeSession.requestType === 'audio' || activeSession.requestType === 'both');
