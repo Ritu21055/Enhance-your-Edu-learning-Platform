@@ -1668,22 +1668,28 @@ const useVideoCall = (meetingId, userName) => {
                   
                   // CRITICAL: After replacing track, ensure renegotiation happens if connection is stable
                   // replaceTrack should trigger renegotiation automatically, but we'll ensure it happens
+                  // Either side can create an offer to trigger renegotiation
                   if (pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
-                    console.log(`🔄 VideoCall: Connection is stable after track replacement, ensuring renegotiation for ${participantId}`);
-                    if (peer.initiator) {
-                      pc.createOffer().then(offer => {
-                        console.log(`📤 VideoCall: Created offer after video track replacement for ${participantId}`, {
-                          offerType: offer.type,
-                          hasVideo: offer.sdp.includes('m=video'),
-                          hasAudio: offer.sdp.includes('m=audio')
-                        });
-                        return pc.setLocalDescription(offer);
-                      }).then(() => {
-                        console.log(`✅ VideoCall: Set local description (offer) after video track replacement for ${participantId}`);
-                      }).catch(err => {
-                        console.error(`❌ VideoCall: Failed to create/set offer after video track replacement for ${participantId}:`, err);
+                    console.log(`🔄 VideoCall: Connection is stable after track replacement, ensuring renegotiation for ${participantId}`, {
+                      isInitiator: peer.initiator,
+                      signalingState: pc.signalingState,
+                      iceConnectionState: pc.iceConnectionState
+                    });
+                    // Either side can create an offer to trigger renegotiation
+                    pc.createOffer().then(offer => {
+                      console.log(`📤 VideoCall: Created offer after video track replacement for ${participantId}`, {
+                        offerType: offer.type,
+                        hasVideo: offer.sdp.includes('m=video'),
+                        hasAudio: offer.sdp.includes('m=audio'),
+                        isInitiator: peer.initiator
                       });
-                    }
+                      return pc.setLocalDescription(offer);
+                    }).then(() => {
+                      // SimplePeer will automatically send the offer via signaling
+                      console.log(`✅ VideoCall: Set local description (offer) after video track replacement for ${participantId}, signaling will be sent automatically`);
+                    }).catch(err => {
+                      console.error(`❌ VideoCall: Failed to create/set offer after video track replacement for ${participantId}:`, err);
+                    });
                   }
                 }).catch(err => {
                   console.error(`❌ VideoCall: Failed to replace video track for ${participantId}:`, err);
@@ -1790,25 +1796,29 @@ const useVideoCall = (meetingId, userName) => {
                   
                   // CRITICAL: After replacing track, ensure renegotiation happens if connection is stable
                   // This is especially important when trackType is 'both' to ensure both tracks are sent
+                  // Either side can create an offer to trigger renegotiation
                   if (pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
                     console.log(`🔄 VideoCall: Connection is stable after audio track replacement, ensuring renegotiation for ${participantId}`, {
                       trackType,
-                      isInitiator: peer.initiator
+                      isInitiator: peer.initiator,
+                      signalingState: pc.signalingState,
+                      iceConnectionState: pc.iceConnectionState
                     });
-                    if (peer.initiator) {
-                      pc.createOffer().then(offer => {
-                        console.log(`📤 VideoCall: Created offer after audio track replacement for ${participantId}`, {
-                          offerType: offer.type,
-                          hasVideo: offer.sdp.includes('m=video'),
-                          hasAudio: offer.sdp.includes('m=audio')
-                        });
-                        return pc.setLocalDescription(offer);
-                      }).then(() => {
-                        console.log(`✅ VideoCall: Set local description (offer) after audio track replacement for ${participantId}`);
-                      }).catch(err => {
-                        console.error(`❌ VideoCall: Failed to create/set offer after audio track replacement for ${participantId}:`, err);
+                    // Either side can create an offer to trigger renegotiation
+                    pc.createOffer().then(offer => {
+                      console.log(`📤 VideoCall: Created offer after audio track replacement for ${participantId}`, {
+                        offerType: offer.type,
+                        hasVideo: offer.sdp.includes('m=video'),
+                        hasAudio: offer.sdp.includes('m=audio'),
+                        isInitiator: peer.initiator
                       });
-                    }
+                      return pc.setLocalDescription(offer);
+                    }).then(() => {
+                      // SimplePeer will automatically send the offer via signaling
+                      console.log(`✅ VideoCall: Set local description (offer) after audio track replacement for ${participantId}, signaling will be sent automatically`);
+                    }).catch(err => {
+                      console.error(`❌ VideoCall: Failed to create/set offer after audio track replacement for ${participantId}:`, err);
+                    });
                   }
                 }).catch(err => {
                   console.error(`❌ VideoCall: Failed to replace audio track for ${participantId}:`, err);
