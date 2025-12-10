@@ -49,49 +49,59 @@ const ParticipantsDialog = ({
   });
 
   return (
-    <Dialog open={open} onClose={onClose}>
+    <Dialog open={open} onClose={onClose} keepMounted>
       <DialogTitle className="dialog-title">Participants ({participants.length})</DialogTitle>
       <DialogContent>
         <List>
-          {participants.map((participant) => (
-            <ListItem 
-              key={participant.id}
-            >
-              <ListItemAvatar>
-                <Avatar>
-                  {participant.name.charAt(0).toUpperCase()}
-                </Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary={
-                  <Box className="participant-info-container">
-                    <Typography variant="body1">
-                      {participant.name}
-                    </Typography>
-                    {participant.isHost && (
-                      <Chip
-                        label="HOST"
-                        color="secondary"
-                        size="small"
-                        variant="filled"
-                      />
-                    )}
-                  </Box>
+          {participants.map((participant) => {
+            // Log before rendering button
+            console.log('🔵🔵🔵 About to render RemoveParticipantButton for:', participant.name, {
+              participantId: participant.id,
+              currentUserId,
+              isHost,
+              dialogOpen: open
+            });
+            
+            return (
+              <ListItem 
+                key={participant.id}
+                secondaryAction={
+                  <RemoveParticipantButton
+                    participantId={participant.id}
+                    participantName={participant.name.replace(' (Host)', '')}
+                    socket={socket}
+                    meetingId={meetingId}
+                    isHost={isHost}
+                    currentUserId={currentUserId}
+                  />
                 }
-                secondary={participant.name === userName ? 'You' : 'Participant'}
-              />
-              <ListItemSecondaryAction>
-                <RemoveParticipantButton
-                  participantId={participant.id}
-                  participantName={participant.name.replace(' (Host)', '')}
-                  socket={socket}
-                  meetingId={meetingId}
-                  isHost={isHost}
-                  currentUserId={currentUserId}
+              >
+                <ListItemAvatar>
+                  <Avatar>
+                    {participant.name.charAt(0).toUpperCase()}
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
+                    <Box className="participant-info-container">
+                      <Typography variant="body1">
+                        {participant.name}
+                      </Typography>
+                      {participant.isHost && (
+                        <Chip
+                          label="HOST"
+                          color="secondary"
+                          size="small"
+                          variant="filled"
+                        />
+                      )}
+                    </Box>
+                  }
+                  secondary={participant.name === userName ? 'You' : 'Participant'}
                 />
-              </ListItemSecondaryAction>
-            </ListItem>
-          ))}
+              </ListItem>
+            );
+          })}
         </List>
       </DialogContent>
     </Dialog>

@@ -24,29 +24,36 @@ const RemoveParticipantButton = ({
   isHost,
   currentUserId
 }) => {
+  // Debug logging - ALWAYS log when component is called
+  console.log('🔴 RemoveParticipantButton RENDER CALLED:', {
+    participantId,
+    participantName,
+    isHost,
+    currentUserId,
+    hasSocket: !!socket,
+    hasMeetingId: !!meetingId
+  });
+
   // Only show button if:
   // 1. Current user is host
   // 2. Participant is not the host themselves
   // 3. Participant is not the current user
   const shouldShow = isHost && participantId !== currentUserId;
 
-  // Debug logging
-  console.log('🔴 RemoveParticipantButton Debug:', {
-    participantId,
-    participantName,
+  console.log('🔴 RemoveParticipantButton shouldShow calculation:', {
     isHost,
+    participantId,
     currentUserId,
-    shouldShow,
-    hasSocket: !!socket,
-    hasMeetingId: !!meetingId
+    areEqual: participantId === currentUserId,
+    shouldShow
   });
 
   if (!shouldShow) {
-    console.log('🔴 RemoveParticipantButton: NOT SHOWING - shouldShow is false');
+    console.log('🔴 RemoveParticipantButton: RETURNING NULL - shouldShow is false');
     return null;
   }
 
-  console.log('🔴 RemoveParticipantButton: RENDERING BUTTON for', participantName);
+  console.log('🔴 RemoveParticipantButton: RENDERING BUTTON JSX for', participantName);
 
   const handleRemove = () => {
     if (!socket || !meetingId || !participantId) {
