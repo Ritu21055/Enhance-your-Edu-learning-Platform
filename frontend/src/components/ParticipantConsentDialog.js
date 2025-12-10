@@ -396,13 +396,24 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
                        requestData.requestType === 'audio' ? 'audio' : 'both';
       
       if (window.updateVideoCallPeerConnections) {
-        console.log('📸 ParticipantConsentDialog: Updating peer connections with new stream', {
+        console.log('📸📸📸 ParticipantConsentDialog: Updating peer connections with new stream 📸📸📸', {
           trackType,
           requestType: requestData.requestType,
           hasVideo: stream.getVideoTracks().length > 0,
-          hasAudio: stream.getAudioTracks().length > 0
+          hasAudio: stream.getAudioTracks().length > 0,
+          streamId: stream.id,
+          streamActive: stream.active,
+          videoTracks: stream.getVideoTracks().length,
+          audioTracks: stream.getAudioTracks().length,
+          videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
+          audioTrackEnabled: stream.getAudioTracks()[0]?.enabled
         });
-        window.updateVideoCallPeerConnections(stream, trackType);
+        try {
+          window.updateVideoCallPeerConnections(stream, trackType);
+          console.log('✅ ParticipantConsentDialog: updateVideoCallPeerConnections called successfully');
+        } catch (error) {
+          console.error('❌ ParticipantConsentDialog: Error calling updateVideoCallPeerConnections:', error);
+        }
         
         // CRITICAL: For audio-only, wait a bit for stream merge to complete before emitting media-state-change
         if (trackType === 'audio') {
@@ -415,7 +426,25 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
           }, 100);
         }
       } else {
-        console.error('📸 ParticipantConsentDialog: updateVideoCallPeerConnections not available!');
+        console.error('❌❌❌ ParticipantConsentDialog: updateVideoCallPeerConnections not available on window!', {
+          hasWindow: typeof window !== 'undefined',
+          windowKeys: typeof window !== 'undefined' ? Object.keys(window).filter(k => k.includes('update') || k.includes('Video') || k.includes('Peer')).join(', ') : 'N/A'
+        });
+        
+        // Try to wait a bit and retry
+        console.log('⏳ ParticipantConsentDialog: Waiting 500ms and retrying...');
+        setTimeout(() => {
+          if (window.updateVideoCallPeerConnections) {
+            console.log('✅ ParticipantConsentDialog: updateVideoCallPeerConnections now available, calling it');
+            try {
+              window.updateVideoCallPeerConnections(stream, trackType);
+            } catch (error) {
+              console.error('❌ ParticipantConsentDialog: Error on retry:', error);
+            }
+          } else {
+            console.error('❌ ParticipantConsentDialog: Still not available after retry');
+          }
+        }, 500);
       }
       
       // CRITICAL: Only set stream on video element if video is requested
