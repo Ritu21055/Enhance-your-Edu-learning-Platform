@@ -10,20 +10,14 @@ import {
   Avatar,
   Box,
   Chip,
-  Typography,
-  ListItemSecondaryAction
+  Typography
 } from '@mui/material';
-import HostCameraRequestButton from './HostCameraRequestButton';
 
 const ParticipantsDialog = ({
   open,
   onClose,
   participants,
-  userName,
-  isHost,
-  socket,
-  meetingId,
-  participantMediaState
+  userName
 }) => {
   return (
     <Dialog open={open} onClose={onClose}>
@@ -55,16 +49,6 @@ const ParticipantsDialog = ({
                 }
                 secondary={participant.name === userName ? 'You' : 'Participant'}
               />
-              {isHost && !participant.isHost && (
-                <ListItemSecondaryAction>
-                  <HostCameraRequestButton
-                    participant={participant}
-                    socket={socket}
-                    meetingId={meetingId}
-                    participantMediaState={participantMediaState}
-                  />
-                </ListItemSecondaryAction>
-              )}
             </ListItem>
           ))}
         </List>

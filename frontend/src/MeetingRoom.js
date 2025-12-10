@@ -35,9 +35,6 @@ import FatigueAlert from './components/FatigueAlert';
 import AudioTroubleshooter from './components/AudioTroubleshooter';
 import CompatibilityTestResults from './components/CompatibilityTestResults';
 import QuestionSuggestion from './components/QuestionSuggestion';
-import HostCameraRequestButton from './components/HostCameraRequestButton';
-import BulkRequestDialog from './components/BulkRequestDialog';
-import ParticipantConsentDialog from './components/ParticipantConsentDialog';
 
 // Import device compatibility utilities
 import { runCompatibilityTest, getErrorMessage, getRecommendations } from './utils/deviceCompatibility';
@@ -1558,26 +1555,6 @@ const MeetingRoom = () => {
           isVideoLocked={isVideoLocked}
         />
 
-      {/* Bulk Request Dialog */}
-      {isHost && (
-        <BulkRequestDialog
-          open={showBulkRequest}
-          onClose={() => setShowBulkRequest(false)}
-          socket={socket}
-          meetingId={meetingId}
-          participants={participants}
-          currentUserId={socket?.id}
-          participantMediaState={participantMediaState}
-        />
-      )}
-
-      {/* Participant Consent Dialog */}
-      <ParticipantConsentDialog
-        socket={socket}
-        meetingId={meetingId}
-        currentUserId={socket?.id}
-        onSessionStateChange={setActiveSession}
-      />
 
       {/* Participants Dialog */}
       <ParticipantsDialog
