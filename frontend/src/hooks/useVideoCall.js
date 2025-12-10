@@ -580,8 +580,8 @@ const useVideoCall = (meetingId, userName) => {
       participantMediaStateRef.current[participantId].videoEnabled = videoEnabled;
       participantMediaStateRef.current[participantId].audioEnabled = audioEnabled;
       
-      // Immediately update video element DOM - use requestAnimationFrame for immediate execution
-      const updateVideoElement = () => {
+      // Update video element DOM - simple and clean approach
+      setTimeout(() => {
         const stream = remoteStreamsRef.current[participantId];
         if (stream) {
           const videoElement = document.querySelector(`video[data-participant-id="${participantId}"]`);
@@ -592,7 +592,7 @@ const useVideoCall = (meetingId, userName) => {
             const shouldShow = videoEnabled !== false && trackReady && trackEnabled;
             
             if (shouldShow) {
-              // Video is enabled - restore stream if it was replaced with blank
+              // Video is enabled - restore stream if needed
               if (videoElement.srcObject !== stream) {
                 videoElement.srcObject = stream;
               }
@@ -603,32 +603,25 @@ const useVideoCall = (meetingId, userName) => {
                 videoElement.play().catch(() => {});
               }
             } else {
-              // Video is disabled - IMMEDIATELY replace srcObject with blank stream to clear frozen frame
-              // Do this BEFORE hiding to prevent frame caching
-              if (videoEnabled === false || (videoTrack && videoTrack.readyState === 'ended')) {
-                // Force clear the video element first
-                videoElement.pause();
-                videoElement.currentTime = 0; // Reset playback position
-                
-                // Create and set blank stream immediately
+              // Video is disabled - simply hide and pause
+              // Don't manipulate srcObject aggressively to avoid affecting other videos
+              videoElement.style.opacity = '0';
+              videoElement.style.visibility = 'hidden';
+              videoElement.style.display = 'none';
+              videoElement.pause();
+              
+              // Only replace with blank if explicitly disabled (not just track ended)
+              if (videoEnabled === false) {
                 try {
                   const canvas = document.createElement('canvas');
                   canvas.width = 1;
                   canvas.height = 1;
                   const blankStream = canvas.captureStream(0);
-                  // Force replace srcObject
-                  videoElement.srcObject = null; // Clear first
-                  videoElement.srcObject = blankStream; // Then set blank
+                  videoElement.srcObject = blankStream;
                 } catch (e) {
-                  videoElement.srcObject = null;
+                  // If blank stream fails, just leave it as is
                 }
               }
-              
-              // Hide after clearing
-              videoElement.style.opacity = '0';
-              videoElement.style.visibility = 'hidden';
-              videoElement.style.display = 'none';
-              videoElement.pause();
             }
           }
           
@@ -641,12 +634,7 @@ const useVideoCall = (meetingId, userName) => {
             }
           });
         }
-      };
-      
-      // Execute immediately and also after a tiny delay to catch any race conditions
-      requestAnimationFrame(updateVideoElement);
-      setTimeout(updateVideoElement, 0);
-      setTimeout(updateVideoElement, 10); // Extra check after 10ms
+      }, 0);
       
       // Force update remote streams to trigger re-render
       setRemoteStreams(prev => {

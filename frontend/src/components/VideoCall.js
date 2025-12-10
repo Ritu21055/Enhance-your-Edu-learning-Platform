@@ -483,35 +483,20 @@ const VideoCallComponent = memo(({
             ? (socketVideoEnabled === true || socketVideoEnabled === undefined || trackEnabled)  // Show if socket says enabled OR unknown OR track is enabled
             : false;  // No track or track ended - hide
         
-        // CRITICAL: If video is disabled, replace srcObject with blank stream to clear frozen frame
-        // If video is enabled, restore the actual stream
+        // Simple approach: only replace srcObject when video is explicitly disabled
+        // Don't aggressively manipulate to avoid affecting video quality
         if (!isVideoEnabled) {
-          // Video disabled - IMMEDIATELY replace with blank stream to prevent frozen frame
-          // Clear first, then set blank to force browser to clear cached frame
-          if (videoElement.srcObject === stream || (videoElement.srcObject && videoElement.srcObject !== null)) {
-            // Pause and reset first
-            videoElement.pause();
-            videoElement.currentTime = 0;
-            
-            // Capture the disabled state
-            const videoIsDisabled = true;
-            
+          // Video disabled - hide first, then optionally replace with blank
+          // Only replace if socket explicitly says disabled (not just track state)
+          if (socketVideoEnabled === false) {
             try {
               const canvas = document.createElement('canvas');
               canvas.width = 1;
               canvas.height = 1;
               const blankStream = canvas.captureStream(0);
-              // Clear first, then set blank
-              videoElement.srcObject = null;
-              // Use setTimeout to ensure browser processes the null assignment
-              setTimeout(() => {
-                const el = remoteVideoRefs.current[participantId];
-                if (el && videoIsDisabled) {
-                  el.srcObject = blankStream;
-                }
-              }, 0);
+              videoElement.srcObject = blankStream;
             } catch (e) {
-              videoElement.srcObject = null;
+              // If blank stream creation fails, just hide the element
             }
           }
         } else {
@@ -558,53 +543,22 @@ const VideoCallComponent = memo(({
           const handleTrackEnded = () => {
             const currentElement = remoteVideoRefs.current[participantId];
             if (currentElement) {
-              // Pause and reset first to clear frame
-              currentElement.pause();
-              currentElement.currentTime = 0;
-              
-              // CRITICAL: Replace srcObject with blank canvas stream to clear frozen frame
-              // Clear first, then set blank
-              currentElement.srcObject = null;
-              
-              try {
-                const canvas = document.createElement('canvas');
-                canvas.width = 1;
-                canvas.height = 1;
-                const blankStream = canvas.captureStream(0);
-                // Set blank stream after clearing
-                setTimeout(() => {
-                  const el = remoteVideoRefs.current[participantId];
-                  if (el) {
-                    el.srcObject = blankStream;
-                  }
-                }, 0);
-              } catch (e) {
-                // Already set to null above
-              }
-              
-              // Hide immediately
+              // Simple approach: just hide and pause
               currentElement.style.opacity = '0';
               currentElement.style.visibility = 'hidden';
               currentElement.style.display = 'none';
               currentElement.pause();
               
-              // Force hide multiple times to ensure it stays hidden
-              const forceHide = () => {
-                const el = remoteVideoRefs.current[participantId];
-                if (el) {
-                  el.pause();
-                  el.currentTime = 0;
-                  el.style.opacity = '0';
-                  el.style.visibility = 'hidden';
-                  el.style.display = 'none';
-                }
-              };
-              
-              // Hide immediately and again after delays
-              requestAnimationFrame(forceHide);
-              setTimeout(forceHide, 10);
-              setTimeout(forceHide, 50);
-              setTimeout(forceHide, 100);
+              // Optionally replace with blank stream to clear frame
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1;
+                canvas.height = 1;
+                const blankStream = canvas.captureStream(0);
+                currentElement.srcObject = blankStream;
+              } catch (e) {
+                // If blank stream fails, just leave it
+              }
             }
           };
           
