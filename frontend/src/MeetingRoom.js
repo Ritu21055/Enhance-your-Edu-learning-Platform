@@ -88,8 +88,7 @@ const MeetingRoom = () => {
   // AI Status state
   const [aiStatus, setAiStatus] = useState(null);
   
-  // Camera/Audio Request Feature State
-  const [showBulkRequest, setShowBulkRequest] = useState(false);
+  // Camera/Audio Request Feature State (removed - feature disabled)
   const [activeSession, setActiveSession] = useState(null);
   
   // Refs (localVideoRef comes from useWebRTC hook)
@@ -948,15 +947,6 @@ const MeetingRoom = () => {
               }}
             >
               🧠 {showSentimentDashboard ? 'Hide' : 'Show'} AI Analytics
-            </Button>
-            
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<People />}
-              onClick={() => setShowBulkRequest(true)}
-            >
-              Request Camera Access
             </Button>
             
             {/* AI Status Display */}

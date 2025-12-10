@@ -570,14 +570,8 @@ const useVideoCall = (meetingId, userName) => {
     });
 
     // Handle media state changes (when participant toggles video/audio)
-    // Listen for both the direct event and the broadcast event
     const handleMediaStateChange = (data) => {
       const { participantId, videoEnabled, audioEnabled } = data;
-      console.log(`📡📡📡 Media state change received for ${participantId}:`, {
-        videoEnabled,
-        audioEnabled,
-        participantId
-      });
       
       // Update media state tracking
       if (!participantMediaStateRef.current[participantId]) {
@@ -586,8 +580,7 @@ const useVideoCall = (meetingId, userName) => {
       participantMediaStateRef.current[participantId].videoEnabled = videoEnabled;
       participantMediaStateRef.current[participantId].audioEnabled = audioEnabled;
       
-      // CRITICAL: Immediately update video element DOM (don't wait for React re-render)
-      // This makes the change instant
+      // Immediately update video element DOM
       setTimeout(() => {
         const stream = remoteStreamsRef.current[participantId];
         if (stream) {
@@ -596,16 +589,7 @@ const useVideoCall = (meetingId, userName) => {
             const videoTrack = stream.getVideoTracks()[0];
             const trackReady = videoTrack?.readyState === 'live';
             const trackEnabled = videoTrack?.enabled ?? false;
-            // CRITICAL: Hide if video is disabled OR track is not ready (stopped/ended)
             const shouldShow = videoEnabled !== false && trackReady && trackEnabled;
-            
-            console.log(`⚡⚡⚡ INSTANT UPDATE: ${participantId} video ${shouldShow ? 'SHOW' : 'HIDE'}`, {
-              videoEnabled,
-              trackReady,
-              trackEnabled,
-              trackState: videoTrack?.readyState,
-              shouldShow
-            });
             
             if (shouldShow) {
               videoElement.style.opacity = '1';
@@ -615,75 +599,42 @@ const useVideoCall = (meetingId, userName) => {
                 videoElement.play().catch(() => {});
               }
             } else {
-              // CRITICAL: If video is disabled OR track is ended, replace srcObject with blank stream to clear frozen frame
+              // Replace srcObject with blank stream to clear frozen frame
               if (videoEnabled === false || (videoTrack && videoTrack.readyState === 'ended')) {
-                console.log(`⚡⚡⚡ Video disabled or track ended for ${participantId}, replacing srcObject with blank stream to prevent frozen frame`, {
-                  videoEnabled,
-                  trackState: videoTrack?.readyState
-                });
                 try {
                   const canvas = document.createElement('canvas');
                   canvas.width = 1;
                   canvas.height = 1;
                   const blankStream = canvas.captureStream(0);
                   videoElement.srcObject = blankStream;
-                  console.log(`⚡⚡⚡ Replaced video srcObject with blank stream for ${participantId}`);
                 } catch (e) {
-                  console.warn(`⚡⚡⚡ Could not create blank stream for ${participantId}, using null:`, e);
                   videoElement.srcObject = null;
                 }
               }
               
-              // CRITICAL: Completely hide video when disabled or track stopped
               videoElement.style.opacity = '0';
               videoElement.style.visibility = 'hidden';
-              videoElement.style.display = 'none'; // Also set display to none
+              videoElement.style.display = 'none';
               videoElement.pause();
             }
           }
           
-          // CRITICAL: Immediately mute/unmute audio tracks based on audioEnabled state
+          // Update audio tracks
           const audioTracks = stream.getAudioTracks();
-          audioTracks.forEach((audioTrack, index) => {
+          audioTracks.forEach((audioTrack) => {
             const shouldEnableAudio = audioEnabled !== false;
-            const currentEnabled = audioTrack.enabled;
-            
-            if (currentEnabled !== shouldEnableAudio) {
-              console.log(`🔊⚡⚡⚡ INSTANT AUDIO UPDATE: ${participantId} audio track ${index} ${shouldEnableAudio ? 'UNMUTE' : 'MUTE'}`, {
-                audioEnabled,
-                currentEnabled,
-                shouldEnableAudio,
-                trackReady: audioTrack.readyState === 'live'
-              });
-              
+            if (audioTrack.enabled !== shouldEnableAudio) {
               audioTrack.enabled = shouldEnableAudio;
-              
-              // Also set muted property if possible (though it's usually read-only)
-              if (audioTrack.muted !== !shouldEnableAudio) {
-                console.log(`🔊 Audio track muted state: ${audioTrack.muted}, should be: ${!shouldEnableAudio}`);
-              }
             }
           });
         }
       }, 0);
       
-      // CRITICAL: Force update remote streams to trigger re-render with new media state
-      // Create a new object reference to ensure React detects the change
+      // Force update remote streams to trigger re-render
       setRemoteStreams(prev => {
         const updated = { ...prev };
         if (updated[participantId]) {
-          // Keep the same stream but create new object to trigger re-render
-          // This ensures VideoCall.js useEffect runs and updates the video element
-          const stream = updated[participantId];
-          updated[participantId] = stream; // Same stream, but new object key triggers update
-          console.log(`🔄 Force updating remote stream reference for ${participantId} to trigger re-render`, {
-            videoEnabled,
-            audioEnabled,
-            hasVideoTrack: stream.getVideoTracks().length > 0,
-            hasAudioTrack: stream.getAudioTracks().length > 0,
-            videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
-            audioTrackEnabled: stream.getAudioTracks()[0]?.enabled
-          });
+          updated[participantId] = updated[participantId]; // Trigger re-render
         }
         return updated;
       });
@@ -1525,532 +1476,102 @@ const useVideoCall = (meetingId, userName) => {
   }, [socket, meetingId]);
 
   // Update all peer connections with new stream state (for video/audio toggle)
-  // trackType: 'audio' | 'video' | 'both' - specifies which track to update
-  // If stream is provided, it will replace the current local stream (for camera/mic requests)
   const updateAllPeerConnections = useCallback((newStream, trackType = 'both') => {
-    console.log(`🔄🔄🔄 updateAllPeerConnections CALLED 🔄🔄🔄`, {
-      hasNewStream: !!newStream,
-      trackType,
-      currentStreamRef: !!streamRef.current,
-      peersCount: Object.keys(peersRef.current).length,
-      peerIds: Object.keys(peersRef.current)
-    });
-    
-    // If a new stream is provided (e.g., from camera/mic request approval), update the local stream
+    // Update local stream if new stream provided
     if (newStream && newStream !== streamRef.current) {
       const oldStream = streamRef.current;
-      
-      // CRITICAL: For audio-only requests, merge audio from new stream with video from old stream
-      // For video-only or both, replace the entire stream
-      if (trackType === 'audio' && oldStream) {
-        const oldVideoTrack = oldStream.getVideoTracks()[0];
-        const newAudioTrack = newStream.getAudioTracks()[0];
-        
-        if (oldVideoTrack && newAudioTrack) {
-          // Create a new stream with old video + new audio
-          const mergedStream = new MediaStream();
-          mergedStream.addTrack(oldVideoTrack);
-          mergedStream.addTrack(newAudioTrack);
-          
-          // Stop only the old audio track (keep video track)
-          const oldAudioTracks = oldStream.getAudioTracks();
-          oldAudioTracks.forEach(track => track.stop());
-          
-          // Stop video track from new stream if it exists (we don't need it)
-          const newVideoTracks = newStream.getVideoTracks();
-          newVideoTracks.forEach(track => track.stop());
-          
-          console.log('📸 useVideoCall: Merged streams - kept old video, added new audio', {
-            hasVideo: mergedStream.getVideoTracks().length > 0,
-            hasAudio: mergedStream.getAudioTracks().length > 0
-          });
-          
-          streamRef.current = mergedStream;
-          setLocalStream(mergedStream);
-          
-          // CRITICAL: Update window.localStreamRef with merged stream
-          if (window.localStreamRef) {
-            window.localStreamRef.current = mergedStream;
-            console.log('📸 useVideoCall: Updated window.localStreamRef with merged stream');
-          }
-        } else {
-          // Fallback: if we can't merge, just use new stream
-          console.warn('📸 useVideoCall: Cannot merge streams, using new stream', {
-            hasOldVideo: !!oldVideoTrack,
-            hasNewAudio: !!newAudioTrack
-          });
-          if (oldStream) {
-            oldStream.getTracks().forEach(track => track.stop());
-          }
-          streamRef.current = newStream;
-          setLocalStream(newStream);
-        }
-      } else {
-        // For video-only or both, replace entire stream
-        // Stop old tracks to free up resources
-        if (oldStream) {
-          oldStream.getTracks().forEach(track => track.stop());
-        }
-        
-        // Update stream ref and state
-        streamRef.current = newStream;
-        setLocalStream(newStream);
-        
-        // CRITICAL: Update window.localStreamRef with new stream
-        if (window.localStreamRef) {
-          window.localStreamRef.current = newStream;
-          console.log('📸 useVideoCall: Updated window.localStreamRef with new stream');
-        }
+      if (oldStream) {
+        oldStream.getTracks().forEach(track => track.stop());
+      }
+      streamRef.current = newStream;
+      setLocalStream(newStream);
+      if (window.localStreamRef) {
+        window.localStreamRef.current = newStream;
       }
     }
     
-    // Always use current streamRef - never change stream reference during toggles
-    // This prevents sync effects from running and interfering with user actions
     const streamToUse = streamRef.current;
-    
-    if (!streamToUse) {
-      return;
-    }
+    if (!streamToUse) return;
 
-    // CRITICAL: When updating audio only, protect video track state
     const videoTrack = streamToUse.getVideoTracks()[0];
+    const audioTrack = streamToUse.getAudioTracks()[0];
     const videoWasEnabled = videoTrack?.enabled ?? true;
     
-    // Update all existing peer connections using replaceTrack
-    const peerEntries = Object.entries(peersRef.current);
-    console.log(`🔄 updateAllPeerConnections: Updating ${peerEntries.length} peer connections`);
+    // Helper to trigger renegotiation
+    const triggerRenegotiation = (pc, participantId) => {
+      if (pc.signalingState === 'stable' && 
+          (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
+        pc.createOffer()
+          .then(offer => pc.setLocalDescription(offer))
+          .then(() => {
+            const localDescription = pc.localDescription;
+            if (localDescription && socketRef.current?.id) {
+              socketRef.current.emit('signal', {
+                to: participantId,
+                from: socketRef.current.id,
+                signal: { type: localDescription.type, sdp: localDescription.sdp }
+              });
+            }
+          })
+          .catch(err => console.error(`Failed to renegotiate with ${participantId}:`, err));
+      }
+    };
     
+    // Update all peer connections
     Object.entries(peersRef.current).forEach(([participantId, peer]) => {
-      if (peer && !peer.destroyed && peer._pc) {
-        try {
-          const pc = peer._pc;
-          const senders = pc.getSenders();
-          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-          const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-          console.log(`🔄 updateAllPeerConnections: Processing peer ${participantId}`, {
-            hasPeer: !!peer,
-            peerDestroyed: peer.destroyed,
-            hasPC: !!pc,
-            sendersCount: senders.length,
-            senderKinds: senders.map(s => s.track?.kind || 'none'),
-            hasVideoSender: !!videoSender,
-            hasAudioSender: !!audioSender,
-            trackType,
-            streamHasVideo: streamToUse.getVideoTracks().length > 0,
-            streamHasAudio: streamToUse.getAudioTracks().length > 0,
-            signalingState: pc.signalingState,
-            iceConnectionState: pc.iceConnectionState,
-            peerInitiator: peer.initiator,
-            peerReady: peer.ready
-          });
+      if (!peer || peer.destroyed || !peer._pc) return;
+      
+      try {
+        const pc = peer._pc;
+        const senders = pc.getSenders();
+        const videoSender = senders.find(s => s.track?.kind === 'video');
+        const audioSender = senders.find(s => s.track?.kind === 'audio');
+        
+        // Update video track
+        if ((trackType === 'video' || trackType === 'both') && videoTrack) {
+          if (!videoTrack.enabled) videoTrack.enabled = true;
           
-          // CRITICAL: Only replace video track if explicitly requested
-          // When trackType is 'audio', we MUST NOT touch video track
-          if (trackType === 'video' || trackType === 'both') {
-            const currentVideoTrack = streamToUse.getVideoTracks()[0];
-            if (currentVideoTrack) {
-              // CRITICAL: Ensure video track is enabled
-              if (!currentVideoTrack.enabled) {
-                currentVideoTrack.enabled = true;
-                console.log(`📸 VideoCall: Enabled video track for ${participantId}`);
-              }
-              
-              const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-              if (videoSender) {
-                videoSender.replaceTrack(currentVideoTrack).then(() => {
-                  console.log(`✅ VideoCall: Video track replaced for ${participantId}`, {
-                    trackId: currentVideoTrack.id,
-                    trackEnabled: currentVideoTrack.enabled,
-                    trackReadyState: currentVideoTrack.readyState,
-                    signalingState: pc.signalingState,
-                    iceConnectionState: pc.iceConnectionState
-                  });
-                  
-                  // CRITICAL: After replacing track, ensure renegotiation happens if connection is stable
-                  // replaceTrack should trigger renegotiation automatically, but we'll ensure it happens
-                  // Either side can create an offer to trigger renegotiation
-                  if (pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
-                    console.log(`🔄 VideoCall: Connection is stable after track replacement, ensuring renegotiation for ${participantId}`, {
-                      isInitiator: peer.initiator,
-                      signalingState: pc.signalingState,
-                      iceConnectionState: pc.iceConnectionState
-                    });
-                    // Either side can create an offer to trigger renegotiation
-                    pc.createOffer().then(offer => {
-                      console.log(`📤 VideoCall: Created offer after video track replacement for ${participantId}`, {
-                        offerType: offer.type,
-                        hasVideo: offer.sdp.includes('m=video'),
-                        hasAudio: offer.sdp.includes('m=audio'),
-                        isInitiator: peer.initiator
-                      });
-                      return pc.setLocalDescription(offer);
-                    }).then(() => {
-                      // CRITICAL: SimplePeer doesn't automatically detect manually created offers
-                      // We need to manually create and send the signal
-                      const localDescription = pc.localDescription;
-                      if (localDescription && socketRef.current && socketRef.current.id) {
-                        const signal = {
-                          type: localDescription.type,
-                          sdp: localDescription.sdp
-                        };
-                        console.log(`📡 VideoCall: Manually sending signal after video track replacement for ${participantId}`, {
-                          signalType: signal.type,
-                          hasSDP: !!signal.sdp
-                        });
-                        socketRef.current.emit('signal', {
-                          to: participantId,
-                          from: socketRef.current.id,
-                          signal
-                        });
-                        console.log(`✅ VideoCall: Signal sent after video track replacement for ${participantId}`);
-                      } else {
-                        console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
-                          hasLocalDescription: !!localDescription,
-                          hasSocket: !!socketRef.current,
-                          hasSocketId: !!socketRef.current?.id
-                        });
-                      }
-                    }).catch(err => {
-                      console.error(`❌ VideoCall: Failed to create/set offer after video track replacement for ${participantId}:`, err);
-                    });
-                  }
-                }).catch(err => {
-                  console.error(`❌ VideoCall: Failed to replace video track for ${participantId}:`, err);
-                });
-              } else {
-                // No video sender exists, need to add track
-                // CRITICAL: For 'both' case, check if audio sender also doesn't exist
-                // If audio sender exists, we'll add video track here; if not, we'll add entire stream in audio section
-                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-                const needsBothTracks = trackType === 'both' && !audioSender;
-                
-                if (trackType === 'video' || (trackType === 'both' && audioSender)) {
-                  // Add video track now (either video-only request, or both with audio already present)
-                  console.log(`📸 VideoCall: No video sender found for ${participantId}, adding video track to trigger renegotiation`);
-                  try {
-                    // CRITICAL: Use native addTrack instead of SimplePeer's addStream for better control
-                    pc.addTrack(currentVideoTrack, streamToUse);
-                    console.log(`✅ VideoCall: Video track added via native addTrack for ${participantId}`, {
-                      trackId: currentVideoTrack.id,
-                      trackEnabled: currentVideoTrack.enabled,
-                      trackReadyState: currentVideoTrack.readyState
-                    });
-                    
-                    // CRITICAL: Always trigger renegotiation when adding tracks to established connection
-                    if (pc.signalingState === 'stable') {
-                      console.log(`🔄 updateAllPeerConnections: Connection is stable, triggering renegotiation for ${participantId}`, {
-                        isInitiator: peer.initiator,
-                        signalingState: pc.signalingState,
-                        iceConnectionState: pc.iceConnectionState
-                      });
-                      
-                      // Either side can create an offer to trigger renegotiation
-                      pc.createOffer().then(offer => {
-                        console.log(`📤 VideoCall: Created offer for ${participantId}`, {
-                          offerType: offer.type,
-                          hasVideo: offer.sdp.includes('m=video'),
-                          hasAudio: offer.sdp.includes('m=audio'),
-                          isInitiator: peer.initiator
-                        });
-                        return pc.setLocalDescription(offer);
-                      }).then(() => {
-                        // CRITICAL: SimplePeer doesn't automatically detect manually created offers
-                        // We need to manually create and send the signal
-                        const localDescription = pc.localDescription;
-                        if (localDescription && socketRef.current && socketRef.current.id) {
-                          const signal = {
-                            type: localDescription.type,
-                            sdp: localDescription.sdp
-                          };
-                          console.log(`📡 VideoCall: Manually sending signal after adding video track for ${participantId}`, {
-                            signalType: signal.type,
-                            hasSDP: !!signal.sdp
-                          });
-                          socketRef.current.emit('signal', {
-                            to: participantId,
-                            from: socketRef.current.id,
-                            signal
-                          });
-                          console.log(`✅ VideoCall: Signal sent after adding video track for ${participantId}`);
-                        } else {
-                          console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
-                            hasLocalDescription: !!localDescription,
-                            hasSocket: !!socketRef.current,
-                            hasSocketId: !!socketRef.current?.id
-                          });
-                        }
-                      }).catch(err => {
-                        console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
-                      });
-                    } else {
-                      console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
-                        signalingState: pc.signalingState
-                      });
-                    }
-                  } catch (err) {
-                    console.error(`❌ VideoCall: Failed to add video track for ${participantId}:`, err);
-                  }
-                } else if (trackType === 'both' && !audioSender) {
-                  // Both tracks needed, but neither sender exists - will be handled in audio section
-                  console.log(`📸 VideoCall: No video sender found for ${participantId}, will add entire stream in audio section`);
-                }
-              }
-            } else {
-              console.warn(`⚠️ VideoCall: No video track found in stream for ${participantId}`);
-            }
+          if (videoSender) {
+            videoSender.replaceTrack(videoTrack)
+              .then(() => triggerRenegotiation(pc, participantId))
+              .catch(err => console.error(`Failed to replace video track for ${participantId}:`, err));
+          } else {
+            pc.addTrack(videoTrack, streamToUse);
+            triggerRenegotiation(pc, participantId);
           }
-          
-          // Only replace audio track if requested
-          if (trackType === 'audio' || trackType === 'both') {
-            const audioTrack = streamToUse.getAudioTracks()[0];
-            if (audioTrack) {
-              // CRITICAL: Ensure audio track is enabled
-              if (!audioTrack.enabled) {
-                audioTrack.enabled = true;
-                console.log(`📸 VideoCall: Enabled audio track for ${participantId}`);
-              }
-              
-              const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-              if (audioSender) {
-                // Replace existing audio track
-                audioSender.replaceTrack(audioTrack).then(() => {
-                  console.log(`✅ VideoCall: Audio track replaced for ${participantId}`, {
-                    trackId: audioTrack.id,
-                    trackEnabled: audioTrack.enabled,
-                    trackReadyState: audioTrack.readyState,
-                    signalingState: pc.signalingState,
-                    iceConnectionState: pc.iceConnectionState
-                  });
-                  // CRITICAL: After audio track replacement, verify video track wasn't affected
-                  if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
-                    videoTrack.enabled = true;
-                  }
-                  
-                  // CRITICAL: After replacing track, ensure renegotiation happens if connection is stable
-                  // This is especially important when trackType is 'both' to ensure both tracks are sent
-                  // Either side can create an offer to trigger renegotiation
-                  if (pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
-                    console.log(`🔄 VideoCall: Connection is stable after audio track replacement, ensuring renegotiation for ${participantId}`, {
-                      trackType,
-                      isInitiator: peer.initiator,
-                      signalingState: pc.signalingState,
-                      iceConnectionState: pc.iceConnectionState
-                    });
-                    // Either side can create an offer to trigger renegotiation
-                    pc.createOffer().then(offer => {
-                      console.log(`📤 VideoCall: Created offer after audio track replacement for ${participantId}`, {
-                        offerType: offer.type,
-                        hasVideo: offer.sdp.includes('m=video'),
-                        hasAudio: offer.sdp.includes('m=audio'),
-                        isInitiator: peer.initiator
-                      });
-                      return pc.setLocalDescription(offer);
-                    }).then(() => {
-                      // CRITICAL: SimplePeer doesn't automatically detect manually created offers
-                      // We need to manually create and send the signal
-                      const localDescription = pc.localDescription;
-                      if (localDescription && socketRef.current && socketRef.current.id) {
-                        const signal = {
-                          type: localDescription.type,
-                          sdp: localDescription.sdp
-                        };
-                        console.log(`📡 VideoCall: Manually sending signal after audio track replacement for ${participantId}`, {
-                          signalType: signal.type,
-                          hasSDP: !!signal.sdp
-                        });
-                        socketRef.current.emit('signal', {
-                          to: participantId,
-                          from: socketRef.current.id,
-                          signal
-                        });
-                        console.log(`✅ VideoCall: Signal sent after audio track replacement for ${participantId}`);
-                      } else {
-                        console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
-                          hasLocalDescription: !!localDescription,
-                          hasSocket: !!socketRef.current,
-                          hasSocketId: !!socketRef.current?.id
-                        });
-                      }
-                    }).catch(err => {
-                      console.error(`❌ VideoCall: Failed to create/set offer after audio track replacement for ${participantId}:`, err);
-                    });
-                  }
-                }).catch(err => {
-                  console.error(`❌ VideoCall: Failed to replace audio track for ${participantId}:`, err);
-                });
-              } else {
-                // No audio sender exists, need to add track
-                // CRITICAL: For 'both' case, check if video sender also doesn't exist
-                // If both are missing, add entire stream at once
-                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                const needsBothTracks = trackType === 'both' && !videoSender;
-                
-                if (needsBothTracks) {
-                  // Add entire stream at once for 'both' case when neither sender exists
-                  console.log(`📸 VideoCall: No video or audio sender found for ${participantId}, adding entire stream to trigger renegotiation`);
-                  try {
-                    const videoTrack = streamToUse.getVideoTracks()[0];
-                    
-                    // CRITICAL: Use native addTrack instead of SimplePeer's addStream for better control
-                    // SimplePeer's addStream might not work correctly on already-established connections
-                    if (videoTrack) {
-                      pc.addTrack(videoTrack, streamToUse);
-                      console.log(`✅ VideoCall: Video track added via native addTrack for ${participantId}`, {
-                        trackId: videoTrack.id,
-                        trackEnabled: videoTrack.enabled,
-                        trackReadyState: videoTrack.readyState
-                      });
-                    }
-                    pc.addTrack(audioTrack, streamToUse);
-                    console.log(`✅ VideoCall: Audio track added via native addTrack for ${participantId}`, {
-                      trackId: audioTrack.id,
-                      trackEnabled: audioTrack.enabled,
-                      trackReadyState: audioTrack.readyState
-                    });
-                    
-                    // CRITICAL: Always trigger renegotiation when adding tracks to established connection
-                    // Create offer if we're the initiator, or wait for offer if we're not
-                    if (pc.signalingState === 'stable') {
-                      console.log(`🔄 updateAllPeerConnections: Connection is stable, triggering renegotiation for ${participantId}`, {
-                        isInitiator: peer.initiator,
-                        signalingState: pc.signalingState,
-                        iceConnectionState: pc.iceConnectionState
-                      });
-                      
-                      // Either side can create an offer to trigger renegotiation
-                      pc.createOffer().then(offer => {
-                        console.log(`📤 VideoCall: Created offer for ${participantId}`, {
-                          offerType: offer.type,
-                          hasVideo: offer.sdp.includes('m=video'),
-                          hasAudio: offer.sdp.includes('m=audio'),
-                          isInitiator: peer.initiator
-                        });
-                        return pc.setLocalDescription(offer);
-                      }).then(() => {
-                        // CRITICAL: SimplePeer doesn't automatically detect manually created offers
-                        // We need to manually create and send the signal
-                        const localDescription = pc.localDescription;
-                        if (localDescription && socketRef.current && socketRef.current.id) {
-                          const signal = {
-                            type: localDescription.type,
-                            sdp: localDescription.sdp
-                          };
-                          console.log(`📡 VideoCall: Manually sending signal after adding tracks for ${participantId}`, {
-                            signalType: signal.type,
-                            hasSDP: !!signal.sdp
-                          });
-                          socketRef.current.emit('signal', {
-                            to: participantId,
-                            from: socketRef.current.id,
-                            signal
-                          });
-                          console.log(`✅ VideoCall: Signal sent after adding tracks for ${participantId}`);
-                        } else {
-                          console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
-                            hasLocalDescription: !!localDescription,
-                            hasSocket: !!socketRef.current,
-                            hasSocketId: !!socketRef.current?.id
-                          });
-                        }
-                      }).catch(err => {
-                        console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
-                      });
-                    } else {
-                      console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
-                        signalingState: pc.signalingState
-                      });
-                    }
-                    
-                    console.log(`✅ VideoCall: Both tracks added for ${participantId}`, {
-                      audioTrackId: audioTrack.id,
-                      audioTrackEnabled: audioTrack.enabled,
-                      videoTrackId: videoTrack?.id,
-                      videoTrackEnabled: videoTrack?.enabled,
-                      streamHasVideo: streamToUse.getVideoTracks().length > 0,
-                      streamHasAudio: streamToUse.getAudioTracks().length > 0
-                    });
-                  } catch (err) {
-                    console.error(`❌ VideoCall: Failed to add stream for ${participantId}:`, err);
-                  }
-                } else {
-                  // Only audio sender is missing, add audio track
-                  console.log(`📸 VideoCall: No audio sender found for ${participantId}, adding audio track to trigger renegotiation`);
-                  try {
-                    // CRITICAL: Use native addTrack instead of SimplePeer's addStream for better control
-                    pc.addTrack(audioTrack, streamToUse);
-                    console.log(`✅ VideoCall: Audio track added via native addTrack for ${participantId}`, {
-                      trackId: audioTrack.id,
-                      trackEnabled: audioTrack.enabled,
-                      trackReadyState: audioTrack.readyState
-                    });
-                    
-                    // CRITICAL: Always trigger renegotiation when adding tracks to established connection
-                    if (pc.signalingState === 'stable') {
-                      console.log(`🔄 updateAllPeerConnections: Connection is stable, triggering renegotiation for ${participantId}`, {
-                        isInitiator: peer.initiator,
-                        signalingState: pc.signalingState,
-                        iceConnectionState: pc.iceConnectionState
-                      });
-                      
-                      // Either side can create an offer to trigger renegotiation
-                      pc.createOffer().then(offer => {
-                        console.log(`📤 VideoCall: Created offer for ${participantId}`, {
-                          offerType: offer.type,
-                          hasVideo: offer.sdp.includes('m=video'),
-                          hasAudio: offer.sdp.includes('m=audio'),
-                          isInitiator: peer.initiator
-                        });
-                        return pc.setLocalDescription(offer);
-                      }).then(() => {
-                        // CRITICAL: SimplePeer doesn't automatically detect manually created offers
-                        // We need to manually create and send the signal
-                        const localDescription = pc.localDescription;
-                        if (localDescription && socketRef.current && socketRef.current.id) {
-                          const signal = {
-                            type: localDescription.type,
-                            sdp: localDescription.sdp
-                          };
-                          console.log(`📡 VideoCall: Manually sending signal after adding audio track for ${participantId}`, {
-                            signalType: signal.type,
-                            hasSDP: !!signal.sdp
-                          });
-                          socketRef.current.emit('signal', {
-                            to: participantId,
-                            from: socketRef.current.id,
-                            signal
-                          });
-                          console.log(`✅ VideoCall: Signal sent after adding audio track for ${participantId}`);
-                        } else {
-                          console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
-                            hasLocalDescription: !!localDescription,
-                            hasSocket: !!socketRef.current,
-                            hasSocketId: !!socketRef.current?.id
-                          });
-                        }
-                      }).catch(err => {
-                        console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
-                      });
-                    } else {
-                      console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
-                        signalingState: pc.signalingState
-                      });
-                    }
-                  } catch (err) {
-                    console.error(`❌ VideoCall: Failed to add audio track for ${participantId}:`, err);
-                  }
-                }
-              }
-            } else {
-              console.warn(`⚠️ VideoCall: No audio track found in stream for ${participantId}`);
-            }
-          }
-        } catch (error) {
-          console.error(`VideoCall: Failed to update peer ${participantId}:`, error);
         }
+        
+        // Update audio track
+        if ((trackType === 'audio' || trackType === 'both') && audioTrack) {
+          if (!audioTrack.enabled) audioTrack.enabled = true;
+          
+          if (audioSender) {
+            audioSender.replaceTrack(audioTrack)
+              .then(() => {
+                if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
+                  videoTrack.enabled = true;
+                }
+                triggerRenegotiation(pc, participantId);
+              })
+              .catch(err => console.error(`Failed to replace audio track for ${participantId}:`, err));
+          } else {
+            pc.addTrack(audioTrack, streamToUse);
+            triggerRenegotiation(pc, participantId);
+          }
+        }
+        
+        // Add both tracks if neither exists
+        if (trackType === 'both' && !videoSender && !audioSender && videoTrack && audioTrack) {
+          pc.addTrack(videoTrack, streamToUse);
+          pc.addTrack(audioTrack, streamToUse);
+          triggerRenegotiation(pc, participantId);
+        }
+      } catch (error) {
+        console.error(`Failed to update peer ${participantId}:`, error);
       }
     });
     
-    // Final verification: if we only updated audio, ensure video track is still enabled
+    // Ensure video track is still enabled after audio-only update
     if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
       videoTrack.enabled = true;
     }
