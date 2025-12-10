@@ -25,13 +25,38 @@ const ParticipantsDialog = ({
   meetingId,
   currentUserId
 }) => {
+  // Debug logging
+  console.log('🔵 ParticipantsDialog Debug:', {
+    open,
+    participantsCount: participants.length,
+    isHost,
+    hasSocket: !!socket,
+    meetingId,
+    currentUserId,
+    participants: participants.map(p => ({ id: p.id, name: p.name, isHost: p.isHost }))
+  });
+  
+  // Log each participant's button visibility
+  participants.forEach((participant) => {
+    const shouldShowButton = isHost && participant.id !== currentUserId;
+    console.log(`🔴 Button visibility for ${participant.name}:`, {
+      participantId: participant.id,
+      currentUserId,
+      isHost,
+      shouldShow: shouldShowButton,
+      isSameUser: participant.id === currentUserId
+    });
+  });
+
   return (
     <Dialog open={open} onClose={onClose}>
       <DialogTitle className="dialog-title">Participants ({participants.length})</DialogTitle>
       <DialogContent>
         <List>
           {participants.map((participant) => (
-            <ListItem key={participant.id}>
+            <ListItem 
+              key={participant.id}
+            >
               <ListItemAvatar>
                 <Avatar>
                   {participant.name.charAt(0).toUpperCase()}

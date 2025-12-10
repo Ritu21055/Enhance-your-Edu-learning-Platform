@@ -30,6 +30,24 @@ const RemoveParticipantButton = ({
   // 3. Participant is not the current user
   const shouldShow = isHost && participantId !== currentUserId;
 
+  // Debug logging
+  console.log('🔴 RemoveParticipantButton Debug:', {
+    participantId,
+    participantName,
+    isHost,
+    currentUserId,
+    shouldShow,
+    hasSocket: !!socket,
+    hasMeetingId: !!meetingId
+  });
+
+  if (!shouldShow) {
+    console.log('🔴 RemoveParticipantButton: NOT SHOWING - shouldShow is false');
+    return null;
+  }
+
+  console.log('🔴 RemoveParticipantButton: RENDERING BUTTON for', participantName);
+
   const handleRemove = () => {
     if (!socket || !meetingId || !participantId) {
       console.error('❌ RemoveParticipantButton: Missing required props');
@@ -50,10 +68,6 @@ const RemoveParticipantButton = ({
     }
   };
 
-  if (!shouldShow) {
-    return null;
-  }
-
   return (
     <Tooltip title={`Remove ${participantName} from meeting`}>
       <IconButton
@@ -62,6 +76,11 @@ const RemoveParticipantButton = ({
         color="error"
         onClick={handleRemove}
         aria-label={`Remove ${participantName}`}
+        sx={{
+          opacity: 1,
+          visibility: 'visible',
+          display: 'inline-flex'
+        }}
       >
         <PersonRemove fontSize="small" />
       </IconButton>
