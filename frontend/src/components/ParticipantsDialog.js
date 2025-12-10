@@ -65,16 +65,15 @@ const ParticipantsDialog = ({
             return (
               <ListItem 
                 key={participant.id}
-                secondaryAction={
-                  <RemoveParticipantButton
-                    participantId={participant.id}
-                    participantName={participant.name.replace(' (Host)', '')}
-                    socket={socket}
-                    meetingId={meetingId}
-                    isHost={isHost}
-                    currentUserId={currentUserId}
-                  />
-                }
+                sx={{
+                  position: 'relative',
+                  '& .MuiListItemSecondaryAction-root': {
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)'
+                  }
+                }}
               >
                 <ListItemAvatar>
                   <Avatar>
@@ -99,6 +98,16 @@ const ParticipantsDialog = ({
                   }
                   secondary={participant.name === userName ? 'You' : 'Participant'}
                 />
+                <ListItemSecondaryAction>
+                  <RemoveParticipantButton
+                    participantId={participant.id}
+                    participantName={participant.name.replace(' (Host)', '')}
+                    socket={socket}
+                    meetingId={meetingId}
+                    isHost={isHost}
+                    currentUserId={currentUserId}
+                  />
+                </ListItemSecondaryAction>
               </ListItem>
             );
           })}

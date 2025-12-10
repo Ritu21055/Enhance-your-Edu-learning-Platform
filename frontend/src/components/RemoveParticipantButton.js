@@ -86,10 +86,17 @@ const RemoveParticipantButton = ({
         sx={{
           opacity: 1,
           visibility: 'visible',
-          display: 'inline-flex'
+          display: 'inline-flex !important',
+          position: 'relative',
+          zIndex: 1000,
+          minWidth: '40px',
+          minHeight: '40px',
+          '&:hover': {
+            backgroundColor: 'rgba(211, 47, 47, 0.08)'
+          }
         }}
       >
-        <PersonRemove fontSize="small" />
+        <PersonRemove fontSize="small" sx={{ display: 'block !important' }} />
       </IconButton>
     </Tooltip>
   );
