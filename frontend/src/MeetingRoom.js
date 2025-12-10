@@ -143,6 +143,35 @@ const MeetingRoom = () => {
       // Keep ref available even after cleanup
     };
   }, [localVideoRef]);
+
+  // Handle participant-removed event (when host removes this participant)
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleParticipantRemoved = (data) => {
+      const { message, meetingId: removedMeetingId, hostName } = data;
+      
+      console.log('🚫 Participant removed from meeting:', {
+        message,
+        meetingId: removedMeetingId,
+        hostName
+      });
+
+      // Show notification
+      alert(message || 'You have been removed from the meeting by the host');
+
+      // End meeting and navigate away
+      setTimeout(() => {
+        navigate('/');
+      }, 1000);
+    };
+
+    socket.on('participant-removed', handleParticipantRemoved);
+
+    return () => {
+      socket.off('participant-removed', handleParticipantRemoved);
+    };
+  }, [socket, navigate]);
   
   // Calculate lock states based on active session
   const isAudioLocked = activeSession && 
@@ -1556,6 +1585,7 @@ const MeetingRoom = () => {
         socket={socket}
         meetingId={meetingId}
         participantMediaState={participantMediaState}
+        currentUserId={socket?.id}
       />
 
       {/* Enhanced Highlight System Components */}

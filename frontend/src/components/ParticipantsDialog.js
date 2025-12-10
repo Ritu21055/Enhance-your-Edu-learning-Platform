@@ -7,17 +7,23 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
+  ListItemSecondaryAction,
   Avatar,
   Box,
   Chip,
   Typography
 } from '@mui/material';
+import RemoveParticipantButton from './RemoveParticipantButton';
 
 const ParticipantsDialog = ({
   open,
   onClose,
   participants,
-  userName
+  userName,
+  isHost,
+  socket,
+  meetingId,
+  currentUserId
 }) => {
   return (
     <Dialog open={open} onClose={onClose}>
@@ -49,6 +55,16 @@ const ParticipantsDialog = ({
                 }
                 secondary={participant.name === userName ? 'You' : 'Participant'}
               />
+              <ListItemSecondaryAction>
+                <RemoveParticipantButton
+                  participantId={participant.id}
+                  participantName={participant.name.replace(' (Host)', '')}
+                  socket={socket}
+                  meetingId={meetingId}
+                  isHost={isHost}
+                  currentUserId={currentUserId}
+                />
+              </ListItemSecondaryAction>
             </ListItem>
           ))}
         </List>
