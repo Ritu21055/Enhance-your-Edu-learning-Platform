@@ -497,28 +497,35 @@ const VideoCallComponent = memo(({
             videoElement.srcObject = null;
           }
         } else if (!shouldReplaceWithBlank) {
-          // CRITICAL: Always set srcObject if track is live and not explicitly disabled
-          // This ensures new streams are displayed even if socket state hasn't updated yet
-          if (videoElement.srcObject !== stream && trackReady && trackEnabled) {
+          // CRITICAL: Always set srcObject if stream has a video track and is not explicitly disabled
+          // This ensures new streams are displayed immediately, even if socket state hasn't updated yet
+          // Don't wait for trackReady - set it as soon as we have a track
+          if (videoElement.srcObject !== stream && videoTrack) {
             console.log(`📹 VideoCall: Setting srcObject for ${participantId}`, {
               trackReady,
               trackEnabled,
               socketVideoEnabled,
-              streamActive: stream.active
+              streamActive: stream.active,
+              hasVideoTrack: !!videoTrack,
+              trackState: videoTrack.readyState
             });
             videoElement.srcObject = stream;
+            // Force play immediately
+            videoElement.play().catch(err => {
+              console.warn(`📹 VideoCall: Failed to play video for ${participantId}:`, err);
+            });
           }
         }
         
         // Use socket state if available, otherwise fall back to track state
         // CRITICAL: If socket explicitly says video is disabled (false), hide it
-        // If socket says video is enabled (true) OR socket state is unknown (undefined), show if track is ready and enabled
-        // Also hide if track is stopped/ended (readyState !== 'live')
+        // If socket says video is enabled (true) OR socket state is unknown (undefined), show if track exists and is not ended
+        // Also hide if track is stopped/ended (readyState === 'ended')
         const isVideoEnabled = socketVideoEnabled === false
           ? false  // Socket explicitly says disabled
-          : (socketVideoEnabled === true || socketVideoEnabled === undefined)
-            ? (trackReady && trackEnabled)  // Socket says enabled OR unknown - use track state
-            : (trackEnabled && trackReady);  // Fallback to track state
+          : videoTrack && videoTrack.readyState !== 'ended'  // If track exists and is not ended, show it
+            ? (socketVideoEnabled === true || socketVideoEnabled === undefined || trackEnabled)  // Show if socket says enabled OR unknown OR track is enabled
+            : false;  // No track or track ended - hide
         
         console.log(`📹 VideoCall: Updating video for ${participantId}`, {
           socketVideoEnabled,

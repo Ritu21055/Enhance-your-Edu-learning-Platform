@@ -668,11 +668,22 @@ const useVideoCall = (meetingId, userName) => {
       }, 0);
       
       // CRITICAL: Force update remote streams to trigger re-render with new media state
+      // Create a new object reference to ensure React detects the change
       setRemoteStreams(prev => {
         const updated = { ...prev };
         if (updated[participantId]) {
-          // Create a new stream reference to trigger re-render
-          updated[participantId] = updated[participantId];
+          // Keep the same stream but create new object to trigger re-render
+          // This ensures VideoCall.js useEffect runs and updates the video element
+          const stream = updated[participantId];
+          updated[participantId] = stream; // Same stream, but new object key triggers update
+          console.log(`🔄 Force updating remote stream reference for ${participantId} to trigger re-render`, {
+            videoEnabled,
+            audioEnabled,
+            hasVideoTrack: stream.getVideoTracks().length > 0,
+            hasAudioTrack: stream.getAudioTracks().length > 0,
+            videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
+            audioTrackEnabled: stream.getAudioTracks()[0]?.enabled
+          });
         }
         return updated;
       });
@@ -1173,6 +1184,24 @@ const useVideoCall = (meetingId, userName) => {
           });
         };
         
+        // CRITICAL: Listen for track being added (when participant enables camera after approval)
+        const handleTrackAdded = (event) => {
+          console.log(`➕ Video track added for ${participantName} (${participantId}):`, {
+            trackId: event.track?.id,
+            trackKind: event.track?.kind,
+            trackEnabled: event.track?.enabled,
+            trackReadyState: event.track?.readyState
+          });
+          // Force update remote streams to trigger re-render
+          setRemoteStreams(prev => {
+            const updated = { ...prev };
+            if (updated[participantId]) {
+              updated[participantId] = stream;
+            }
+            return updated;
+          });
+        };
+        
         // Listen for track mute changes (when camera is turned off)
         videoTrack.addEventListener('mute', () => {
           console.log(`🔇 Video track muted for ${participantName} (${participantId})`);
@@ -1183,6 +1212,9 @@ const useVideoCall = (meetingId, userName) => {
           console.log(`🔊 Video track unmuted for ${participantName} (${participantId})`);
           handleTrackEnabledChange();
         });
+        
+        // CRITICAL: Listen for track being added to stream
+        stream.addEventListener('addtrack', handleTrackAdded);
         
         // Also check enabled state periodically (as a fallback)
         const enabledCheckInterval = setInterval(() => {
@@ -1198,9 +1230,10 @@ const useVideoCall = (meetingId, userName) => {
         // Store initial state
         videoTrack._lastEnabledState = videoTrack.enabled;
         
-        // Clean up interval when stream is removed
+        // Clean up interval and listeners when stream is removed
         stream.addEventListener('removetrack', () => {
           clearInterval(enabledCheckInterval);
+          stream.removeEventListener('addtrack', handleTrackAdded);
         });
       }
       
@@ -1242,6 +1275,53 @@ const useVideoCall = (meetingId, userName) => {
       }
     });
 
+    // CRITICAL: Listen for track additions on the peer connection (when participant adds video after approval)
+    if (peer._pc) {
+      peer._pc.ontrack = (event) => {
+        const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
+        console.log(`➕➕➕ TRACK ADDED TO PEER CONNECTION for ${participantName} (${participantId}) ➕➕➕`, {
+          trackId: event.track?.id,
+          trackKind: event.track?.kind,
+          trackEnabled: event.track?.enabled,
+          trackReadyState: event.track?.readyState,
+          streams: event.streams?.length || 0
+        });
+        
+        // If this is a video track and we don't have a stream yet, or the stream doesn't have this track
+        if (event.track && event.track.kind === 'video') {
+          const currentStream = remoteStreamsRef.current[participantId];
+          if (currentStream) {
+            // Stream exists, check if this track is already in it
+            const existingVideoTrack = currentStream.getVideoTracks()[0];
+            if (!existingVideoTrack || existingVideoTrack.id !== event.track.id) {
+              // New video track added - update stream
+              console.log(`📹 New video track added to existing stream for ${participantName}`);
+              // Force update to trigger re-render
+              setRemoteStreams(prev => {
+                const updated = { ...prev };
+                if (updated[participantId]) {
+                  updated[participantId] = currentStream; // Trigger re-render
+                }
+                return updated;
+              });
+            }
+          } else if (event.streams && event.streams.length > 0) {
+            // New stream with video track
+            const newStream = event.streams[0];
+            console.log(`📹 New stream received with video track for ${participantName}`);
+            setRemoteStreams(prev => {
+              const updated = {
+                ...prev,
+                [participantId]: newStream
+              };
+              remoteStreamsRef.current = updated;
+              return updated;
+            });
+          }
+        }
+      };
+    }
+    
     // Handle connection established
     peer.on('connect', () => {
       const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
@@ -1261,6 +1341,13 @@ const useVideoCall = (meetingId, userName) => {
         console.log(`  - Sending tracks: ${senders.length}`);
         senders.forEach((sender, idx) => {
           console.log(`    Sender ${idx}: ${sender.track?.kind || 'none'}, enabled=${sender.track?.enabled || false}`);
+        });
+        
+        // CRITICAL: Check receiving tracks
+        const receivers = peer._pc.getReceivers();
+        console.log(`  - Receiving tracks: ${receivers.length}`);
+        receivers.forEach((receiver, idx) => {
+          console.log(`    Receiver ${idx}: ${receiver.track?.kind || 'none'}, enabled=${receiver.track?.enabled || false}, readyState=${receiver.track?.readyState || 'N/A'}`);
         });
       }
       // Use ref to get current remote streams state
