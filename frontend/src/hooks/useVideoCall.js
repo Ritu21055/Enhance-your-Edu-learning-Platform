@@ -1625,15 +1625,23 @@ const useVideoCall = (meetingId, userName) => {
         try {
           const pc = peer._pc;
           const senders = pc.getSenders();
+          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+          const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
           console.log(`🔄 updateAllPeerConnections: Processing peer ${participantId}`, {
             hasPeer: !!peer,
             peerDestroyed: peer.destroyed,
             hasPC: !!pc,
             sendersCount: senders.length,
             senderKinds: senders.map(s => s.track?.kind || 'none'),
+            hasVideoSender: !!videoSender,
+            hasAudioSender: !!audioSender,
             trackType,
             streamHasVideo: streamToUse.getVideoTracks().length > 0,
-            streamHasAudio: streamToUse.getAudioTracks().length > 0
+            streamHasAudio: streamToUse.getAudioTracks().length > 0,
+            signalingState: pc.signalingState,
+            iceConnectionState: pc.iceConnectionState,
+            peerInitiator: peer.initiator,
+            peerReady: peer.ready
           });
           
           // CRITICAL: Only replace video track if explicitly requested
@@ -1667,68 +1675,57 @@ const useVideoCall = (meetingId, userName) => {
                 
                 if (trackType === 'video' || (trackType === 'both' && audioSender)) {
                   // Add video track now (either video-only request, or both with audio already present)
-                  console.log(`📸 VideoCall: No video sender found for ${participantId}, adding stream to trigger renegotiation`);
+                  console.log(`📸 VideoCall: No video sender found for ${participantId}, adding video track to trigger renegotiation`);
                   try {
-                    // SimplePeer's addStream will handle renegotiation automatically
-                    if (peer.addStream) {
-                      console.log(`🔄 updateAllPeerConnections: Calling peer.addStream for ${participantId}`, {
-                        streamId: streamToUse.id,
-                        streamActive: streamToUse.active,
-                        videoTracks: streamToUse.getVideoTracks().length,
-                        audioTracks: streamToUse.getAudioTracks().length,
-                        peerReady: peer.ready,
-                        peerDestroyed: peer.destroyed,
+                    // CRITICAL: Use native addTrack instead of SimplePeer's addStream for better control
+                    pc.addTrack(currentVideoTrack, streamToUse);
+                    console.log(`✅ VideoCall: Video track added via native addTrack for ${participantId}`, {
+                      trackId: currentVideoTrack.id,
+                      trackEnabled: currentVideoTrack.enabled,
+                      trackReadyState: currentVideoTrack.readyState
+                    });
+                    
+                    // CRITICAL: Always trigger renegotiation when adding tracks to established connection
+                    if (pc.signalingState === 'stable') {
+                      console.log(`🔄 updateAllPeerConnections: Connection is stable, triggering renegotiation for ${participantId}`, {
+                        isInitiator: peer.initiator,
                         signalingState: pc.signalingState,
                         iceConnectionState: pc.iceConnectionState
                       });
                       
-                      // CRITICAL: If peer connection is already established, we need to manually trigger renegotiation
-                      const needsRenegotiation = pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
-                      
-                      if (needsRenegotiation) {
-                        console.log(`🔄 updateAllPeerConnections: Connection is stable, manually triggering renegotiation for ${participantId}`);
-                        peer.addStream(streamToUse);
-                        if (peer.initiator) {
-                          pc.createOffer().then(offer => {
-                            return pc.setLocalDescription(offer);
-                          }).then(() => {
-                            console.log(`✅ VideoCall: Triggered renegotiation for ${participantId} after adding stream`);
-                          }).catch(err => {
-                            console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                      if (peer.initiator) {
+                        // We're the initiator, create a new offer
+                        pc.createOffer().then(offer => {
+                          console.log(`📤 VideoCall: Created offer for ${participantId}`, {
+                            offerType: offer.type,
+                            hasVideo: offer.sdp.includes('m=video'),
+                            hasAudio: offer.sdp.includes('m=audio')
                           });
-                        }
-                      } else {
-                        peer.addStream(streamToUse);
-                      }
-                      
-                      console.log(`✅ VideoCall: Stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
-                        trackId: currentVideoTrack.id,
-                        trackEnabled: currentVideoTrack.enabled,
-                        trackReadyState: currentVideoTrack.readyState,
-                        streamHasVideo: streamToUse.getVideoTracks().length > 0,
-                        streamHasAudio: streamToUse.getAudioTracks().length > 0
-                      });
-                    } else {
-                      // Fallback: use native addTrack
-                      pc.addTrack(currentVideoTrack, streamToUse);
-                      console.log(`✅ VideoCall: Video track added via native addTrack for ${participantId}`, {
-                        trackId: currentVideoTrack.id,
-                        trackEnabled: currentVideoTrack.enabled,
-                        trackReadyState: currentVideoTrack.readyState
-                      });
-                      
-                      // Manually trigger renegotiation if needed
-                      if (peer.initiator && peer._pc.signalingState === 'stable') {
-                        // Create new offer to trigger renegotiation
-                        peer._pc.createOffer().then(offer => {
-                          return peer._pc.setLocalDescription(offer);
+                          return pc.setLocalDescription(offer);
                         }).then(() => {
-                          // Signal will be sent automatically by SimplePeer
-                          console.log(`📸 VideoCall: Triggered renegotiation for ${participantId}`);
+                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
                         }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                        });
+                      } else {
+                        // We're not the initiator, but we can still create an offer to trigger renegotiation
+                        pc.createOffer().then(offer => {
+                          console.log(`📤 VideoCall: Created offer (non-initiator) for ${participantId}`, {
+                            offerType: offer.type,
+                            hasVideo: offer.sdp.includes('m=video'),
+                            hasAudio: offer.sdp.includes('m=audio')
+                          });
+                          return pc.setLocalDescription(offer);
+                        }).then(() => {
+                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
+                        }).catch(err => {
+                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
                         });
                       }
+                    } else {
+                      console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
+                        signalingState: pc.signalingState
+                      });
                     }
                   } catch (err) {
                     console.error(`❌ VideoCall: Failed to add video track for ${participantId}:`, err);
@@ -1780,70 +1777,79 @@ const useVideoCall = (meetingId, userName) => {
                   // Add entire stream at once for 'both' case when neither sender exists
                   console.log(`📸 VideoCall: No video or audio sender found for ${participantId}, adding entire stream to trigger renegotiation`);
                   try {
-                    // SimplePeer's addStream will handle renegotiation automatically
-                    if (peer.addStream) {
-                      console.log(`🔄 updateAllPeerConnections: Calling peer.addStream (both tracks) for ${participantId}`, {
-                        streamId: streamToUse.id,
-                        streamActive: streamToUse.active,
-                        videoTracks: streamToUse.getVideoTracks().length,
-                        audioTracks: streamToUse.getAudioTracks().length,
-                        peerReady: peer.ready,
-                        peerDestroyed: peer.destroyed,
+                    const videoTrack = streamToUse.getVideoTracks()[0];
+                    
+                    // CRITICAL: Use native addTrack instead of SimplePeer's addStream for better control
+                    // SimplePeer's addStream might not work correctly on already-established connections
+                    if (videoTrack) {
+                      pc.addTrack(videoTrack, streamToUse);
+                      console.log(`✅ VideoCall: Video track added via native addTrack for ${participantId}`, {
+                        trackId: videoTrack.id,
+                        trackEnabled: videoTrack.enabled,
+                        trackReadyState: videoTrack.readyState
+                      });
+                    }
+                    pc.addTrack(audioTrack, streamToUse);
+                    console.log(`✅ VideoCall: Audio track added via native addTrack for ${participantId}`, {
+                      trackId: audioTrack.id,
+                      trackEnabled: audioTrack.enabled,
+                      trackReadyState: audioTrack.readyState
+                    });
+                    
+                    // CRITICAL: Always trigger renegotiation when adding tracks to established connection
+                    // Create offer if we're the initiator, or wait for offer if we're not
+                    if (pc.signalingState === 'stable') {
+                      console.log(`🔄 updateAllPeerConnections: Connection is stable, triggering renegotiation for ${participantId}`, {
+                        isInitiator: peer.initiator,
                         signalingState: pc.signalingState,
                         iceConnectionState: pc.iceConnectionState
                       });
                       
-                      // CRITICAL: If peer connection is already established, we need to manually trigger renegotiation
-                      // SimplePeer's addStream might not trigger renegotiation if connection is already stable
-                      const needsRenegotiation = pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
-                      
-                      if (needsRenegotiation) {
-                        console.log(`🔄 updateAllPeerConnections: Connection is stable, manually triggering renegotiation for ${participantId}`);
-                        // First add the stream
-                        peer.addStream(streamToUse);
-                        // Then manually trigger renegotiation
-                        if (peer.initiator) {
-                          pc.createOffer().then(offer => {
-                            return pc.setLocalDescription(offer);
-                          }).then(() => {
-                            // Signal will be sent automatically by SimplePeer
-                            console.log(`✅ VideoCall: Triggered renegotiation for ${participantId} after adding stream`);
-                          }).catch(err => {
-                            console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                      if (peer.initiator) {
+                        // We're the initiator, create a new offer
+                        pc.createOffer().then(offer => {
+                          console.log(`📤 VideoCall: Created offer for ${participantId}`, {
+                            offerType: offer.type,
+                            hasVideo: offer.sdp.includes('m=video'),
+                            hasAudio: offer.sdp.includes('m=audio')
                           });
-                        }
-                      } else {
-                        peer.addStream(streamToUse);
-                      }
-                      
-                      console.log(`✅ VideoCall: Entire stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
-                        audioTrackId: audioTrack.id,
-                        audioTrackEnabled: audioTrack.enabled,
-                        videoTrackId: streamToUse.getVideoTracks()[0]?.id,
-                        videoTrackEnabled: streamToUse.getVideoTracks()[0]?.enabled,
-                        streamHasVideo: streamToUse.getVideoTracks().length > 0,
-                        streamHasAudio: streamToUse.getAudioTracks().length > 0
-                      });
-                    } else {
-                      // Fallback: add both tracks manually
-                      const videoTrack = streamToUse.getVideoTracks()[0];
-                      if (videoTrack) {
-                        pc.addTrack(videoTrack, streamToUse);
-                      }
-                      pc.addTrack(audioTrack, streamToUse);
-                      console.log(`✅ VideoCall: Both tracks added via native addTrack for ${participantId}`);
-                      
-                      // Manually trigger renegotiation if needed
-                      if (peer.initiator && peer._pc.signalingState === 'stable') {
-                        peer._pc.createOffer().then(offer => {
-                          return peer._pc.setLocalDescription(offer);
+                          return pc.setLocalDescription(offer);
                         }).then(() => {
-                          console.log(`📸 VideoCall: Triggered renegotiation for ${participantId}`);
+                          // SimplePeer will automatically send the offer via signaling
+                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
                         }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                        });
+                      } else {
+                        // We're not the initiator, but we can still create an offer to trigger renegotiation
+                        // This is less common but should work
+                        pc.createOffer().then(offer => {
+                          console.log(`📤 VideoCall: Created offer (non-initiator) for ${participantId}`, {
+                            offerType: offer.type,
+                            hasVideo: offer.sdp.includes('m=video'),
+                            hasAudio: offer.sdp.includes('m=audio')
+                          });
+                          return pc.setLocalDescription(offer);
+                        }).then(() => {
+                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
+                        }).catch(err => {
+                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
                         });
                       }
+                    } else {
+                      console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
+                        signalingState: pc.signalingState
+                      });
                     }
+                    
+                    console.log(`✅ VideoCall: Both tracks added for ${participantId}`, {
+                      audioTrackId: audioTrack.id,
+                      audioTrackEnabled: audioTrack.enabled,
+                      videoTrackId: videoTrack?.id,
+                      videoTrackEnabled: videoTrack?.enabled,
+                      streamHasVideo: streamToUse.getVideoTracks().length > 0,
+                      streamHasAudio: streamToUse.getAudioTracks().length > 0
+                    });
                   } catch (err) {
                     console.error(`❌ VideoCall: Failed to add stream for ${participantId}:`, err);
                   }
@@ -1851,66 +1857,55 @@ const useVideoCall = (meetingId, userName) => {
                   // Only audio sender is missing, add audio track
                   console.log(`📸 VideoCall: No audio sender found for ${participantId}, adding audio track to trigger renegotiation`);
                   try {
-                    // SimplePeer's addStream will handle renegotiation automatically
-                    if (peer.addStream) {
-                      console.log(`🔄 updateAllPeerConnections: Calling peer.addStream (audio only) for ${participantId}`, {
-                        streamId: streamToUse.id,
-                        streamActive: streamToUse.active,
-                        videoTracks: streamToUse.getVideoTracks().length,
-                        audioTracks: streamToUse.getAudioTracks().length,
-                        peerReady: peer.ready,
-                        peerDestroyed: peer.destroyed,
+                    // CRITICAL: Use native addTrack instead of SimplePeer's addStream for better control
+                    pc.addTrack(audioTrack, streamToUse);
+                    console.log(`✅ VideoCall: Audio track added via native addTrack for ${participantId}`, {
+                      trackId: audioTrack.id,
+                      trackEnabled: audioTrack.enabled,
+                      trackReadyState: audioTrack.readyState
+                    });
+                    
+                    // CRITICAL: Always trigger renegotiation when adding tracks to established connection
+                    if (pc.signalingState === 'stable') {
+                      console.log(`🔄 updateAllPeerConnections: Connection is stable, triggering renegotiation for ${participantId}`, {
+                        isInitiator: peer.initiator,
                         signalingState: pc.signalingState,
                         iceConnectionState: pc.iceConnectionState
                       });
                       
-                      // CRITICAL: If peer connection is already established, we need to manually trigger renegotiation
-                      const needsRenegotiation = pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
-                      
-                      if (needsRenegotiation) {
-                        console.log(`🔄 updateAllPeerConnections: Connection is stable, manually triggering renegotiation for ${participantId}`);
-                        peer.addStream(streamToUse);
-                        if (peer.initiator) {
-                          pc.createOffer().then(offer => {
-                            return pc.setLocalDescription(offer);
-                          }).then(() => {
-                            console.log(`✅ VideoCall: Triggered renegotiation for ${participantId} after adding stream`);
-                          }).catch(err => {
-                            console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                      if (peer.initiator) {
+                        // We're the initiator, create a new offer
+                        pc.createOffer().then(offer => {
+                          console.log(`📤 VideoCall: Created offer for ${participantId}`, {
+                            offerType: offer.type,
+                            hasVideo: offer.sdp.includes('m=video'),
+                            hasAudio: offer.sdp.includes('m=audio')
                           });
-                        }
-                      } else {
-                        peer.addStream(streamToUse);
-                      }
-                      
-                      console.log(`✅ VideoCall: Stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
-                        trackId: audioTrack.id,
-                        trackEnabled: audioTrack.enabled,
-                        trackReadyState: audioTrack.readyState,
-                        streamHasVideo: streamToUse.getVideoTracks().length > 0,
-                        streamHasAudio: streamToUse.getAudioTracks().length > 0
-                      });
-                    } else {
-                      // Fallback: use native addTrack
-                      pc.addTrack(audioTrack, streamToUse);
-                      console.log(`✅ VideoCall: Audio track added via native addTrack for ${participantId}`, {
-                        trackId: audioTrack.id,
-                        trackEnabled: audioTrack.enabled,
-                        trackReadyState: audioTrack.readyState
-                      });
-                      
-                      // Manually trigger renegotiation if needed
-                      if (peer.initiator && peer._pc.signalingState === 'stable') {
-                        // Create new offer to trigger renegotiation
-                        peer._pc.createOffer().then(offer => {
-                          return peer._pc.setLocalDescription(offer);
+                          return pc.setLocalDescription(offer);
                         }).then(() => {
-                          // Signal will be sent automatically by SimplePeer
-                          console.log(`📸 VideoCall: Triggered renegotiation for ${participantId}`);
+                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
                         }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                        });
+                      } else {
+                        // We're not the initiator, but we can still create an offer to trigger renegotiation
+                        pc.createOffer().then(offer => {
+                          console.log(`📤 VideoCall: Created offer (non-initiator) for ${participantId}`, {
+                            offerType: offer.type,
+                            hasVideo: offer.sdp.includes('m=video'),
+                            hasAudio: offer.sdp.includes('m=audio')
+                          });
+                          return pc.setLocalDescription(offer); 
+                        }).then(() => {
+                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
+                        }).catch(err => {
+                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
                         });
                       }
+                    } else {
+                      console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
+                        signalingState: pc.signalingState
+                      });
                     }
                   } catch (err) {
                     console.error(`❌ VideoCall: Failed to add audio track for ${participantId}:`, err);
