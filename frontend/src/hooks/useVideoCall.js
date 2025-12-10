@@ -592,6 +592,10 @@ const useVideoCall = (meetingId, userName) => {
             const shouldShow = videoEnabled !== false && trackReady && trackEnabled;
             
             if (shouldShow) {
+              // Video is enabled - restore stream if it was replaced with blank
+              if (videoElement.srcObject !== stream) {
+                videoElement.srcObject = stream;
+              }
               videoElement.style.opacity = '1';
               videoElement.style.visibility = 'visible';
               videoElement.style.display = 'block';
@@ -599,8 +603,19 @@ const useVideoCall = (meetingId, userName) => {
                 videoElement.play().catch(() => {});
               }
             } else {
-              // Replace srcObject with blank stream to clear frozen frame
-              if (videoEnabled === false || (videoTrack && videoTrack.readyState === 'ended')) {
+              // Video is disabled - replace srcObject with blank stream to clear frozen frame
+              if (videoEnabled === false) {
+                try {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 1;
+                  canvas.height = 1;
+                  const blankStream = canvas.captureStream(0);
+                  videoElement.srcObject = blankStream;
+                } catch (e) {
+                  videoElement.srcObject = null;
+                }
+              } else if (videoTrack && videoTrack.readyState === 'ended') {
+                // Track ended - also replace with blank
                 try {
                   const canvas = document.createElement('canvas');
                   canvas.width = 1;

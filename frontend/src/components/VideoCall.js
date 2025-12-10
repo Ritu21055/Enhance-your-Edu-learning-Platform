@@ -476,65 +476,35 @@ const VideoCallComponent = memo(({
         const socketVideoEnabled = socketMediaState?.videoEnabled;
         const socketAudioEnabled = socketMediaState?.audioEnabled;
         
-        // CRITICAL: If track is ended OR socket explicitly says video is disabled, replace srcObject with blank stream IMMEDIATELY to prevent frozen frame
-        // CRITICAL: Only replace if socketVideoEnabled is explicitly false (not undefined/null)
-        const shouldReplaceWithBlank = trackEnded || socketVideoEnabled === false;
-        
-        if (shouldReplaceWithBlank && videoElement.srcObject === stream) {
-          console.log(`📹 VideoCall: Track ended or video disabled for ${participantId}, replacing srcObject with blank stream in useEffect`, {
-            trackEnded,
-            socketVideoEnabled
-          });
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = 1;
-            canvas.height = 1;
-            const blankStream = canvas.captureStream(0);
-            videoElement.srcObject = blankStream;
-            console.log(`📹 VideoCall: Replaced remote video srcObject with blank stream for ${participantId} in useEffect`);
-          } catch (e) {
-            console.warn(`📹 VideoCall: Could not create blank stream for ${participantId} in useEffect:`, e);
-            videoElement.srcObject = null;
-          }
-        } else if (!shouldReplaceWithBlank) {
-          // CRITICAL: Always set srcObject if stream has a video track and is not explicitly disabled
-          // This ensures new streams are displayed immediately, even if socket state hasn't updated yet
-          // Don't wait for trackReady - set it as soon as we have a track
-          if (videoElement.srcObject !== stream && videoTrack) {
-            console.log(`📹 VideoCall: Setting srcObject for ${participantId}`, {
-              trackReady,
-              trackEnabled,
-              socketVideoEnabled,
-              streamActive: stream.active,
-              hasVideoTrack: !!videoTrack,
-              trackState: videoTrack.readyState
-            });
-            videoElement.srcObject = stream;
-            // Force play immediately
-            videoElement.play().catch(err => {
-              console.warn(`📹 VideoCall: Failed to play video for ${participantId}:`, err);
-            });
-          }
-        }
-        
-        // Use socket state if available, otherwise fall back to track state
-        // CRITICAL: If socket explicitly says video is disabled (false), hide it
-        // If socket says video is enabled (true) OR socket state is unknown (undefined), show if track exists and is not ended
-        // Also hide if track is stopped/ended (readyState === 'ended')
+        // Determine if video should be shown
         const isVideoEnabled = socketVideoEnabled === false
           ? false  // Socket explicitly says disabled
           : videoTrack && videoTrack.readyState !== 'ended'  // If track exists and is not ended, show it
             ? (socketVideoEnabled === true || socketVideoEnabled === undefined || trackEnabled)  // Show if socket says enabled OR unknown OR track is enabled
             : false;  // No track or track ended - hide
         
-        console.log(`📹 VideoCall: Updating video for ${participantId}`, {
-          socketVideoEnabled,
-          trackEnabled,
-          trackReady,
-          trackState: videoTrack?.readyState,
-          isVideoEnabled,
-          streamActive: stream.active
-        });
+        // CRITICAL: If video is disabled, replace srcObject with blank stream to clear frozen frame
+        // If video is enabled, restore the actual stream
+        if (!isVideoEnabled) {
+          // Video disabled - replace with blank stream
+          if (videoElement.srcObject === stream || (videoElement.srcObject && videoElement.srcObject !== null)) {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 1;
+              canvas.height = 1;
+              const blankStream = canvas.captureStream(0);
+              videoElement.srcObject = blankStream;
+            } catch (e) {
+              videoElement.srcObject = null;
+            }
+          }
+        } else {
+          // Video enabled - ensure actual stream is set
+          if (videoElement.srcObject !== stream && videoTrack) {
+            videoElement.srcObject = stream;
+            videoElement.play().catch(() => {});
+          }
+        }
         
         if (isVideoEnabled) {
           // Video is enabled - show and play
@@ -548,26 +518,9 @@ const VideoCallComponent = memo(({
           }
         } else {
           // Video is disabled or track stopped - hide the video element IMMEDIATELY
-          // CRITICAL: If track is ended, replace srcObject with blank stream to clear frozen frame
-          if (videoTrack && videoTrack.readyState === 'ended') {
-            console.log(`📹 VideoCall: Track ended for ${participantId}, replacing srcObject with blank stream`);
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = 1;
-              canvas.height = 1;
-              const blankStream = canvas.captureStream(0);
-              videoElement.srcObject = blankStream;
-              console.log(`📹 VideoCall: Replaced remote video srcObject with blank stream for ${participantId}`);
-            } catch (e) {
-              console.warn(`📹 VideoCall: Could not create blank stream for ${participantId}:`, e);
-              videoElement.srcObject = null;
-            }
-          }
-          
-          // CRITICAL: Use display: none to completely hide and prevent frozen frame
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
-          videoElement.style.display = 'none'; // Also set display to none for complete hiding
+          videoElement.style.display = 'none';
           videoElement.pause();
         }
         
@@ -926,11 +879,11 @@ const VideoCallComponent = memo(({
                     
                     // Use socket state if available, otherwise fall back to track state
                     // If socket says video is disabled, hide it regardless of track state
-                    const isVideoEnabled = socketVideoEnabled !== undefined 
+                    const shouldShowVideo = socketVideoEnabled !== undefined 
                       ? socketVideoEnabled && trackReady
                       : trackEnabled && trackReady;
                     
-                    if (isVideoEnabled) {
+                    if (shouldShowVideo) {
                       // Video is enabled - show and play
                       el.style.opacity = '1';
                       el.style.visibility = 'visible';
