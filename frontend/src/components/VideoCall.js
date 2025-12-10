@@ -528,11 +528,8 @@ const VideoCallComponent = memo(({
         // CRITICAL: Mute/unmute audio tracks based on participant's audio state
         const audioTracks = stream.getAudioTracks();
         audioTracks.forEach((audioTrack) => {
-          // Use socket state if available, otherwise fall back to track state
-          const shouldEnableAudio = socketAudioEnabled !== undefined
-            ? socketAudioEnabled !== false  // If socket says enabled, enable (unless explicitly false)
-            : audioTrack.enabled;  // Fallback to current track state
-          
+          // Strict: only enable if socket explicitly says true, otherwise disable
+          const shouldEnableAudio = socketAudioEnabled === true;
           if (audioTrack.enabled !== shouldEnableAudio) {
             audioTrack.enabled = shouldEnableAudio;
           }
@@ -885,11 +882,8 @@ const VideoCallComponent = memo(({
                     const socketAudioEnabled = socketMediaState?.audioEnabled;
                     
                     audioTracks.forEach((audioTrack) => {
-                      // Use socket state if available, otherwise fall back to track state
-                      const shouldEnableAudio = socketAudioEnabled !== undefined
-                        ? socketAudioEnabled !== false  // If socket says enabled, enable (unless explicitly false)
-                        : audioTrack.enabled;  // Fallback to current track state
-                      
+                      // Strict: only enable if socket explicitly says true, otherwise disable
+                      const shouldEnableAudio = socketAudioEnabled === true;
                       if (audioTrack.enabled !== shouldEnableAudio) {
                         audioTrack.enabled = shouldEnableAudio;
                       }

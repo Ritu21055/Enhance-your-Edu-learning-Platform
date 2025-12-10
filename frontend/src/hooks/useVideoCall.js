@@ -625,10 +625,11 @@ const useVideoCall = (meetingId, userName) => {
             }
           }
           
-          // Update audio tracks
+          // Update audio tracks - strict: only enable if explicitly true
           const audioTracks = stream.getAudioTracks();
           audioTracks.forEach((audioTrack) => {
-            const shouldEnableAudio = audioEnabled !== false;
+            // Only enable if audioEnabled is explicitly true, otherwise disable
+            const shouldEnableAudio = audioEnabled === true;
             if (audioTrack.enabled !== shouldEnableAudio) {
               audioTrack.enabled = shouldEnableAudio;
             }
