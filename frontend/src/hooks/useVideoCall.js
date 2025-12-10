@@ -1661,8 +1661,30 @@ const useVideoCall = (meetingId, userName) => {
                   console.log(`✅ VideoCall: Video track replaced for ${participantId}`, {
                     trackId: currentVideoTrack.id,
                     trackEnabled: currentVideoTrack.enabled,
-                    trackReadyState: currentVideoTrack.readyState
+                    trackReadyState: currentVideoTrack.readyState,
+                    signalingState: pc.signalingState,
+                    iceConnectionState: pc.iceConnectionState
                   });
+                  
+                  // CRITICAL: After replacing track, ensure renegotiation happens if connection is stable
+                  // replaceTrack should trigger renegotiation automatically, but we'll ensure it happens
+                  if (pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
+                    console.log(`🔄 VideoCall: Connection is stable after track replacement, ensuring renegotiation for ${participantId}`);
+                    if (peer.initiator) {
+                      pc.createOffer().then(offer => {
+                        console.log(`📤 VideoCall: Created offer after video track replacement for ${participantId}`, {
+                          offerType: offer.type,
+                          hasVideo: offer.sdp.includes('m=video'),
+                          hasAudio: offer.sdp.includes('m=audio')
+                        });
+                        return pc.setLocalDescription(offer);
+                      }).then(() => {
+                        console.log(`✅ VideoCall: Set local description (offer) after video track replacement for ${participantId}`);
+                      }).catch(err => {
+                        console.error(`❌ VideoCall: Failed to create/set offer after video track replacement for ${participantId}:`, err);
+                      });
+                    }
+                  }
                 }).catch(err => {
                   console.error(`❌ VideoCall: Failed to replace video track for ${participantId}:`, err);
                 });
@@ -1757,11 +1779,36 @@ const useVideoCall = (meetingId, userName) => {
                   console.log(`✅ VideoCall: Audio track replaced for ${participantId}`, {
                     trackId: audioTrack.id,
                     trackEnabled: audioTrack.enabled,
-                    trackReadyState: audioTrack.readyState
+                    trackReadyState: audioTrack.readyState,
+                    signalingState: pc.signalingState,
+                    iceConnectionState: pc.iceConnectionState
                   });
                   // CRITICAL: After audio track replacement, verify video track wasn't affected
                   if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
                     videoTrack.enabled = true;
+                  }
+                  
+                  // CRITICAL: After replacing track, ensure renegotiation happens if connection is stable
+                  // This is especially important when trackType is 'both' to ensure both tracks are sent
+                  if (pc.signalingState === 'stable' && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
+                    console.log(`🔄 VideoCall: Connection is stable after audio track replacement, ensuring renegotiation for ${participantId}`, {
+                      trackType,
+                      isInitiator: peer.initiator
+                    });
+                    if (peer.initiator) {
+                      pc.createOffer().then(offer => {
+                        console.log(`📤 VideoCall: Created offer after audio track replacement for ${participantId}`, {
+                          offerType: offer.type,
+                          hasVideo: offer.sdp.includes('m=video'),
+                          hasAudio: offer.sdp.includes('m=audio')
+                        });
+                        return pc.setLocalDescription(offer);
+                      }).then(() => {
+                        console.log(`✅ VideoCall: Set local description (offer) after audio track replacement for ${participantId}`);
+                      }).catch(err => {
+                        console.error(`❌ VideoCall: Failed to create/set offer after audio track replacement for ${participantId}:`, err);
+                      });
+                    }
                   }
                 }).catch(err => {
                   console.error(`❌ VideoCall: Failed to replace audio track for ${participantId}:`, err);

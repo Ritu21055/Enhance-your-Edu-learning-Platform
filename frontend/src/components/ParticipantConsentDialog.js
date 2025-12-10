@@ -38,13 +38,24 @@ const ParticipantConsentDialog = ({ socket, meetingId, currentUserId, onSessionS
 
     const handleCameraMicRequest = (data) => {
       console.log('📸 ParticipantConsentDialog: ✅✅✅ Received camera-mic-request:', data);
+      console.log('📸 ParticipantConsentDialog: Checking if request is for this participant', {
+        targetSocketId: data.targetSocketId,
+        currentUserId,
+        socketId: socket.id,
+        matchesCurrentUserId: data.targetSocketId === currentUserId,
+        matchesSocketId: data.targetSocketId === socket.id,
+        willProcess: !data.targetSocketId || data.targetSocketId === currentUserId || data.targetSocketId === socket.id
+      });
       
       // If request includes targetSocketId, only process if it matches current user's socket ID
       if (data.targetSocketId && data.targetSocketId !== currentUserId && data.targetSocketId !== socket.id) {
         console.log('📸 ParticipantConsentDialog: Request is for different participant, ignoring', {
           targetSocketId: data.targetSocketId,
           currentUserId,
-          socketId: socket.id
+          socketId: socket.id,
+          typeOfTargetSocketId: typeof data.targetSocketId,
+          typeOfCurrentUserId: typeof currentUserId,
+          typeOfSocketId: typeof socket.id
         });
         return;
       }
