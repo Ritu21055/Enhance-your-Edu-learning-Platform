@@ -1277,6 +1277,9 @@ const useVideoCall = (meetingId, userName) => {
 
     // CRITICAL: Listen for track additions on the peer connection (when participant adds video after approval)
     if (peer._pc) {
+      // Store the original ontrack handler if it exists
+      const originalOntrack = peer._pc.ontrack;
+      
       peer._pc.ontrack = (event) => {
         const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
         console.log(`➕➕➕ TRACK ADDED TO PEER CONNECTION for ${participantName} (${participantId}) ➕➕➕`, {
@@ -1284,8 +1287,14 @@ const useVideoCall = (meetingId, userName) => {
           trackKind: event.track?.kind,
           trackEnabled: event.track?.enabled,
           trackReadyState: event.track?.readyState,
-          streams: event.streams?.length || 0
+          streams: event.streams?.length || 0,
+          streamIds: event.streams?.map(s => s.id) || []
         });
+        
+        // Call original handler if it exists (SimplePeer might have its own)
+        if (originalOntrack) {
+          originalOntrack(event);
+        }
         
         // If this is a video track and we don't have a stream yet, or the stream doesn't have this track
         if (event.track && event.track.kind === 'video') {
@@ -1294,14 +1303,16 @@ const useVideoCall = (meetingId, userName) => {
             // Stream exists, check if this track is already in it
             const existingVideoTrack = currentStream.getVideoTracks()[0];
             if (!existingVideoTrack || existingVideoTrack.id !== event.track.id) {
-              // New video track added - update stream
+              // New video track added - add it to the existing stream
               console.log(`📹 New video track added to existing stream for ${participantName}`);
+              currentStream.addTrack(event.track);
               // Force update to trigger re-render
               setRemoteStreams(prev => {
                 const updated = { ...prev };
                 if (updated[participantId]) {
                   updated[participantId] = currentStream; // Trigger re-render
                 }
+                remoteStreamsRef.current = updated;
                 return updated;
               });
             }
@@ -1317,9 +1328,64 @@ const useVideoCall = (meetingId, userName) => {
               remoteStreamsRef.current = updated;
               return updated;
             });
+          } else {
+            // Track added but no stream - create a new stream
+            console.log(`📹 Creating new stream for video track from ${participantName}`);
+            const newStream = new MediaStream([event.track]);
+            setRemoteStreams(prev => {
+              const updated = {
+                ...prev,
+                [participantId]: newStream
+              };
+              remoteStreamsRef.current = updated;
+              return updated;
+            });
           }
         }
       };
+      
+      // Also monitor receivers for new tracks (fallback)
+      const checkReceivers = setInterval(() => {
+        if (peer._pc && !peer.destroyed) {
+          const receivers = peer._pc.getReceivers();
+          const videoReceiver = receivers.find(r => r.track && r.track.kind === 'video');
+          if (videoReceiver && videoReceiver.track) {
+            const currentStream = remoteStreamsRef.current[participantId];
+            const existingVideoTrack = currentStream?.getVideoTracks()[0];
+            if (!existingVideoTrack || existingVideoTrack.id !== videoReceiver.track.id) {
+              console.log(`📹 Detected new video track via receiver polling for ${participantId}`);
+              if (currentStream) {
+                currentStream.addTrack(videoReceiver.track);
+                setRemoteStreams(prev => {
+                  const updated = { ...prev };
+                  if (updated[participantId]) {
+                    updated[participantId] = currentStream;
+                  }
+                  remoteStreamsRef.current = updated;
+                  return updated;
+                });
+              } else {
+                const newStream = new MediaStream([videoReceiver.track]);
+                setRemoteStreams(prev => {
+                  const updated = {
+                    ...prev,
+                    [participantId]: newStream
+                  };
+                  remoteStreamsRef.current = updated;
+                  return updated;
+                });
+              }
+            }
+          }
+        } else {
+          clearInterval(checkReceivers);
+        }
+      }, 1000);
+      
+      // Clean up interval when peer is destroyed
+      peer.on('close', () => {
+        clearInterval(checkReceivers);
+      });
     }
     
     // Handle connection established
@@ -1462,6 +1528,14 @@ const useVideoCall = (meetingId, userName) => {
   // trackType: 'audio' | 'video' | 'both' - specifies which track to update
   // If stream is provided, it will replace the current local stream (for camera/mic requests)
   const updateAllPeerConnections = useCallback((newStream, trackType = 'both') => {
+    console.log(`🔄🔄🔄 updateAllPeerConnections CALLED 🔄🔄🔄`, {
+      hasNewStream: !!newStream,
+      trackType,
+      currentStreamRef: !!streamRef.current,
+      peersCount: Object.keys(peersRef.current).length,
+      peerIds: Object.keys(peersRef.current)
+    });
+    
     // If a new stream is provided (e.g., from camera/mic request approval), update the local stream
     if (newStream && newStream !== streamRef.current) {
       const oldStream = streamRef.current;
@@ -1543,11 +1617,24 @@ const useVideoCall = (meetingId, userName) => {
     const videoWasEnabled = videoTrack?.enabled ?? true;
     
     // Update all existing peer connections using replaceTrack
+    const peerEntries = Object.entries(peersRef.current);
+    console.log(`🔄 updateAllPeerConnections: Updating ${peerEntries.length} peer connections`);
+    
     Object.entries(peersRef.current).forEach(([participantId, peer]) => {
       if (peer && !peer.destroyed && peer._pc) {
         try {
           const pc = peer._pc;
           const senders = pc.getSenders();
+          console.log(`🔄 updateAllPeerConnections: Processing peer ${participantId}`, {
+            hasPeer: !!peer,
+            peerDestroyed: peer.destroyed,
+            hasPC: !!pc,
+            sendersCount: senders.length,
+            senderKinds: senders.map(s => s.track?.kind || 'none'),
+            trackType,
+            streamHasVideo: streamToUse.getVideoTracks().length > 0,
+            streamHasAudio: streamToUse.getAudioTracks().length > 0
+          });
           
           // CRITICAL: Only replace video track if explicitly requested
           // When trackType is 'audio', we MUST NOT touch video track
@@ -1584,6 +1671,14 @@ const useVideoCall = (meetingId, userName) => {
                   try {
                     // SimplePeer's addStream will handle renegotiation automatically
                     if (peer.addStream) {
+                      console.log(`🔄 updateAllPeerConnections: Calling peer.addStream for ${participantId}`, {
+                        streamId: streamToUse.id,
+                        streamActive: streamToUse.active,
+                        videoTracks: streamToUse.getVideoTracks().length,
+                        audioTracks: streamToUse.getAudioTracks().length,
+                        peerReady: peer.ready,
+                        peerDestroyed: peer.destroyed
+                      });
                       peer.addStream(streamToUse);
                       console.log(`✅ VideoCall: Stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
                         trackId: currentVideoTrack.id,
@@ -1666,6 +1761,14 @@ const useVideoCall = (meetingId, userName) => {
                   try {
                     // SimplePeer's addStream will handle renegotiation automatically
                     if (peer.addStream) {
+                      console.log(`🔄 updateAllPeerConnections: Calling peer.addStream (both tracks) for ${participantId}`, {
+                        streamId: streamToUse.id,
+                        streamActive: streamToUse.active,
+                        videoTracks: streamToUse.getVideoTracks().length,
+                        audioTracks: streamToUse.getAudioTracks().length,
+                        peerReady: peer.ready,
+                        peerDestroyed: peer.destroyed
+                      });
                       peer.addStream(streamToUse);
                       console.log(`✅ VideoCall: Entire stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
                         audioTrackId: audioTrack.id,
@@ -1704,6 +1807,14 @@ const useVideoCall = (meetingId, userName) => {
                   try {
                     // SimplePeer's addStream will handle renegotiation automatically
                     if (peer.addStream) {
+                      console.log(`🔄 updateAllPeerConnections: Calling peer.addStream (audio only) for ${participantId}`, {
+                        streamId: streamToUse.id,
+                        streamActive: streamToUse.active,
+                        videoTracks: streamToUse.getVideoTracks().length,
+                        audioTracks: streamToUse.getAudioTracks().length,
+                        peerReady: peer.ready,
+                        peerDestroyed: peer.destroyed
+                      });
                       peer.addStream(streamToUse);
                       console.log(`✅ VideoCall: Stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
                         trackId: audioTrack.id,
