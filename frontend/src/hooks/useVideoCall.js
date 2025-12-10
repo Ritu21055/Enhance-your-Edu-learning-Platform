@@ -1685,8 +1685,31 @@ const useVideoCall = (meetingId, userName) => {
                       });
                       return pc.setLocalDescription(offer);
                     }).then(() => {
-                      // SimplePeer will automatically send the offer via signaling
-                      console.log(`✅ VideoCall: Set local description (offer) after video track replacement for ${participantId}, signaling will be sent automatically`);
+                      // CRITICAL: SimplePeer doesn't automatically detect manually created offers
+                      // We need to manually create and send the signal
+                      const localDescription = pc.localDescription;
+                      if (localDescription && socketRef.current && socketRef.current.id) {
+                        const signal = {
+                          type: localDescription.type,
+                          sdp: localDescription.sdp
+                        };
+                        console.log(`📡 VideoCall: Manually sending signal after video track replacement for ${participantId}`, {
+                          signalType: signal.type,
+                          hasSDP: !!signal.sdp
+                        });
+                        socketRef.current.emit('signal', {
+                          to: participantId,
+                          from: socketRef.current.id,
+                          signal
+                        });
+                        console.log(`✅ VideoCall: Signal sent after video track replacement for ${participantId}`);
+                      } else {
+                        console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
+                          hasLocalDescription: !!localDescription,
+                          hasSocket: !!socketRef.current,
+                          hasSocketId: !!socketRef.current?.id
+                        });
+                      }
                     }).catch(err => {
                       console.error(`❌ VideoCall: Failed to create/set offer after video track replacement for ${participantId}:`, err);
                     });
@@ -1721,35 +1744,44 @@ const useVideoCall = (meetingId, userName) => {
                         iceConnectionState: pc.iceConnectionState
                       });
                       
-                      if (peer.initiator) {
-                        // We're the initiator, create a new offer
-                        pc.createOffer().then(offer => {
-                          console.log(`📤 VideoCall: Created offer for ${participantId}`, {
-                            offerType: offer.type,
-                            hasVideo: offer.sdp.includes('m=video'),
-                            hasAudio: offer.sdp.includes('m=audio')
-                          });
-                          return pc.setLocalDescription(offer);
-                        }).then(() => {
-                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
-                        }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                      // Either side can create an offer to trigger renegotiation
+                      pc.createOffer().then(offer => {
+                        console.log(`📤 VideoCall: Created offer for ${participantId}`, {
+                          offerType: offer.type,
+                          hasVideo: offer.sdp.includes('m=video'),
+                          hasAudio: offer.sdp.includes('m=audio'),
+                          isInitiator: peer.initiator
                         });
-                      } else {
-                        // We're not the initiator, but we can still create an offer to trigger renegotiation
-                        pc.createOffer().then(offer => {
-                          console.log(`📤 VideoCall: Created offer (non-initiator) for ${participantId}`, {
-                            offerType: offer.type,
-                            hasVideo: offer.sdp.includes('m=video'),
-                            hasAudio: offer.sdp.includes('m=audio')
+                        return pc.setLocalDescription(offer);
+                      }).then(() => {
+                        // CRITICAL: SimplePeer doesn't automatically detect manually created offers
+                        // We need to manually create and send the signal
+                        const localDescription = pc.localDescription;
+                        if (localDescription && socketRef.current && socketRef.current.id) {
+                          const signal = {
+                            type: localDescription.type,
+                            sdp: localDescription.sdp
+                          };
+                          console.log(`📡 VideoCall: Manually sending signal after adding video track for ${participantId}`, {
+                            signalType: signal.type,
+                            hasSDP: !!signal.sdp
                           });
-                          return pc.setLocalDescription(offer);
-                        }).then(() => {
-                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
-                        }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
-                        });
-                      }
+                          socketRef.current.emit('signal', {
+                            to: participantId,
+                            from: socketRef.current.id,
+                            signal
+                          });
+                          console.log(`✅ VideoCall: Signal sent after adding video track for ${participantId}`);
+                        } else {
+                          console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
+                            hasLocalDescription: !!localDescription,
+                            hasSocket: !!socketRef.current,
+                            hasSocketId: !!socketRef.current?.id
+                          });
+                        }
+                      }).catch(err => {
+                        console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                      });
                     } else {
                       console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
                         signalingState: pc.signalingState
@@ -1814,8 +1846,31 @@ const useVideoCall = (meetingId, userName) => {
                       });
                       return pc.setLocalDescription(offer);
                     }).then(() => {
-                      // SimplePeer will automatically send the offer via signaling
-                      console.log(`✅ VideoCall: Set local description (offer) after audio track replacement for ${participantId}, signaling will be sent automatically`);
+                      // CRITICAL: SimplePeer doesn't automatically detect manually created offers
+                      // We need to manually create and send the signal
+                      const localDescription = pc.localDescription;
+                      if (localDescription && socketRef.current && socketRef.current.id) {
+                        const signal = {
+                          type: localDescription.type,
+                          sdp: localDescription.sdp
+                        };
+                        console.log(`📡 VideoCall: Manually sending signal after audio track replacement for ${participantId}`, {
+                          signalType: signal.type,
+                          hasSDP: !!signal.sdp
+                        });
+                        socketRef.current.emit('signal', {
+                          to: participantId,
+                          from: socketRef.current.id,
+                          signal
+                        });
+                        console.log(`✅ VideoCall: Signal sent after audio track replacement for ${participantId}`);
+                      } else {
+                        console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
+                          hasLocalDescription: !!localDescription,
+                          hasSocket: !!socketRef.current,
+                          hasSocketId: !!socketRef.current?.id
+                        });
+                      }
                     }).catch(err => {
                       console.error(`❌ VideoCall: Failed to create/set offer after audio track replacement for ${participantId}:`, err);
                     });
@@ -1862,37 +1917,44 @@ const useVideoCall = (meetingId, userName) => {
                         iceConnectionState: pc.iceConnectionState
                       });
                       
-                      if (peer.initiator) {
-                        // We're the initiator, create a new offer
-                        pc.createOffer().then(offer => {
-                          console.log(`📤 VideoCall: Created offer for ${participantId}`, {
-                            offerType: offer.type,
-                            hasVideo: offer.sdp.includes('m=video'),
-                            hasAudio: offer.sdp.includes('m=audio')
-                          });
-                          return pc.setLocalDescription(offer);
-                        }).then(() => {
-                          // SimplePeer will automatically send the offer via signaling
-                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
-                        }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                      // Either side can create an offer to trigger renegotiation
+                      pc.createOffer().then(offer => {
+                        console.log(`📤 VideoCall: Created offer for ${participantId}`, {
+                          offerType: offer.type,
+                          hasVideo: offer.sdp.includes('m=video'),
+                          hasAudio: offer.sdp.includes('m=audio'),
+                          isInitiator: peer.initiator
                         });
-                      } else {
-                        // We're not the initiator, but we can still create an offer to trigger renegotiation
-                        // This is less common but should work
-                        pc.createOffer().then(offer => {
-                          console.log(`📤 VideoCall: Created offer (non-initiator) for ${participantId}`, {
-                            offerType: offer.type,
-                            hasVideo: offer.sdp.includes('m=video'),
-                            hasAudio: offer.sdp.includes('m=audio')
+                        return pc.setLocalDescription(offer);
+                      }).then(() => {
+                        // CRITICAL: SimplePeer doesn't automatically detect manually created offers
+                        // We need to manually create and send the signal
+                        const localDescription = pc.localDescription;
+                        if (localDescription && socketRef.current && socketRef.current.id) {
+                          const signal = {
+                            type: localDescription.type,
+                            sdp: localDescription.sdp
+                          };
+                          console.log(`📡 VideoCall: Manually sending signal after adding tracks for ${participantId}`, {
+                            signalType: signal.type,
+                            hasSDP: !!signal.sdp
                           });
-                          return pc.setLocalDescription(offer);
-                        }).then(() => {
-                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
-                        }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
-                        });
-                      }
+                          socketRef.current.emit('signal', {
+                            to: participantId,
+                            from: socketRef.current.id,
+                            signal
+                          });
+                          console.log(`✅ VideoCall: Signal sent after adding tracks for ${participantId}`);
+                        } else {
+                          console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
+                            hasLocalDescription: !!localDescription,
+                            hasSocket: !!socketRef.current,
+                            hasSocketId: !!socketRef.current?.id
+                          });
+                        }
+                      }).catch(err => {
+                        console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                      });
                     } else {
                       console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
                         signalingState: pc.signalingState
@@ -1930,35 +1992,44 @@ const useVideoCall = (meetingId, userName) => {
                         iceConnectionState: pc.iceConnectionState
                       });
                       
-                      if (peer.initiator) {
-                        // We're the initiator, create a new offer
-                        pc.createOffer().then(offer => {
-                          console.log(`📤 VideoCall: Created offer for ${participantId}`, {
-                            offerType: offer.type,
-                            hasVideo: offer.sdp.includes('m=video'),
-                            hasAudio: offer.sdp.includes('m=audio')
-                          });
-                          return pc.setLocalDescription(offer);
-                        }).then(() => {
-                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
-                        }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                      // Either side can create an offer to trigger renegotiation
+                      pc.createOffer().then(offer => {
+                        console.log(`📤 VideoCall: Created offer for ${participantId}`, {
+                          offerType: offer.type,
+                          hasVideo: offer.sdp.includes('m=video'),
+                          hasAudio: offer.sdp.includes('m=audio'),
+                          isInitiator: peer.initiator
                         });
-                      } else {
-                        // We're not the initiator, but we can still create an offer to trigger renegotiation
-                        pc.createOffer().then(offer => {
-                          console.log(`📤 VideoCall: Created offer (non-initiator) for ${participantId}`, {
-                            offerType: offer.type,
-                            hasVideo: offer.sdp.includes('m=video'),
-                            hasAudio: offer.sdp.includes('m=audio')
+                        return pc.setLocalDescription(offer);
+                      }).then(() => {
+                        // CRITICAL: SimplePeer doesn't automatically detect manually created offers
+                        // We need to manually create and send the signal
+                        const localDescription = pc.localDescription;
+                        if (localDescription && socketRef.current && socketRef.current.id) {
+                          const signal = {
+                            type: localDescription.type,
+                            sdp: localDescription.sdp
+                          };
+                          console.log(`📡 VideoCall: Manually sending signal after adding audio track for ${participantId}`, {
+                            signalType: signal.type,
+                            hasSDP: !!signal.sdp
                           });
-                          return pc.setLocalDescription(offer); 
-                        }).then(() => {
-                          console.log(`✅ VideoCall: Set local description (offer) for ${participantId}, signaling will be sent automatically`);
-                        }).catch(err => {
-                          console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
-                        });
-                      }
+                          socketRef.current.emit('signal', {
+                            to: participantId,
+                            from: socketRef.current.id,
+                            signal
+                          });
+                          console.log(`✅ VideoCall: Signal sent after adding audio track for ${participantId}`);
+                        } else {
+                          console.warn(`⚠️ VideoCall: Cannot send signal - missing localDescription or socket`, {
+                            hasLocalDescription: !!localDescription,
+                            hasSocket: !!socketRef.current,
+                            hasSocketId: !!socketRef.current?.id
+                          });
+                        }
+                      }).catch(err => {
+                        console.error(`❌ VideoCall: Failed to create/set offer for ${participantId}:`, err);
+                      });
                     } else {
                       console.log(`⚠️ VideoCall: Signaling state is not stable for ${participantId}, renegotiation will happen automatically`, {
                         signalingState: pc.signalingState
