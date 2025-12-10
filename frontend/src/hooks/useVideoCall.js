@@ -1467,12 +1467,76 @@ const useVideoCall = (meetingId, userName) => {
           if (trackType === 'video' || trackType === 'both') {
             const currentVideoTrack = streamToUse.getVideoTracks()[0];
             if (currentVideoTrack) {
+              // CRITICAL: Ensure video track is enabled
+              if (!currentVideoTrack.enabled) {
+                currentVideoTrack.enabled = true;
+                console.log(`📸 VideoCall: Enabled video track for ${participantId}`);
+              }
+              
               const videoSender = senders.find(s => s.track && s.track.kind === 'video');
               if (videoSender) {
-                videoSender.replaceTrack(currentVideoTrack).catch(err => {
-                  console.error(`VideoCall: Failed to replace video track for ${participantId}:`, err);
+                videoSender.replaceTrack(currentVideoTrack).then(() => {
+                  console.log(`✅ VideoCall: Video track replaced for ${participantId}`, {
+                    trackId: currentVideoTrack.id,
+                    trackEnabled: currentVideoTrack.enabled,
+                    trackReadyState: currentVideoTrack.readyState
+                  });
+                }).catch(err => {
+                  console.error(`❌ VideoCall: Failed to replace video track for ${participantId}:`, err);
                 });
+              } else {
+                // No video sender exists, need to add track
+                // CRITICAL: For 'both' case, check if audio sender also doesn't exist
+                // If audio sender exists, we'll add video track here; if not, we'll add entire stream in audio section
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                const needsBothTracks = trackType === 'both' && !audioSender;
+                
+                if (trackType === 'video' || (trackType === 'both' && audioSender)) {
+                  // Add video track now (either video-only request, or both with audio already present)
+                  console.log(`📸 VideoCall: No video sender found for ${participantId}, adding stream to trigger renegotiation`);
+                  try {
+                    // SimplePeer's addStream will handle renegotiation automatically
+                    if (peer.addStream) {
+                      peer.addStream(streamToUse);
+                      console.log(`✅ VideoCall: Stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
+                        trackId: currentVideoTrack.id,
+                        trackEnabled: currentVideoTrack.enabled,
+                        trackReadyState: currentVideoTrack.readyState,
+                        streamHasVideo: streamToUse.getVideoTracks().length > 0,
+                        streamHasAudio: streamToUse.getAudioTracks().length > 0
+                      });
+                    } else {
+                      // Fallback: use native addTrack
+                      pc.addTrack(currentVideoTrack, streamToUse);
+                      console.log(`✅ VideoCall: Video track added via native addTrack for ${participantId}`, {
+                        trackId: currentVideoTrack.id,
+                        trackEnabled: currentVideoTrack.enabled,
+                        trackReadyState: currentVideoTrack.readyState
+                      });
+                      
+                      // Manually trigger renegotiation if needed
+                      if (peer.initiator && peer._pc.signalingState === 'stable') {
+                        // Create new offer to trigger renegotiation
+                        peer._pc.createOffer().then(offer => {
+                          return peer._pc.setLocalDescription(offer);
+                        }).then(() => {
+                          // Signal will be sent automatically by SimplePeer
+                          console.log(`📸 VideoCall: Triggered renegotiation for ${participantId}`);
+                        }).catch(err => {
+                          console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    console.error(`❌ VideoCall: Failed to add video track for ${participantId}:`, err);
+                  }
+                } else if (trackType === 'both' && !audioSender) {
+                  // Both tracks needed, but neither sender exists - will be handled in audio section
+                  console.log(`📸 VideoCall: No video sender found for ${participantId}, will add entire stream in audio section`);
+                }
               }
+            } else {
+              console.warn(`⚠️ VideoCall: No video track found in stream for ${participantId}`);
             }
           }
           
@@ -1504,43 +1568,88 @@ const useVideoCall = (meetingId, userName) => {
                 });
               } else {
                 // No audio sender exists, need to add track
-                // CRITICAL: Use SimplePeer's addStream method to trigger renegotiation
-                console.log(`📸 VideoCall: No audio sender found for ${participantId}, adding stream to trigger renegotiation`);
-                try {
-                  // SimplePeer's addStream will handle renegotiation automatically
-                  if (peer.addStream) {
-                    peer.addStream(streamToUse);
-                    console.log(`✅ VideoCall: Stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
-                      trackId: audioTrack.id,
-                      trackEnabled: audioTrack.enabled,
-                      trackReadyState: audioTrack.readyState,
-                      streamHasVideo: streamToUse.getVideoTracks().length > 0,
-                      streamHasAudio: streamToUse.getAudioTracks().length > 0
-                    });
-                  } else {
-                    // Fallback: use native addTrack
-                    pc.addTrack(audioTrack, streamToUse);
-                    console.log(`✅ VideoCall: Audio track added via native addTrack for ${participantId}`, {
-                      trackId: audioTrack.id,
-                      trackEnabled: audioTrack.enabled,
-                      trackReadyState: audioTrack.readyState
-                    });
-                    
-                    // Manually trigger renegotiation if needed
-                    if (peer.initiator && peer._pc.signalingState === 'stable') {
-                      // Create new offer to trigger renegotiation
-                      peer._pc.createOffer().then(offer => {
-                        return peer._pc.setLocalDescription(offer);
-                      }).then(() => {
-                        // Signal will be sent automatically by SimplePeer
-                        console.log(`📸 VideoCall: Triggered renegotiation for ${participantId}`);
-                      }).catch(err => {
-                        console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                // CRITICAL: For 'both' case, check if video sender also doesn't exist
+                // If both are missing, add entire stream at once
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                const needsBothTracks = trackType === 'both' && !videoSender;
+                
+                if (needsBothTracks) {
+                  // Add entire stream at once for 'both' case when neither sender exists
+                  console.log(`📸 VideoCall: No video or audio sender found for ${participantId}, adding entire stream to trigger renegotiation`);
+                  try {
+                    // SimplePeer's addStream will handle renegotiation automatically
+                    if (peer.addStream) {
+                      peer.addStream(streamToUse);
+                      console.log(`✅ VideoCall: Entire stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
+                        audioTrackId: audioTrack.id,
+                        audioTrackEnabled: audioTrack.enabled,
+                        videoTrackId: streamToUse.getVideoTracks()[0]?.id,
+                        videoTrackEnabled: streamToUse.getVideoTracks()[0]?.enabled,
+                        streamHasVideo: streamToUse.getVideoTracks().length > 0,
+                        streamHasAudio: streamToUse.getAudioTracks().length > 0
                       });
+                    } else {
+                      // Fallback: add both tracks manually
+                      const videoTrack = streamToUse.getVideoTracks()[0];
+                      if (videoTrack) {
+                        pc.addTrack(videoTrack, streamToUse);
+                      }
+                      pc.addTrack(audioTrack, streamToUse);
+                      console.log(`✅ VideoCall: Both tracks added via native addTrack for ${participantId}`);
+                      
+                      // Manually trigger renegotiation if needed
+                      if (peer.initiator && peer._pc.signalingState === 'stable') {
+                        peer._pc.createOffer().then(offer => {
+                          return peer._pc.setLocalDescription(offer);
+                        }).then(() => {
+                          console.log(`📸 VideoCall: Triggered renegotiation for ${participantId}`);
+                        }).catch(err => {
+                          console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                        });
+                      }
                     }
+                  } catch (err) {
+                    console.error(`❌ VideoCall: Failed to add stream for ${participantId}:`, err);
                   }
-                } catch (err) {
-                  console.error(`❌ VideoCall: Failed to add audio track for ${participantId}:`, err);
+                } else {
+                  // Only audio sender is missing, add audio track
+                  console.log(`📸 VideoCall: No audio sender found for ${participantId}, adding audio track to trigger renegotiation`);
+                  try {
+                    // SimplePeer's addStream will handle renegotiation automatically
+                    if (peer.addStream) {
+                      peer.addStream(streamToUse);
+                      console.log(`✅ VideoCall: Stream added to SimplePeer for ${participantId} (will trigger renegotiation)`, {
+                        trackId: audioTrack.id,
+                        trackEnabled: audioTrack.enabled,
+                        trackReadyState: audioTrack.readyState,
+                        streamHasVideo: streamToUse.getVideoTracks().length > 0,
+                        streamHasAudio: streamToUse.getAudioTracks().length > 0
+                      });
+                    } else {
+                      // Fallback: use native addTrack
+                      pc.addTrack(audioTrack, streamToUse);
+                      console.log(`✅ VideoCall: Audio track added via native addTrack for ${participantId}`, {
+                        trackId: audioTrack.id,
+                        trackEnabled: audioTrack.enabled,
+                        trackReadyState: audioTrack.readyState
+                      });
+                      
+                      // Manually trigger renegotiation if needed
+                      if (peer.initiator && peer._pc.signalingState === 'stable') {
+                        // Create new offer to trigger renegotiation
+                        peer._pc.createOffer().then(offer => {
+                          return peer._pc.setLocalDescription(offer);
+                        }).then(() => {
+                          // Signal will be sent automatically by SimplePeer
+                          console.log(`📸 VideoCall: Triggered renegotiation for ${participantId}`);
+                        }).catch(err => {
+                          console.error(`❌ VideoCall: Failed to trigger renegotiation for ${participantId}:`, err);
+                        });
+                      }
+                    }
+                  } catch (err) {
+                    console.error(`❌ VideoCall: Failed to add audio track for ${participantId}:`, err);
+                  }
                 }
               }
             } else {
