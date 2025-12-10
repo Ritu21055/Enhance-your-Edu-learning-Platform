@@ -580,8 +580,8 @@ const useVideoCall = (meetingId, userName) => {
       participantMediaStateRef.current[participantId].videoEnabled = videoEnabled;
       participantMediaStateRef.current[participantId].audioEnabled = audioEnabled;
       
-      // Immediately update video element DOM
-      setTimeout(() => {
+      // Immediately update video element DOM - use requestAnimationFrame for immediate execution
+      const updateVideoElement = () => {
         const stream = remoteStreamsRef.current[participantId];
         if (stream) {
           const videoElement = document.querySelector(`video[data-participant-id="${participantId}"]`);
@@ -603,30 +603,28 @@ const useVideoCall = (meetingId, userName) => {
                 videoElement.play().catch(() => {});
               }
             } else {
-              // Video is disabled - replace srcObject with blank stream to clear frozen frame
-              if (videoEnabled === false) {
+              // Video is disabled - IMMEDIATELY replace srcObject with blank stream to clear frozen frame
+              // Do this BEFORE hiding to prevent frame caching
+              if (videoEnabled === false || (videoTrack && videoTrack.readyState === 'ended')) {
+                // Force clear the video element first
+                videoElement.pause();
+                videoElement.currentTime = 0; // Reset playback position
+                
+                // Create and set blank stream immediately
                 try {
                   const canvas = document.createElement('canvas');
                   canvas.width = 1;
                   canvas.height = 1;
                   const blankStream = canvas.captureStream(0);
-                  videoElement.srcObject = blankStream;
-                } catch (e) {
-                  videoElement.srcObject = null;
-                }
-              } else if (videoTrack && videoTrack.readyState === 'ended') {
-                // Track ended - also replace with blank
-                try {
-                  const canvas = document.createElement('canvas');
-                  canvas.width = 1;
-                  canvas.height = 1;
-                  const blankStream = canvas.captureStream(0);
-                  videoElement.srcObject = blankStream;
+                  // Force replace srcObject
+                  videoElement.srcObject = null; // Clear first
+                  videoElement.srcObject = blankStream; // Then set blank
                 } catch (e) {
                   videoElement.srcObject = null;
                 }
               }
               
+              // Hide after clearing
               videoElement.style.opacity = '0';
               videoElement.style.visibility = 'hidden';
               videoElement.style.display = 'none';
@@ -643,7 +641,12 @@ const useVideoCall = (meetingId, userName) => {
             }
           });
         }
-      }, 0);
+      };
+      
+      // Execute immediately and also after a tiny delay to catch any race conditions
+      requestAnimationFrame(updateVideoElement);
+      setTimeout(updateVideoElement, 0);
+      setTimeout(updateVideoElement, 10); // Extra check after 10ms
       
       // Force update remote streams to trigger re-render
       setRemoteStreams(prev => {

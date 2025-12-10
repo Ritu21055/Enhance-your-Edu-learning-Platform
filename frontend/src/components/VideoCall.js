@@ -486,14 +486,30 @@ const VideoCallComponent = memo(({
         // CRITICAL: If video is disabled, replace srcObject with blank stream to clear frozen frame
         // If video is enabled, restore the actual stream
         if (!isVideoEnabled) {
-          // Video disabled - replace with blank stream
+          // Video disabled - IMMEDIATELY replace with blank stream to prevent frozen frame
+          // Clear first, then set blank to force browser to clear cached frame
           if (videoElement.srcObject === stream || (videoElement.srcObject && videoElement.srcObject !== null)) {
+            // Pause and reset first
+            videoElement.pause();
+            videoElement.currentTime = 0;
+            
+            // Capture the disabled state
+            const videoIsDisabled = true;
+            
             try {
               const canvas = document.createElement('canvas');
               canvas.width = 1;
               canvas.height = 1;
               const blankStream = canvas.captureStream(0);
-              videoElement.srcObject = blankStream;
+              // Clear first, then set blank
+              videoElement.srcObject = null;
+              // Use setTimeout to ensure browser processes the null assignment
+              setTimeout(() => {
+                const el = remoteVideoRefs.current[participantId];
+                if (el && videoIsDisabled) {
+                  el.srcObject = blankStream;
+                }
+              }, 0);
             } catch (e) {
               videoElement.srcObject = null;
             }
@@ -540,23 +556,33 @@ const VideoCallComponent = memo(({
         // CRITICAL: Listen for track ended event to immediately hide video when track stops
         if (videoTrack && !videoElement._trackEndedListener) {
           const handleTrackEnded = () => {
-            console.log(`📹 VideoCall: Video track ended for ${participantId}, hiding video element immediately`);
             const currentElement = remoteVideoRefs.current[participantId];
             if (currentElement) {
+              // Pause and reset first to clear frame
+              currentElement.pause();
+              currentElement.currentTime = 0;
+              
               // CRITICAL: Replace srcObject with blank canvas stream to clear frozen frame
+              // Clear first, then set blank
+              currentElement.srcObject = null;
+              
               try {
                 const canvas = document.createElement('canvas');
                 canvas.width = 1;
                 canvas.height = 1;
                 const blankStream = canvas.captureStream(0);
-                currentElement.srcObject = blankStream;
-                console.log(`📹 VideoCall: Replaced remote video srcObject with blank stream for ${participantId}`);
+                // Set blank stream after clearing
+                setTimeout(() => {
+                  const el = remoteVideoRefs.current[participantId];
+                  if (el) {
+                    el.srcObject = blankStream;
+                  }
+                }, 0);
               } catch (e) {
-                console.warn(`📹 VideoCall: Could not create blank stream for ${participantId}, using null:`, e);
-                currentElement.srcObject = null;
+                // Already set to null above
               }
               
-              // Hide immediately with multiple methods
+              // Hide immediately
               currentElement.style.opacity = '0';
               currentElement.style.visibility = 'hidden';
               currentElement.style.display = 'none';
@@ -566,10 +592,11 @@ const VideoCallComponent = memo(({
               const forceHide = () => {
                 const el = remoteVideoRefs.current[participantId];
                 if (el) {
+                  el.pause();
+                  el.currentTime = 0;
                   el.style.opacity = '0';
                   el.style.visibility = 'hidden';
                   el.style.display = 'none';
-                  el.pause();
                 }
               };
               
@@ -578,7 +605,6 @@ const VideoCallComponent = memo(({
               setTimeout(forceHide, 10);
               setTimeout(forceHide, 50);
               setTimeout(forceHide, 100);
-              setTimeout(forceHide, 200);
             }
           };
           
