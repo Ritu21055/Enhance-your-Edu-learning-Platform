@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconButton, Tooltip } from '@mui/material';
+import { IconButton, Tooltip, Box } from '@mui/material';
 import { PersonRemove } from '@mui/icons-material';
 
 /**
@@ -24,36 +24,15 @@ const RemoveParticipantButton = ({
   isHost,
   currentUserId
 }) => {
-  // Debug logging - ALWAYS log when component is called
-  console.log('🔴 RemoveParticipantButton RENDER CALLED:', {
-    participantId,
-    participantName,
-    isHost,
-    currentUserId,
-    hasSocket: !!socket,
-    hasMeetingId: !!meetingId
-  });
-
   // Only show button if:
   // 1. Current user is host
-  // 2. Participant is not the host themselves
-  // 3. Participant is not the current user
-  const shouldShow = isHost && participantId !== currentUserId;
+  // 2. Participant is not the current user
+  const shouldShow = Boolean(isHost) && String(participantId) !== String(currentUserId);
 
-  console.log('🔴 RemoveParticipantButton shouldShow calculation:', {
-    isHost,
-    participantId,
-    currentUserId,
-    areEqual: participantId === currentUserId,
-    shouldShow
-  });
-
+  // Only show button if user is host and participant is not themselves
   if (!shouldShow) {
-    console.log('🔴 RemoveParticipantButton: RETURNING NULL - shouldShow is false');
     return null;
   }
-
-  console.log('🔴 RemoveParticipantButton: RENDERING BUTTON JSX for', participantName);
 
   const handleRemove = () => {
     if (!socket || !meetingId || !participantId) {
@@ -76,29 +55,35 @@ const RemoveParticipantButton = ({
   };
 
   return (
-    <Tooltip title={`Remove ${participantName} from meeting`}>
-      <IconButton
-        edge="end"
-        size="small"
-        color="error"
-        onClick={handleRemove}
-        aria-label={`Remove ${participantName}`}
-        sx={{
-          opacity: 1,
-          visibility: 'visible',
-          display: 'inline-flex !important',
-          position: 'relative',
-          zIndex: 1000,
-          minWidth: '40px',
-          minHeight: '40px',
-          '&:hover': {
-            backgroundColor: 'rgba(211, 47, 47, 0.08)'
-          }
-        }}
-      >
-        <PersonRemove fontSize="small" sx={{ display: 'block !important' }} />
-      </IconButton>
-    </Tooltip>
+    <Box
+      sx={{
+        display: 'flex !important',
+        alignItems: 'center',
+        gap: '4px',
+        position: 'relative',
+        zIndex: 1002
+      }}
+    >
+      <Tooltip title={`Remove ${participantName} from meeting`}>
+        <IconButton
+          edge="end"
+          size="medium"
+          color="error"
+          onClick={handleRemove}
+          aria-label={`Remove ${participantName}`}
+          sx={{
+            '&:hover': {
+              backgroundColor: 'rgba(211, 47, 47, 0.1)'
+            },
+            '& svg': {
+              color: '#d32f2f'
+            }
+          }}
+        >
+          <PersonRemove />
+        </IconButton>
+      </Tooltip>
+    </Box>
   );
 };
 

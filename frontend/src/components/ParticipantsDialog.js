@@ -7,7 +7,6 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
-  ListItemSecondaryAction,
   Avatar,
   Box,
   Chip,
@@ -25,28 +24,6 @@ const ParticipantsDialog = ({
   meetingId,
   currentUserId
 }) => {
-  // Debug logging
-  console.log('🔵 ParticipantsDialog Debug:', {
-    open,
-    participantsCount: participants.length,
-    isHost,
-    hasSocket: !!socket,
-    meetingId,
-    currentUserId,
-    participants: participants.map(p => ({ id: p.id, name: p.name, isHost: p.isHost }))
-  });
-  
-  // Log each participant's button visibility
-  participants.forEach((participant) => {
-    const shouldShowButton = isHost && participant.id !== currentUserId;
-    console.log(`🔴 Button visibility for ${participant.name}:`, {
-      participantId: participant.id,
-      currentUserId,
-      isHost,
-      shouldShow: shouldShowButton,
-      isSameUser: participant.id === currentUserId
-    });
-  });
 
   return (
     <Dialog open={open} onClose={onClose} keepMounted>
@@ -54,26 +31,28 @@ const ParticipantsDialog = ({
       <DialogContent>
         <List>
           {participants.map((participant) => {
-            // Log before rendering button
-            console.log('🔵🔵🔵 About to render RemoveParticipantButton for:', participant.name, {
-              participantId: participant.id,
-              currentUserId,
-              isHost,
-              dialogOpen: open
-            });
-            
             return (
               <ListItem 
                 key={participant.id}
                 sx={{
-                  position: 'relative',
-                  '& .MuiListItemSecondaryAction-root': {
-                    position: 'absolute',
-                    right: 8,
-                    top: '50%',
-                    transform: 'translateY(-50%)'
-                  }
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  paddingRight: '8px !important',
+                  paddingLeft: '16px !important',
+                  overflow: 'visible !important'
                 }}
+                secondaryAction={
+                  <RemoveParticipantButton
+                    participantId={participant.id}
+                    participantName={participant.name.replace(' (Host)', '')}
+                    socket={socket}
+                    meetingId={meetingId}
+                    isHost={isHost}
+                    currentUserId={currentUserId}
+                  />
+                }
               >
                 <ListItemAvatar>
                   <Avatar>
@@ -98,16 +77,6 @@ const ParticipantsDialog = ({
                   }
                   secondary={participant.name === userName ? 'You' : 'Participant'}
                 />
-                <ListItemSecondaryAction>
-                  <RemoveParticipantButton
-                    participantId={participant.id}
-                    participantName={participant.name.replace(' (Host)', '')}
-                    socket={socket}
-                    meetingId={meetingId}
-                    isHost={isHost}
-                    currentUserId={currentUserId}
-                  />
-                </ListItemSecondaryAction>
               </ListItem>
             );
           })}

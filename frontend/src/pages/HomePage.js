@@ -17,7 +17,7 @@ import {
   Refresh
 } from '@mui/icons-material';
 import '../css/HomePage.css';
-import { isAuthenticated, clearAuthentication, debugAuthState } from '../services/authService';
+import { isAuthenticated, clearAuthentication } from '../services/authService';
 import { generateUniqueMeetingCode } from '../services/meetingCodeService';
 
 const HomePage = () => {
@@ -71,24 +71,14 @@ const HomePage = () => {
           </Button>
           {/* Only show logout button if user is authenticated */}
           {isUserAuthenticated && (
-            <>
-              <Button 
-                variant="outlined" 
-                className="header-btn debug-btn"
-                onClick={debugAuthState}
-                size="small"
-              >
-                Debug Auth
-              </Button>
-              <Button 
-                variant="contained" 
-                className="header-btn logout-btn"
-                onClick={handleLogout}
-                startIcon={<Logout />}
-              >
-                Logout
+            <Button 
+              variant="contained" 
+              className="header-btn logout-btn"
+              onClick={handleLogout}
+              startIcon={<Logout />}
+            >
+              Logout
             </Button>
-            </>
           )}
         </Box>
       </Box>
