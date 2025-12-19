@@ -9,7 +9,7 @@ import {
   ListItemIcon,
   ListItemText
 } from '@mui/material';
-import { People, BugReport, Star, Psychology } from '@mui/icons-material';
+import { People, BugReport, Star, Psychology, Videocam, Mic } from '@mui/icons-material';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { getBackendUrl } from './config/network';
 import { updateMeetingStatus } from './services/meetingsService';
@@ -20,6 +20,7 @@ import './css/MeetingRoom.css';
 import useVideoCall from './hooks/useVideoCall'; // New clean video call hook
 import { useChat } from './hooks/useChat';
 import { useMediaControls } from './hooks/useMediaControls';
+import { useMediaRequest } from './hooks/useMediaRequest';
 import useSentimentAnalysis from './hooks/useSentimentAnalysis';
 import useFatigueDetection from './hooks/useFatigueDetection';
 import useScreenShare from './hooks/useScreenShare';
@@ -32,6 +33,8 @@ import ChatSidebar from './components/ChatSidebar';
 import ParticipantsDialog from './components/ParticipantsDialog';
 import SentimentDashboard from './components/SentimentDashboard';
 import FatigueAlert from './components/FatigueAlert';
+import MediaRequestDialog from './components/MediaRequestDialog';
+import MediaRequestNotification from './components/MediaRequestNotification';
 import AudioTroubleshooter from './components/AudioTroubleshooter';
 import CompatibilityTestResults from './components/CompatibilityTestResults';
 import QuestionSuggestion from './components/QuestionSuggestion';
@@ -88,8 +91,8 @@ const MeetingRoom = () => {
   // AI Status state
   const [aiStatus, setAiStatus] = useState(null);
   
-  // Camera/Audio Request Feature State (removed - feature disabled)
-  const [activeSession, setActiveSession] = useState(null);
+  // Media Request Feature State
+  const [showMediaRequestDialog, setShowMediaRequestDialog] = useState(false);
   
   // Refs (localVideoRef comes from useWebRTC hook)
 
@@ -172,100 +175,6 @@ const MeetingRoom = () => {
       socket.off('participant-removed', handleParticipantRemoved);
     };
   }, [socket, navigate]);
-  
-  // Calculate lock states based on active session
-  const isAudioLocked = activeSession && 
-    (activeSession.requestType === 'audio' || activeSession.requestType === 'both');
-  const isVideoLocked = activeSession && 
-    (activeSession.requestType === 'camera' || activeSession.requestType === 'both');
-
-  // Update window refs for useMediaControls
-  useEffect(() => {
-    window.isAudioLocked = isAudioLocked;
-    window.isVideoLocked = isVideoLocked;
-    console.log('🔒 MeetingRoom: Lock states updated', {
-      isAudioLocked,
-      isVideoLocked,
-      hasActiveSession: !!activeSession,
-      activeSession: activeSession
-    });
-  }, [isAudioLocked, isVideoLocked, activeSession]);
-
-  // CRITICAL: Auto-clear activeSession when time limit expires
-  // This ensures the lock is removed even if the dialog component unmounts
-  useEffect(() => {
-    if (!activeSession || !activeSession.startTime || !activeSession.duration) {
-      return;
-    }
-
-    const calculateRemaining = () => {
-      const elapsed = (Date.now() - activeSession.startTime) / 1000;
-      return Math.max(0, activeSession.duration - elapsed);
-    };
-
-    // Check immediately
-    const initialRemaining = calculateRemaining();
-    if (initialRemaining <= 0) {
-      console.log('🔒 MeetingRoom: Session already expired, clearing activeSession');
-      setActiveSession(null);
-      return;
-    }
-
-    console.log('🔒 MeetingRoom: Starting session expiration timer', {
-      duration: activeSession.duration,
-      startTime: activeSession.startTime,
-      remaining: initialRemaining
-    });
-
-    // Set up timer to check every second
-    const timer = setInterval(() => {
-      const remaining = calculateRemaining();
-      
-      console.log('🔒 MeetingRoom: Timer tick', {
-        remaining: remaining.toFixed(1),
-        duration: activeSession.duration,
-        startTime: activeSession.startTime,
-        currentTime: Date.now()
-      });
-      
-      if (remaining <= 0) {
-        console.log('🔒 MeetingRoom: ⏰⏰⏰ SESSION TIME LIMIT EXPIRED - CLEARING ACTIVE SESSION ⏰⏰⏰');
-        clearInterval(timer);
-        setActiveSession(null);
-        
-        // CRITICAL: Also disable tracks if they're still enabled
-        if (window.localStreamRef?.current) {
-          const stream = window.localStreamRef.current;
-          stream.getTracks().forEach(track => {
-            if (track.kind === 'video' && (activeSession.requestType === 'camera' || activeSession.requestType === 'both')) {
-              console.log('🔒 MeetingRoom: Disabling video track after session expiry');
-              track.enabled = false;
-            }
-            if (track.kind === 'audio' && (activeSession.requestType === 'audio' || activeSession.requestType === 'both')) {
-              console.log('🔒 MeetingRoom: Disabling audio track after session expiry');
-              track.enabled = false;
-            }
-          });
-          
-          // Update video state
-          if ((activeSession.requestType === 'camera' || activeSession.requestType === 'both') && window.setIsVideoEnabled) {
-            window.setIsVideoEnabled(false);
-            console.log('🔒 MeetingRoom: Set video state to disabled after session expiry');
-          }
-          
-          // Update audio state
-          if ((activeSession.requestType === 'audio' || activeSession.requestType === 'both') && window.setIsAudioEnabled) {
-            window.setIsAudioEnabled(false);
-            console.log('🔒 MeetingRoom: Set audio state to disabled after session expiry');
-          }
-        }
-      }
-    }, 1000);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, [activeSession]);
   
   // Note: Video state refs (isVideoEnabledRef, setIsVideoEnabled) are exposed to window
   // by useMediaControls hook itself - no need to expose them here
@@ -613,6 +522,34 @@ const MeetingRoom = () => {
   // Use screen sharing from media controls or fallback to screen share hook
   const isScreenSharing = isMediaControlsScreenSharing || isNewScreenSharing;
 
+  // Media Request Hook (for participants to receive requests)
+  const { pendingRequest, activeRequest, acceptRequest, denyRequest } = useMediaRequest(
+    socket,
+    meetingId,
+    isHost,
+    localStream
+  );
+
+  // Lock states - using activeRequest from useMediaRequest hook (for participants)
+  // Default to false if activeRequest is not available
+  // requestType is 'both' for camera and mic access
+  const isAudioLocked = !isHost && activeRequest ? 
+    (activeRequest.requestType === 'mic' || activeRequest.requestType === 'both' || activeRequest.requestType === 'audio') : false;
+  const isVideoLocked = !isHost && activeRequest ? 
+    (activeRequest.requestType === 'camera' || activeRequest.requestType === 'both' || activeRequest.requestType === 'video') : false;
+
+  // Update window refs for useMediaControls
+  useEffect(() => {
+    window.isAudioLocked = isAudioLocked;
+    window.isVideoLocked = isVideoLocked;
+    console.log('🔒 MeetingRoom: Lock states updated', {
+      isAudioLocked,
+      isVideoLocked,
+      hasActiveRequest: !!activeRequest,
+      activeRequest: activeRequest
+    });
+  }, [isAudioLocked, isVideoLocked, activeRequest]);
+
   // Media Recorder hook for real-time recording
   const {
     isRecording: isMediaRecording,
@@ -948,34 +885,10 @@ const MeetingRoom = () => {
               variant="contained"
               color="primary"
               className="ai-analytics-button"
-              onClick={() => {
-                console.log('🔘 AI Analytics button clicked!');
-                console.log('🔘 Current showSentimentDashboard state:', showSentimentDashboard);
-                console.log('🔘 Setting to:', !showSentimentDashboard);
-                setShowSentimentDashboard(!showSentimentDashboard);
-                
-                // Clear sentiment data when hiding dashboard
-                if (showSentimentDashboard) {
-                  console.log('🧹 Clearing sentiment data');
-                  setSentimentData(null);
-                }
-                
-                // Log current meeting state for debugging
-                console.log('🔍 Current meeting state:', {
-                  isHost,
-                  remoteStreams: remoteStreams.length,
-                  sentimentData: sentimentData,
-                  totalParticipants: remoteStreams.length + 1 // +1 for host
-                });
-                
-                // Check if we should be receiving sentiment data
-                if (isHost && remoteStreams.length > 0) {
-                  console.log('⚠️ Host has participants but no sentiment data yet. Participants should be sending sentiment updates every 3 seconds.');
-                  console.log('⚠️ Check if participants have: 1) Video on, 2) AI models loaded, 3) Sentiment analysis running');
-                }
-              }}
+              onClick={() => setShowMediaRequestDialog(true)}
+              startIcon={<><Videocam /><Mic /></>}
             >
-              🧠 {showSentimentDashboard ? 'Hide' : 'Show'} AI Analytics
+              Request Camera Access
             </Button>
             
             {/* AI Status Display */}
@@ -1587,6 +1500,45 @@ const MeetingRoom = () => {
         participantMediaState={participantMediaState}
         currentUserId={socket?.id}
       />
+
+      {/* Media Request Dialog (Host) */}
+      {isHost && (
+        <MediaRequestDialog
+          open={showMediaRequestDialog}
+          onClose={() => setShowMediaRequestDialog(false)}
+          participants={participants}
+          socket={socket}
+          meetingId={meetingId}
+          isHost={isHost}
+        />
+      )}
+
+      {/* Media Request Notification (Participant) */}
+      {!isHost && (
+        <>
+          {/* Debug: Show pending request status */}
+          {pendingRequest && (
+            <Box sx={{ 
+              position: 'fixed', 
+              top: 10, 
+              right: 10, 
+              bgcolor: 'warning.main', 
+              color: 'white', 
+              p: 1, 
+              borderRadius: 1,
+              zIndex: 9999 
+            }}>
+              📹 Request Pending: {pendingRequest.hostName}
+            </Box>
+          )}
+          <MediaRequestNotification
+            open={!!pendingRequest}
+            request={pendingRequest}
+            onAccept={acceptRequest}
+            onDeny={denyRequest}
+          />
+        </>
+      )}
 
       {/* Enhanced Highlight System Components */}
       

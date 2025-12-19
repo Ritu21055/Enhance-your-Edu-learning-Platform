@@ -588,14 +588,40 @@ const useVideoCall = (meetingId, userName) => {
           if (videoElement) {
             const videoTrack = stream.getVideoTracks()[0];
             const trackReady = videoTrack?.readyState === 'live';
+            const trackEnded = videoTrack?.readyState === 'ended';
             const trackEnabled = videoTrack?.enabled ?? false;
-            const shouldShow = videoEnabled !== false && trackReady && trackEnabled;
+            
+            // CRITICAL: Show video if:
+            // 1. Socket says videoEnabled is true (explicitly enabled)
+            // 2. OR socket says undefined/unknown AND track exists and is not ended
+            // Don't hide just because track.enabled is false - it might be temporarily disabled
+            const shouldShow = videoEnabled === true || 
+                              (videoEnabled !== false && videoTrack && !trackEnded && trackReady);
+            
+            console.log(`📹 Media state change for ${participantId}:`, {
+              videoEnabled,
+              trackReady,
+              trackEnded,
+              trackEnabled,
+              shouldShow,
+              streamActive: stream.active,
+              hasVideoTrack: !!videoTrack
+            });
             
             if (shouldShow) {
               // Video is enabled - restore stream if needed
+              // CRITICAL: Always restore actual stream when video should be shown
               if (videoElement.srcObject !== stream) {
+                console.log(`📹 Restoring actual stream for ${participantId}`);
                 videoElement.srcObject = stream;
               }
+              
+              // Ensure track is enabled if it exists
+              if (videoTrack && !videoTrack.enabled) {
+                videoTrack.enabled = true;
+                console.log(`📹 Re-enabled video track for ${participantId}`);
+              }
+              
               videoElement.style.opacity = '1';
               videoElement.style.visibility = 'visible';
               videoElement.style.display = 'block';
@@ -603,14 +629,13 @@ const useVideoCall = (meetingId, userName) => {
                 videoElement.play().catch(() => {});
               }
             } else {
-              // Video is disabled - simply hide and pause
-              // Don't manipulate srcObject aggressively to avoid affecting other videos
+              // Video is disabled - hide but don't destroy the stream connection
               videoElement.style.opacity = '0';
               videoElement.style.visibility = 'hidden';
               videoElement.style.display = 'none';
               videoElement.pause();
               
-              // Only replace with blank if explicitly disabled (not just track ended)
+              // Only replace with blank if explicitly disabled (not just track ended or temporarily disabled)
               if (videoEnabled === false) {
                 try {
                   const canvas = document.createElement('canvas');
@@ -1504,24 +1529,56 @@ const useVideoCall = (meetingId, userName) => {
     const audioTrack = streamToUse.getAudioTracks()[0];
     const videoWasEnabled = videoTrack?.enabled ?? true;
     
-    // Helper to trigger renegotiation
+    // Helper to trigger renegotiation - with better state checking
     const triggerRenegotiation = (pc, participantId) => {
-      if (pc.signalingState === 'stable' && 
-          (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
-        pc.createOffer()
-          .then(offer => pc.setLocalDescription(offer))
-          .then(() => {
-            const localDescription = pc.localDescription;
-            if (localDescription && socketRef.current?.id) {
-              socketRef.current.emit('signal', {
-                to: participantId,
-                from: socketRef.current.id,
-                signal: { type: localDescription.type, sdp: localDescription.sdp }
-              });
-            }
-          })
-          .catch(err => console.error(`Failed to renegotiate with ${participantId}:`, err));
+      // CRITICAL: Check signaling state more carefully
+      // Only renegotiate if we're in a stable state and connection is established
+      if (pc.signalingState !== 'stable') {
+        console.log(`⏸️ Skipping renegotiation for ${participantId} - signaling state is ${pc.signalingState}, not stable`);
+        return;
       }
+      
+      if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
+        console.log(`⏸️ Skipping renegotiation for ${participantId} - ICE connection state is ${pc.iceConnectionState}, not connected`);
+        return;
+      }
+      
+      // Check if renegotiation is already in progress
+      if (pc.signalingState === 'have-local-offer' || pc.signalingState === 'have-remote-offer') {
+        console.log(`⏸️ Skipping renegotiation for ${participantId} - renegotiation already in progress (${pc.signalingState})`);
+        return;
+      }
+      
+      console.log(`🔄 Triggering renegotiation for ${participantId}`, {
+        signalingState: pc.signalingState,
+        iceConnectionState: pc.iceConnectionState
+      });
+      
+      pc.createOffer()
+        .then(offer => {
+          // Double-check state before setting local description
+          if (pc.signalingState === 'stable') {
+            return pc.setLocalDescription(offer);
+          } else {
+            console.warn(`⚠️ Signaling state changed to ${pc.signalingState} before setLocalDescription, skipping`);
+            throw new Error('Signaling state changed');
+          }
+        })
+        .then(() => {
+          const localDescription = pc.localDescription;
+          if (localDescription && socketRef.current?.id) {
+            socketRef.current.emit('signal', {
+              to: participantId,
+              from: socketRef.current.id,
+              signal: { type: localDescription.type, sdp: localDescription.sdp }
+            });
+            console.log(`✅ Renegotiation offer sent to ${participantId}`);
+          }
+        })
+        .catch(err => {
+          console.error(`❌ Failed to renegotiate with ${participantId}:`, err);
+          // Don't break the connection on renegotiation error
+        });
     };
     
     // Update all peer connections
@@ -1536,13 +1593,35 @@ const useVideoCall = (meetingId, userName) => {
         
         // Update video track
         if ((trackType === 'video' || trackType === 'both') && videoTrack) {
-          if (!videoTrack.enabled) videoTrack.enabled = true;
+          // Enable track first
+          if (!videoTrack.enabled) {
+            videoTrack.enabled = true;
+            console.log(`✅ Enabled video track for ${participantId}`);
+          }
           
           if (videoSender) {
-            videoSender.replaceTrack(videoTrack)
-              .then(() => triggerRenegotiation(pc, participantId))
-              .catch(err => console.error(`Failed to replace video track for ${participantId}:`, err));
+            // Check if track needs to be replaced (different track ID)
+            const currentTrack = videoSender.track;
+            if (currentTrack && currentTrack.id === videoTrack.id) {
+              // Same track, ensure it's enabled - WebRTC handles enabled/disabled without renegotiation
+              if (!currentTrack.enabled) {
+                currentTrack.enabled = true;
+                console.log(`✅ Re-enabled video track in sender for ${participantId}`);
+              }
+              console.log(`ℹ️ Video track already in sender for ${participantId}, track enabled: ${currentTrack.enabled}`);
+            } else {
+              // Different track, replace it
+              console.log(`🔄 Replacing video track for ${participantId} (track ID changed)`);
+              videoSender.replaceTrack(videoTrack)
+                .then(() => {
+                  console.log(`✅ Video track replaced for ${participantId}, triggering renegotiation`);
+                  triggerRenegotiation(pc, participantId);
+                })
+                .catch(err => console.error(`❌ Failed to replace video track for ${participantId}:`, err));
+            }
           } else {
+            // No sender, add track
+            console.log(`➕ Adding video track to peer connection for ${participantId}`);
             pc.addTrack(videoTrack, streamToUse);
             triggerRenegotiation(pc, participantId);
           }
@@ -1550,18 +1629,38 @@ const useVideoCall = (meetingId, userName) => {
         
         // Update audio track
         if ((trackType === 'audio' || trackType === 'both') && audioTrack) {
-          if (!audioTrack.enabled) audioTrack.enabled = true;
+          // Enable track first
+          if (!audioTrack.enabled) {
+            audioTrack.enabled = true;
+            console.log(`✅ Enabled audio track for ${participantId}`);
+          }
           
           if (audioSender) {
-            audioSender.replaceTrack(audioTrack)
-              .then(() => {
-                if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
-                  videoTrack.enabled = true;
-                }
-                triggerRenegotiation(pc, participantId);
-              })
-              .catch(err => console.error(`Failed to replace audio track for ${participantId}:`, err));
+            // Check if track needs to be replaced (different track ID)
+            const currentTrack = audioSender.track;
+            if (currentTrack && currentTrack.id === audioTrack.id) {
+              // Same track, ensure it's enabled - WebRTC handles enabled/disabled without renegotiation
+              if (!currentTrack.enabled) {
+                currentTrack.enabled = true;
+                console.log(`✅ Re-enabled audio track in sender for ${participantId}`);
+              }
+              console.log(`ℹ️ Audio track already in sender for ${participantId}, track enabled: ${currentTrack.enabled}`);
+            } else {
+              // Different track, replace it
+              console.log(`🔄 Replacing audio track for ${participantId} (track ID changed)`);
+              audioSender.replaceTrack(audioTrack)
+                .then(() => {
+                  if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
+                    videoTrack.enabled = true;
+                  }
+                  console.log(`✅ Audio track replaced for ${participantId}, triggering renegotiation`);
+                  triggerRenegotiation(pc, participantId);
+                })
+                .catch(err => console.error(`❌ Failed to replace audio track for ${participantId}:`, err));
+            }
           } else {
+            // No sender, add track
+            console.log(`➕ Adding audio track to peer connection for ${participantId}`);
             pc.addTrack(audioTrack, streamToUse);
             triggerRenegotiation(pc, participantId);
           }

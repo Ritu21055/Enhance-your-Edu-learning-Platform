@@ -477,17 +477,46 @@ const VideoCallComponent = memo(({
         const socketAudioEnabled = socketMediaState?.audioEnabled;
         
         // Determine if video should be shown
-        const isVideoEnabled = socketVideoEnabled === false
-          ? false  // Socket explicitly says disabled
-          : videoTrack && videoTrack.readyState !== 'ended'  // If track exists and is not ended, show it
-            ? (socketVideoEnabled === true || socketVideoEnabled === undefined || trackEnabled)  // Show if socket says enabled OR unknown OR track is enabled
-            : false;  // No track or track ended - hide
-        
-        // Simple approach: only replace srcObject when video is explicitly disabled
-        // Don't aggressively manipulate to avoid affecting video quality
-        if (!isVideoEnabled) {
-          // Video disabled - hide first, then optionally replace with blank
-          // Only replace if socket explicitly says disabled (not just track state)
+        // CRITICAL: Be more lenient - show video if socket says enabled OR if track exists and is live
+        // Priority: socket state > track state
+        // Show video if:
+        // 1. Socket explicitly says enabled (true), OR
+        // 2. Socket state is unknown/undefined AND track exists and is live (not ended)
+        // Hide video only if:
+        // 1. Socket explicitly says disabled (false), OR
+        // 2. Track doesn't exist or track is ended
+        const shouldShowVideo = socketVideoEnabled === true ||
+                                (socketVideoEnabled === undefined && videoTrack && !trackEnded);
+
+        if (shouldShowVideo) {
+          // Video should be shown - ensure actual stream is set and track is enabled
+          if (videoElement.srcObject !== stream) {
+            console.log(`📹 Restoring actual stream for ${participantId}`);
+            videoElement.srcObject = stream;
+          }
+          
+          // Ensure video track is enabled
+          if (videoTrack && !videoTrack.enabled) {
+            videoTrack.enabled = true;
+            console.log(`📹 Re-enabled video track for ${participantId}`);
+          }
+
+          // Show and play
+          videoElement.style.opacity = '1';
+          videoElement.style.visibility = 'visible';
+          videoElement.style.display = 'block';
+
+          if (videoElement.paused && stream.active) {
+            videoElement.play().catch(() => {});
+          }
+        } else {
+          // Video should be hidden - hide the video element IMMEDIATELY
+          videoElement.style.opacity = '0';
+          videoElement.style.visibility = 'hidden';
+          videoElement.style.display = 'none';
+          videoElement.pause();
+
+          // Only replace with blank if explicitly disabled by socket (not just track ended)
           if (socketVideoEnabled === false) {
             try {
               const canvas = document.createElement('canvas');
@@ -496,33 +525,9 @@ const VideoCallComponent = memo(({
               const blankStream = canvas.captureStream(0);
               videoElement.srcObject = blankStream;
             } catch (e) {
-              // If blank stream creation fails, just hide the element
+              // If blank stream creation fails, just leave it as is
             }
           }
-        } else {
-          // Video enabled - ensure actual stream is set
-          if (videoElement.srcObject !== stream && videoTrack) {
-            videoElement.srcObject = stream;
-            videoElement.play().catch(() => {});
-          }
-        }
-        
-        if (isVideoEnabled) {
-          // Video is enabled - show and play
-          videoElement.style.opacity = '1';
-          videoElement.style.visibility = 'visible';
-          videoElement.style.display = 'block';
-          
-          // Ensure video is playing
-          if (videoElement.paused && stream.active) {
-            videoElement.play().catch(() => {});
-          }
-        } else {
-          // Video is disabled or track stopped - hide the video element IMMEDIATELY
-          videoElement.style.opacity = '0';
-          videoElement.style.visibility = 'hidden';
-          videoElement.style.display = 'none';
-          videoElement.pause();
         }
         
         // CRITICAL: Mute/unmute audio tracks based on participant's audio state
@@ -540,21 +545,27 @@ const VideoCallComponent = memo(({
           const handleTrackEnded = () => {
             const currentElement = remoteVideoRefs.current[participantId];
             if (currentElement) {
-              // Simple approach: just hide and pause
-              currentElement.style.opacity = '0';
-              currentElement.style.visibility = 'hidden';
-              currentElement.style.display = 'none';
-              currentElement.pause();
+              // Check current track state (from the element's srcObject if available)
+              const currentStream = currentElement.srcObject;
+              const currentVideoTrack = currentStream?.getVideoTracks()?.[0];
               
-              // Optionally replace with blank stream to clear frame
-              try {
-                const canvas = document.createElement('canvas');
-                canvas.width = 1;
-                canvas.height = 1;
-                const blankStream = canvas.captureStream(0);
-                currentElement.srcObject = blankStream;
-              } catch (e) {
-                // If blank stream fails, just leave it
+              // If track is actually ended, hide the video
+              if (!currentVideoTrack || currentVideoTrack.readyState === 'ended') {
+                currentElement.style.opacity = '0';
+                currentElement.style.visibility = 'hidden';
+                currentElement.style.display = 'none';
+                currentElement.pause();
+                
+                // Replace with blank stream to clear frame
+                try {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 1;
+                  canvas.height = 1;
+                  const blankStream = canvas.captureStream(0);
+                  currentElement.srcObject = blankStream;
+                } catch (e) {
+                  // If blank stream fails, just leave it
+                }
               }
             }
           };

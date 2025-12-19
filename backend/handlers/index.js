@@ -3,6 +3,7 @@
 
 import registerMeetingHandlers from './meetingHandlers.js';
 import registerMediaHandlers from './mediaHandlers.js';
+import registerMediaRequestHandlers from './mediaRequestHandlers.js';
 import registerChatHandlers from './chatHandlers.js';
 import registerAIHandlers from './aiHandlers.js';
 import registerRecordingHandlers from './recordingHandlers.js';
@@ -27,6 +28,7 @@ export default function registerAllHandlers(socket, io) {
   // Register all handlers
   registerMeetingHandlers(socket, io);
   registerMediaHandlers(socket, io);
+  registerMediaRequestHandlers(socket, io);
   registerChatHandlers(socket, io);
   registerAIHandlers(socket, io);
   registerRecordingHandlers(socket, io);
