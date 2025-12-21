@@ -416,16 +416,37 @@ const useVideoCall = (meetingId, userName) => {
         
         // Helper function to create connection (used for both normal and reconnection cases)
         const createConnectionForParticipant = async () => {
-          // CRITICAL: Initialize media if not ready
-          if (!isInitializedRef.current || !streamRef.current) {
-            console.log('🎥 Media not initialized, initializing now...');
-            try {
-              await initializeMedia();
-              console.log('✅ Media initialized for participant connection');
-            } catch (error) {
-              console.error('❌ Failed to initialize media:', error);
-              return;
+          // CRITICAL: PERMANENT FIX - NEVER touch host's stream when participant joins/accepts
+          // This prevents host's video from disappearing when participants join or approve
+          const isHost = isHostRef.current;
+          const hasExistingStream = isInitializedRef.current && streamRef.current;
+          
+          if (isHost && hasExistingStream) {
+            console.log('⏭️ PERMANENT FIX: Host already has stream, COMPLETELY SKIPPING any media operations');
+            // CRITICAL: Host already has stream - PROTECT IT COMPLETELY
+            // DO NOT re-initialize, DO NOT modify, DO NOT touch the stream in any way
+            const currentStream = streamRef.current;
+            
+            // CRITICAL: Only ensure stream is in state (non-destructive operation)
+            if (!localStream || localStream.id !== currentStream.id) {
+              console.log('🔄 Updating local stream state to match current stream (non-destructive)');
+              setLocalStream(currentStream);
             }
+            
+            // CRITICAL: Verify tracks are enabled but DON'T modify them unless absolutely necessary
+            const videoTrack = currentStream.getVideoTracks()[0];
+            const audioTrack = currentStream.getAudioTracks()[0];
+            
+            // Only log if there's an issue, but don't aggressively fix (let protection system handle it)
+            if (videoTrack && !videoTrack.enabled) {
+              console.warn('🎥 Host video track was disabled - protection system should handle this');
+            }
+            if (audioTrack && !audioTrack.enabled) {
+              console.warn('🎥 Host audio track was disabled - protection system should handle this');
+            }
+            
+            // CRITICAL: Skip ALL media initialization and proceed directly to connection creation
+            // This ensures host's stream is NEVER touched
           }
 
           // Wait for stream to be ready before creating connection (faster)
@@ -1149,6 +1170,14 @@ const useVideoCall = (meetingId, userName) => {
           kind: audioTrack.kind,
           label: audioTrack.label
         });
+        
+        // CRITICAL: Ensure audio track is enabled when received
+        if (!audioTrack.enabled) {
+          console.log(`🔊 Enabling audio track for ${participantName} (was disabled)`);
+          audioTrack.enabled = true;
+        }
+      } else {
+        console.warn(`⚠️ No audio track in stream from ${participantName}`);
       }
       
       // CRITICAL: Listen for track enabled/disabled changes
@@ -1279,50 +1308,117 @@ const useVideoCall = (meetingId, userName) => {
           originalOntrack(event);
         }
         
-        // If this is a video track and we don't have a stream yet, or the stream doesn't have this track
-        if (event.track && event.track.kind === 'video') {
+        // Handle both video and audio tracks
+        if (event.track) {
           const currentStream = remoteStreamsRef.current[participantId];
-          if (currentStream) {
-            // Stream exists, check if this track is already in it
-            const existingVideoTrack = currentStream.getVideoTracks()[0];
-            if (!existingVideoTrack || existingVideoTrack.id !== event.track.id) {
-              // New video track added - add it to the existing stream
-              console.log(`📹 New video track added to existing stream for ${participantName}`);
-              currentStream.addTrack(event.track);
-              // Force update to trigger re-render
+          const trackKind = event.track.kind;
+          
+          if (trackKind === 'video') {
+            if (currentStream) {
+              // Stream exists, check if this track is already in it
+              const existingVideoTrack = currentStream.getVideoTracks()[0];
+              if (!existingVideoTrack || existingVideoTrack.id !== event.track.id) {
+                // New video track added - add it to the existing stream
+                console.log(`📹 New video track added to existing stream for ${participantName}`);
+                currentStream.addTrack(event.track);
+                // Force update to trigger re-render
+                setRemoteStreams(prev => {
+                  const updated = { ...prev };
+                  if (updated[participantId]) {
+                    updated[participantId] = currentStream; // Trigger re-render
+                  }
+                  remoteStreamsRef.current = updated;
+                  return updated;
+                });
+              }
+            } else if (event.streams && event.streams.length > 0) {
+              // New stream with video track
+              const newStream = event.streams[0];
+              console.log(`📹 New stream received with video track for ${participantName}`);
               setRemoteStreams(prev => {
-                const updated = { ...prev };
-                if (updated[participantId]) {
-                  updated[participantId] = currentStream; // Trigger re-render
-                }
+                const updated = {
+                  ...prev,
+                  [participantId]: newStream
+                };
+                remoteStreamsRef.current = updated;
+                return updated;
+              });
+            } else {
+              // Track added but no stream - create a new stream
+              console.log(`📹 Creating new stream for video track from ${participantName}`);
+              const newStream = new MediaStream([event.track]);
+              setRemoteStreams(prev => {
+                const updated = {
+                  ...prev,
+                  [participantId]: newStream
+                };
                 remoteStreamsRef.current = updated;
                 return updated;
               });
             }
-          } else if (event.streams && event.streams.length > 0) {
-            // New stream with video track
-            const newStream = event.streams[0];
-            console.log(`📹 New stream received with video track for ${participantName}`);
-            setRemoteStreams(prev => {
-              const updated = {
-                ...prev,
-                [participantId]: newStream
-              };
-              remoteStreamsRef.current = updated;
-              return updated;
-            });
-          } else {
-            // Track added but no stream - create a new stream
-            console.log(`📹 Creating new stream for video track from ${participantName}`);
-            const newStream = new MediaStream([event.track]);
-            setRemoteStreams(prev => {
-              const updated = {
-                ...prev,
-                [participantId]: newStream
-              };
-              remoteStreamsRef.current = updated;
-              return updated;
-            });
+          } else if (trackKind === 'audio') {
+            // Handle audio track addition
+            if (currentStream) {
+              // Stream exists, check if this track is already in it
+              const existingAudioTracks = currentStream.getAudioTracks();
+              const trackExists = existingAudioTracks.some(t => t.id === event.track.id);
+              if (!trackExists) {
+                // New audio track added - add it to the existing stream
+                console.log(`🔊 New audio track added to existing stream for ${participantName}`);
+                currentStream.addTrack(event.track);
+                // Ensure audio track is enabled
+                if (!event.track.enabled) {
+                  event.track.enabled = true;
+                  console.log(`🔊 Enabled audio track for ${participantName}`);
+                }
+                // Force update to trigger re-render
+                setRemoteStreams(prev => {
+                  const updated = { ...prev };
+                  if (updated[participantId]) {
+                    updated[participantId] = currentStream; // Trigger re-render
+                  }
+                  remoteStreamsRef.current = updated;
+                  return updated;
+                });
+              }
+            } else if (event.streams && event.streams.length > 0) {
+              // New stream with audio track
+              const newStream = event.streams[0];
+              console.log(`🔊 New stream received with audio track for ${participantName}`);
+              // Ensure audio track is enabled
+              const audioTracks = newStream.getAudioTracks();
+              audioTracks.forEach(track => {
+                if (!track.enabled) {
+                  track.enabled = true;
+                  console.log(`🔊 Enabled audio track in new stream for ${participantName}`);
+                }
+              });
+              setRemoteStreams(prev => {
+                const updated = {
+                  ...prev,
+                  [participantId]: newStream
+                };
+                remoteStreamsRef.current = updated;
+                return updated;
+              });
+            } else {
+              // Track added but no stream - create a new stream
+              console.log(`🔊 Creating new stream for audio track from ${participantName}`);
+              const newStream = new MediaStream([event.track]);
+              // Ensure audio track is enabled
+              if (!event.track.enabled) {
+                event.track.enabled = true;
+                console.log(`🔊 Enabled audio track in new stream for ${participantName}`);
+              }
+              setRemoteStreams(prev => {
+                const updated = {
+                  ...prev,
+                  [participantId]: newStream
+                };
+                remoteStreamsRef.current = updated;
+                return updated;
+              });
+            }
           }
         }
       };

@@ -264,9 +264,10 @@ const VideoCallComponent = memo(({
         videoElement.style.width = '100%';
         videoElement.style.height = '100%';
         
-        // Ensure srcObject is set
+        // Ensure srcObject is set (restore if it was cleared when disabled)
         if (videoElement.srcObject !== currentStream && currentStream) {
           videoElement.srcObject = currentStream;
+          console.log('🎥 VideoCall: Restored srcObject when video enabled');
         }
         
         // Play if paused
@@ -282,8 +283,25 @@ const VideoCallComponent = memo(({
           trackState: videoTrack.readyState
         });
         
-        // CRITICAL: If track is ended, replace srcObject with blank stream to clear frozen frame
-        if (videoTrack && videoTrack.readyState === 'ended') {
+        // CRITICAL: Hide video element immediately to prevent frozen frame
+        videoElement.style.opacity = '0';
+        videoElement.style.visibility = 'hidden';
+        videoElement.style.display = 'none'; // Use display: none to completely hide
+        videoElement.pause(); // Pause the video
+        
+        // CRITICAL: If video is disabled (not just track disabled), clear srcObject to prevent frozen frame
+        // Only do this if explicitly disabled by user/timer, not if track is just temporarily disabled
+        if (!shouldBeEnabled) {
+          // Video is explicitly disabled - clear srcObject to prevent showing last frame
+          // But keep the stream reference so we can restore it later
+          if (videoElement.srcObject && videoElement.srcObject === currentStream) {
+            // Temporarily clear srcObject to clear the frozen frame
+            // We'll restore it when video is enabled again
+            videoElement.srcObject = null;
+            console.log('🎥 VideoCall: Cleared srcObject to prevent frozen frame');
+          }
+        } else if (videoTrack && videoTrack.readyState === 'ended') {
+          // Track ended - replace with blank stream
           console.log('🎥 VideoCall: Local video track ended, replacing srcObject with blank stream');
           try {
             const canvas = document.createElement('canvas');
@@ -297,11 +315,6 @@ const VideoCallComponent = memo(({
             videoElement.srcObject = null;
           }
         }
-        
-        videoElement.style.opacity = '0';
-        videoElement.style.visibility = 'hidden';
-        videoElement.style.display = 'none'; // Use display: none to completely hide
-        videoElement.pause(); // Pause the video
       }
     };
 
@@ -391,10 +404,27 @@ const VideoCallComponent = memo(({
         });
       }
       
+      // CRITICAL: Ensure we have a valid video element and stream
+      if (!videoElement || !currentStream) {
+        console.warn('🎥 VideoCall: Missing video element or stream, skipping check');
+        return;
+      }
+      
+      // CRITICAL: PERMANENT FIX - Extra protection for host's video
+      // If this is the host's video, be extra aggressive about keeping it visible
+      // Check window.isHost or window.isHostRef (exposed from MeetingRoom)
+      const isHostVideo = window.isHost === true || window.isHostRef?.current === true;
+      
       // Only protect if video should be enabled (respect user's choice to turn off)
       if (shouldBeEnabled) {
         // CRITICAL: Also check if track is still live (not ended/stopped)
         const trackReady = videoTrack.readyState === 'live';
+        
+        // CRITICAL: For host, if track is disabled but should be enabled, re-enable it immediately
+        if (isHostVideo && !videoTrack.enabled && shouldBeEnabled) {
+          console.warn('🎥 PERMANENT FIX: Host video track disabled but should be enabled, re-enabling immediately');
+          videoTrack.enabled = true;
+        }
         
         if (!trackReady) {
           console.log('🎥 VideoCall: Track not ready, hiding video', {
@@ -409,28 +439,52 @@ const VideoCallComponent = memo(({
           return; // Don't protect if track is stopped
         }
         
-        // Ensure track is enabled
-        if (!videoTrack.enabled) {
-          console.warn('🎥 VideoCall: Track was disabled, re-enabling');
+        // CRITICAL: Check if video element is explicitly hidden (e.g., by timer expiration)
+        // If video element is hidden and display is none, don't re-enable track
+        // This prevents protection from interfering with timer-based turn-off
+        const isExplicitlyHidden = videoElement.style.display === 'none' && 
+                                   videoElement.style.opacity === '0' &&
+                                   videoElement.style.visibility === 'hidden';
+        
+        // CRITICAL: Force enable track if it's disabled (protection against accidental disabling)
+        // BUT: Only if video element is not explicitly hidden (to respect timer expiration)
+        if (!videoTrack.enabled && !isExplicitlyHidden) {
+          console.warn('🎥 VideoCall: Track was disabled, re-enabling (protection)');
           videoTrack.enabled = true;
+        } else if (!videoTrack.enabled && isExplicitlyHidden) {
+          // Track is disabled AND video is explicitly hidden - respect that (likely timer expiration)
+          console.log('🎥 VideoCall: Track disabled and video hidden - respecting state (likely timer expiration)');
+          return; // Don't interfere with explicit turn-off
         }
         
-        // Ensure srcObject is set
-        if (videoElement.srcObject !== currentStream && currentStream) {
-          console.warn('🎥 VideoCall: srcObject lost, restoring');
+        // CRITICAL: Ensure srcObject is set and matches current stream
+        if (videoElement.srcObject !== currentStream) {
+          console.warn('🎥 VideoCall: srcObject lost or changed, restoring', {
+            hasSrcObject: !!videoElement.srcObject,
+            hasCurrentStream: !!currentStream,
+            srcObjectId: videoElement.srcObject?.id,
+            currentStreamId: currentStream.id
+          });
           videoElement.srcObject = currentStream;
         }
         
-        // Ensure video is visible and playing
-        if (videoTrack.enabled) {
-          if (videoElement.style.opacity === '0' || videoElement.style.visibility === 'hidden') {
-            console.warn('🎥 VideoCall: Video was hidden, making visible');
+        // CRITICAL: Force video to be visible and playing if track is enabled
+        if (videoTrack.enabled && trackReady) {
+          // Force visibility regardless of current state
+          if (videoElement.style.opacity !== '1' || 
+              videoElement.style.visibility !== 'visible' || 
+              videoElement.style.display !== 'block') {
+            console.warn('🎥 VideoCall: Video was hidden, forcing visibility (protection)');
             videoElement.style.opacity = '1';
             videoElement.style.visibility = 'visible';
             videoElement.style.display = 'block';
           }
+          
+          // Force play if paused
           if (videoElement.paused && videoElement.srcObject) {
-            videoElement.play().catch(() => {});
+            videoElement.play().catch(err => {
+              console.warn('🎥 VideoCall: Failed to play video:', err);
+            });
           }
         }
       } else {
@@ -447,7 +501,7 @@ const VideoCallComponent = memo(({
       
       // Update display
       updateVideo();
-    }, 500); // Check every 500ms - not too aggressive
+    }, 300); // Check every 300ms - more frequent to catch issues faster
 
     return () => {
       clearInterval(checkInterval);
@@ -461,7 +515,9 @@ const VideoCallComponent = memo(({
 
   // Update remote video streams
   useEffect(() => {
-    Object.entries(remoteStreams).forEach(([participantId, stream]) => {
+    // Function to update video display for all participants
+    const updateVideoDisplays = () => {
+      Object.entries(remoteStreams).forEach(([participantId, stream]) => {
       const videoElement = remoteVideoRefs.current[participantId];
       if (videoElement) {
         // CRITICAL: Check if video track is enabled AND check media state from socket
@@ -477,16 +533,17 @@ const VideoCallComponent = memo(({
         const socketAudioEnabled = socketMediaState?.audioEnabled;
         
         // Determine if video should be shown
-        // CRITICAL: Be more lenient - show video if socket says enabled OR if track exists and is live
-        // Priority: socket state > track state
-        // Show video if:
-        // 1. Socket explicitly says enabled (true), OR
-        // 2. Socket state is unknown/undefined AND track exists and is live (not ended)
-        // Hide video only if:
+        // CRITICAL: Check both socket state AND track enabled state
+        // Priority: socket state > track enabled state > track existence
+        // Show video ONLY if:
+        // 1. Socket explicitly says enabled (true) AND track is enabled, OR
+        // 2. Socket state is unknown/undefined AND track exists, is live, AND is enabled
+        // Hide video if:
         // 1. Socket explicitly says disabled (false), OR
-        // 2. Track doesn't exist or track is ended
-        const shouldShowVideo = socketVideoEnabled === true ||
-                                (socketVideoEnabled === undefined && videoTrack && !trackEnded);
+        // 2. Track is disabled (even if socket state is undefined), OR
+        // 3. Track doesn't exist or track is ended
+        const shouldShowVideo = (socketVideoEnabled === true && videoTrack?.enabled) ||
+                                (socketVideoEnabled === undefined && videoTrack && !trackEnded && videoTrack.enabled);
 
         if (shouldShowVideo) {
           // Video should be shown - ensure actual stream is set and track is enabled
@@ -511,34 +568,65 @@ const VideoCallComponent = memo(({
           }
         } else {
           // Video should be hidden - hide the video element IMMEDIATELY
+          console.log(`📹 Hiding video for ${participantId}:`, {
+            socketVideoEnabled,
+            trackEnabled: videoTrack?.enabled,
+            trackReady,
+            trackEnded
+          });
+          
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.style.display = 'none';
           videoElement.pause();
 
-          // Only replace with blank if explicitly disabled by socket (not just track ended)
-          if (socketVideoEnabled === false) {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = 1;
-              canvas.height = 1;
-              const blankStream = canvas.captureStream(0);
-              videoElement.srcObject = blankStream;
-            } catch (e) {
-              // If blank stream creation fails, just leave it as is
-            }
-          }
+          // DON'T replace with blank stream - this causes freezing
+          // Just hide the element and pause it, keep the original stream
+          // The stream will be properly restored when video is enabled again
         }
         
         // CRITICAL: Mute/unmute audio tracks based on participant's audio state
         const audioTracks = stream.getAudioTracks();
+        
+        // CRITICAL: Always ensure video element muted state matches audio state
+        // Audio plays through video element, so it must be unmuted when audio is enabled
+        const shouldMuteVideoElement = socketAudioEnabled === false;
+        if (videoElement.muted !== shouldMuteVideoElement) {
+          videoElement.muted = shouldMuteVideoElement;
+          videoElement.volume = 1.0;
+          console.log(`🔊 Video element ${shouldMuteVideoElement ? 'muted' : 'unmuted'} for ${participantId} (audioEnabled: ${socketAudioEnabled})`);
+        }
+        
         audioTracks.forEach((audioTrack) => {
           // Strict: only enable if socket explicitly says true, otherwise disable
           const shouldEnableAudio = socketAudioEnabled === true;
           if (audioTrack.enabled !== shouldEnableAudio) {
             audioTrack.enabled = shouldEnableAudio;
+            console.log(`🔊 Audio track ${shouldEnableAudio ? 'enabled' : 'disabled'} for ${participantId}:`, {
+              trackId: audioTrack.id,
+              enabled: audioTrack.enabled,
+              readyState: audioTrack.readyState,
+              socketAudioEnabled,
+              videoElementMuted: videoElement.muted
+            });
           }
         });
+        
+        // CRITICAL: Force play video element if audio is enabled (audio plays through video element)
+        if (socketAudioEnabled === true && audioTracks.length > 0) {
+          if (videoElement.paused && stream.active) {
+            videoElement.play().catch(err => {
+              console.warn(`🔊 Failed to play audio for ${participantId}:`, err);
+            });
+          }
+          
+          // Double-check muted state after play attempt
+          if (videoElement.muted) {
+            console.warn(`🔊 Video element still muted after play attempt, forcing unmute for ${participantId}`);
+            videoElement.muted = false;
+            videoElement.volume = 1.0;
+          }
+        }
         
         // CRITICAL: Listen for track ended event to immediately hide video when track stops
         if (videoTrack && !videoElement._trackEndedListener) {
@@ -576,9 +664,20 @@ const VideoCallComponent = memo(({
         }
       }
     });
+    };
+
+    // Initial update
+    updateVideoDisplays();
+
+    // Set up periodic check to catch track enabled/disabled changes
+    // This helps when tracks are disabled but socket state hasn't updated yet
+    const checkInterval = setInterval(() => {
+      updateVideoDisplays();
+    }, 500); // Check every 500ms
     
-    // Cleanup function to remove event listeners
+    // Cleanup function to remove event listeners and interval
     return () => {
+      clearInterval(checkInterval);
       Object.entries(remoteStreams).forEach(([participantId, stream]) => {
         const videoElement = remoteVideoRefs.current[participantId];
         if (videoElement) {
@@ -727,38 +826,66 @@ const VideoCallComponent = memo(({
                                      videoTrack.enabled && 
                                      videoTrack.readyState === 'live';
                     
+                    // Force play function - defined outside if/else so it's accessible in both blocks
+                    const playVideo = () => {
+                      if (el && el.srcObject && localStream.active) {
+                        el.play().catch(() => {
+                          // Retry after a short delay
+                          setTimeout(() => {
+                            if (el && !el.paused) return;
+                            playVideo();
+                          }, 300);
+                        });
+                      }
+                    };
+                    
                     if (shouldShow) {
-                      // Ensure video track is enabled
+                      // CRITICAL: Ensure video track is enabled (protection against accidental disabling)
                       if (videoTrack && !videoTrack.enabled) {
+                        console.warn('🎥 VideoCall: Track disabled in ref callback, re-enabling');
                         videoTrack.enabled = true;
                       }
                       
-                      // Force visibility only if should be shown
-                      el.style.opacity = '1';
-                      el.style.visibility = 'visible';
-                      el.style.display = 'block';
-                      
-                      // Force play immediately with retry
-                      const playVideo = () => {
-                        if (el && el.srcObject && localStream.active) {
-                          el.play().catch(() => {
-                            // Retry after a short delay
-                            setTimeout(() => {
-                              if (el && !el.paused) return;
-                              playVideo();
-                            }, 300);
-                          });
-                        }
-                      };
+                      // CRITICAL: Force visibility only if should be shown
+                      // Use !important values to prevent other code from hiding it
+                      el.style.setProperty('opacity', '1', 'important');
+                      el.style.setProperty('visibility', 'visible', 'important');
+                      el.style.setProperty('display', 'block', 'important');
                       
                       // Try playing immediately
                       setTimeout(playVideo, 100);
                     } else {
-                      // Video should be hidden
-                      el.style.opacity = '0';
-                      el.style.visibility = 'hidden';
-                      el.style.display = 'none';
-                      el.pause();
+                      // Video should be hidden - but only if explicitly disabled by user
+                      // Don't hide if track is just temporarily disabled
+                      if (!isVideoEnabled) {
+                        // User explicitly disabled video - respect that
+                        el.style.opacity = '0';
+                        el.style.visibility = 'hidden';
+                        el.style.display = 'none';
+                        el.pause();
+                      } else if (videoTrack && !videoTrack.enabled) {
+                        // Track disabled but user wants video on - re-enable it
+                        console.warn('🎥 VideoCall: Track disabled but isVideoEnabled=true, re-enabling');
+                        videoTrack.enabled = true;
+                        el.style.setProperty('opacity', '1', 'important');
+                        el.style.setProperty('visibility', 'visible', 'important');
+                        el.style.setProperty('display', 'block', 'important');
+                        setTimeout(playVideo, 100);
+                      } else if (videoTrack && videoTrack.readyState !== 'live') {
+                        // Track not ready - but if user wants video on, try to restore
+                        console.warn('🎥 VideoCall: Track not live but isVideoEnabled=true, track state:', videoTrack.readyState);
+                        // Don't hide if user wants video on - let the protection interval handle it
+                        el.style.setProperty('opacity', '1', 'important');
+                        el.style.setProperty('visibility', 'visible', 'important');
+                        el.style.setProperty('display', 'block', 'important');
+                      } else {
+                        // Unknown state but isVideoEnabled is true - show video anyway
+                        console.warn('🎥 VideoCall: Unknown state but isVideoEnabled=true, forcing visibility');
+                        el.style.setProperty('opacity', '1', 'important');
+                        el.style.setProperty('visibility', 'visible', 'important');
+                        el.style.setProperty('display', 'block', 'important');
+                        setTimeout(playVideo, 100);
+                      }
                     }
                   }
                   
@@ -843,6 +970,9 @@ const VideoCallComponent = memo(({
             >
               <video
                 data-participant-id={participantId}
+                autoPlay
+                playsInline
+                muted={false}
                 ref={(el) => {
                   if (el) {
                     const wasNew = !remoteVideoRefs.current[participantId];
@@ -850,6 +980,10 @@ const VideoCallComponent = memo(({
                     
                     // Set data attribute for instant DOM updates
                     el.setAttribute('data-participant-id', participantId);
+                    
+                    // CRITICAL: Ensure video element is NOT muted to allow audio playback
+                    el.muted = false;
+                    el.volume = 1.0;
                     
                     if (el.srcObject !== stream) {
                       el.srcObject = stream;
@@ -864,6 +998,7 @@ const VideoCallComponent = memo(({
                     // When participant turns off camera, socket event is more reliable than track.enabled
                     const socketMediaState = participantMediaState[participantId];
                     const socketVideoEnabled = socketMediaState?.videoEnabled;
+                    const socketAudioEnabled = socketMediaState?.audioEnabled;
                     
                     // Use socket state if available, otherwise fall back to track state
                     // If socket says video is disabled, hide it regardless of track state
@@ -890,15 +1025,46 @@ const VideoCallComponent = memo(({
                     
                     // CRITICAL: Handle audio tracks based on participant's audio state
                     const audioTracks = stream.getAudioTracks();
-                    const socketAudioEnabled = socketMediaState?.audioEnabled;
+                    
+                    // CRITICAL: Always ensure video element muted state matches audio state
+                    // Audio plays through the video element, so it must be unmuted when audio is enabled
+                    const shouldMuteVideoElement = socketAudioEnabled === false;
+                    if (el.muted !== shouldMuteVideoElement) {
+                      el.muted = shouldMuteVideoElement;
+                      el.volume = 1.0;
+                      console.log(`🔊 Video element ${shouldMuteVideoElement ? 'muted' : 'unmuted'} for ${participantId} (audioEnabled: ${socketAudioEnabled})`);
+                    }
                     
                     audioTracks.forEach((audioTrack) => {
                       // Strict: only enable if socket explicitly says true, otherwise disable
                       const shouldEnableAudio = socketAudioEnabled === true;
                       if (audioTrack.enabled !== shouldEnableAudio) {
                         audioTrack.enabled = shouldEnableAudio;
+                        console.log(`🔊 Audio track ${shouldEnableAudio ? 'enabled' : 'disabled'} for ${participantId}:`, {
+                          trackId: audioTrack.id,
+                          enabled: audioTrack.enabled,
+                          readyState: audioTrack.readyState,
+                          socketAudioEnabled,
+                          videoElementMuted: el.muted
+                        });
                       }
                     });
+                    
+                    // CRITICAL: Force play video element if audio is enabled (audio plays through video element)
+                    if (socketAudioEnabled === true && audioTracks.length > 0) {
+                      if (el.paused && stream.active) {
+                        el.play().catch(err => {
+                          console.warn(`🔊 Failed to play audio for ${participantId}:`, err);
+                        });
+                      }
+                      
+                      // Double-check muted state after play attempt
+                      if (el.muted) {
+                        console.warn(`🔊 Video element still muted after play attempt, forcing unmute for ${participantId}`);
+                        el.muted = false;
+                        el.volume = 1.0;
+                      }
+                    }
                     
                     if (wasNew && videoTrack) {
                       // Set up listener for track enabled state changes
@@ -972,8 +1138,6 @@ const VideoCallComponent = memo(({
                   }
                 }}
                 className="remote-video"
-                autoPlay
-                playsInline
                 style={{
                   width: '100%',
                   height: '100%',

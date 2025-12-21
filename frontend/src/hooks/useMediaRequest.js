@@ -93,22 +93,52 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
     };
 
     const handleRequestExpired = () => {
-      console.log('⏰ Media request expired');
+      console.log('⏰ Media request expired (from backend)');
       
       if (activeRequest) {
-        // Turn off both camera and mic
-        if (window.setIsVideoEnabled) {
-          window.setIsVideoEnabled(false);
+        // CRITICAL: Disable tracks FIRST before updating UI state
+        if (localStream) {
+          const videoTrack = localStream.getVideoTracks()[0];
+          if (videoTrack) {
+            videoTrack.enabled = false;
+            console.log('✅ Video track disabled on expiration');
+          }
+
+          const audioTrack = localStream.getAudioTracks()[0];
+          if (audioTrack) {
+            audioTrack.enabled = false;
+            console.log('✅ Audio track disabled on expiration');
+          }
         }
-        if (window.setIsAudioEnabled) {
-          window.setIsAudioEnabled(false);
-        }
-        
-        setActiveRequest(null);
-        if (requestTimerRef.current) {
-          clearTimeout(requestTimerRef.current);
-          requestTimerRef.current = null;
-        }
+
+        // Update UI state after tracks are disabled
+        setTimeout(() => {
+          if (window.setIsVideoEnabled) {
+            window.setIsVideoEnabled(false);
+          }
+          if (window.setIsAudioEnabled) {
+            window.setIsAudioEnabled(false);
+          }
+
+          // Emit media state change to notify other participants
+          if (socket && meetingId && socket.connected) {
+            const participantId = socket.id;
+            socket.emit('media-state-change', {
+              meetingId,
+              participantId,
+              audioEnabled: false,
+              videoEnabled: false,
+              timestamp: Date.now()
+            });
+            console.log('✅ Expiration media state change emitted to socket');
+          }
+
+          setActiveRequest(null);
+          if (requestTimerRef.current) {
+            clearTimeout(requestTimerRef.current);
+            requestTimerRef.current = null;
+          }
+        }, 100);
       }
     };
 
@@ -260,14 +290,85 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
     // Set timer to auto-turn off
     const remainingTime = pendingRequest.expiresAt - Date.now();
     requestTimerRef.current = setTimeout(() => {
-      console.log('⏰ Media request expired, turning off camera and mic');
+      console.log('⏰ Media request auto-expiration triggered');
+      
+      // CRITICAL: Disable tracks FIRST before updating UI state
+      if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.enabled = false;
+          console.log('✅ Video track disabled:', {
+            trackId: videoTrack.id,
+            enabled: videoTrack.enabled,
+            readyState: videoTrack.readyState
+          });
+        }
+
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = false;
+          console.log('✅ Audio track disabled:', {
+            trackId: audioTrack.id,
+            enabled: audioTrack.enabled,
+            readyState: audioTrack.readyState
+          });
+        }
+      }
+
+      // CRITICAL: Hide participant's own local video element immediately to prevent freeze
+      // DON'T replace with blank stream - just hide it, this prevents freezing
+      const videoRef = window.localVideoRef?.current || window.localVideoRef;
+      if (videoRef) {
+        const videoEl = typeof videoRef === 'object' && 'current' in videoRef ? videoRef.current : videoRef;
+        if (videoEl) {
+          console.log('📹 Hiding participant local video element on timer expiration');
+          videoEl.style.opacity = '0';
+          videoEl.style.visibility = 'hidden';
+          videoEl.style.display = 'none';
+          videoEl.pause();
+          // Keep the original stream - don't replace with blank stream (causes freezing)
+        }
+      }
+
+      // Update UI state after tracks are disabled
+      // CRITICAL: Update state immediately to trigger video hiding
       if (window.setIsVideoEnabled) {
         window.setIsVideoEnabled(false);
+        console.log('✅ Video state set to disabled via window.setIsVideoEnabled');
       }
       if (window.setIsAudioEnabled) {
         window.setIsAudioEnabled(false);
+        console.log('✅ Audio state set to disabled via window.setIsAudioEnabled');
       }
-      setActiveRequest(null);
+      
+      // Force updateVideo to run immediately to hide video
+      // This ensures the video element is hidden right away
+      setTimeout(() => {
+        // Trigger updateVideo by dispatching a custom event or calling it directly
+        if (window.updateVideoCallLocalVideo) {
+          window.updateVideoCallLocalVideo();
+          console.log('✅ Called updateVideoCallLocalVideo to force video hiding');
+        }
+
+        // Emit media state change to notify other participants about auto-off
+        if (socket && meetingId && socket.connected) {
+          const participantId = socket.id;
+          socket.emit('media-state-change', {
+            meetingId,
+            participantId,
+            audioEnabled: false,
+            videoEnabled: false,
+            timestamp: Date.now()
+          });
+          console.log('✅ Auto-off media state change emitted to socket');
+        }
+
+        setActiveRequest(null);
+        if (requestTimerRef.current) {
+          clearTimeout(requestTimerRef.current);
+          requestTimerRef.current = null;
+        }
+      }, 100); // Small delay to ensure tracks are disabled first
     }, remainingTime);
 
     console.log('✅ Media request accepted, will auto-turn off in', remainingTime, 'ms');

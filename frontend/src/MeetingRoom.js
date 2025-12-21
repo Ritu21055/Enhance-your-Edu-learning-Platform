@@ -147,6 +147,16 @@ const MeetingRoom = () => {
     };
   }, [localVideoRef]);
 
+  // CRITICAL: PERMANENT FIX - Expose isHost to window for VideoCall protection
+  useEffect(() => {
+    window.isHost = isHost;
+    window.isHostRef = { current: isHost };
+    console.log('✅ MeetingRoom: Exposed isHost to window for permanent video protection:', isHost);
+    return () => {
+      // Keep ref available even after cleanup
+    };
+  }, [isHost]);
+
   // Handle participant-removed event (when host removes this participant)
   useEffect(() => {
     if (!socket) return;
@@ -880,7 +890,7 @@ const MeetingRoom = () => {
 
         {/* AI Features - Sentiment Dashboard Toggle and Camera Request */}
         {isHost && (
-          <Box className="ai-features-notification" sx={{ display: 'flex', gap: 2 }}>
+          <Box className="ai-features-notification" sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
             <Button
               variant="contained"
               color="primary"
@@ -889,6 +899,22 @@ const MeetingRoom = () => {
               startIcon={<><Videocam /><Mic /></>}
             >
               Request Camera Access
+            </Button>
+            
+            <Button
+              variant="contained"
+              color="primary"
+              className="ai-analytics-button"
+              onClick={() => setShowSentimentDashboard(!showSentimentDashboard)}
+              startIcon={<Psychology />}
+              sx={{
+                backgroundColor: showSentimentDashboard ? '#5a67d8' : '#667eea',
+                '&:hover': {
+                  backgroundColor: showSentimentDashboard ? '#4c51bf' : '#5a67d8'
+                }
+              }}
+            >
+              {showSentimentDashboard ? 'Hide Analytics' : 'Show Analytics'}
             </Button>
             
             {/* AI Status Display */}
