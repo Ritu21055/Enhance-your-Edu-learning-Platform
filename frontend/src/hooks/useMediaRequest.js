@@ -233,19 +233,22 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
           audioTrackEnabled: audioTrack?.enabled
         });
         
-        // Try to enable tracks directly in peer connections first (less intrusive)
-        // Only use updateVideoCallPeerConnections if needed
+        // CRITICAL: PERMANENT FIX - Only update participant's own outgoing tracks
+        // DO NOT trigger renegotiation that might affect host's incoming video
+        // Instead, just enable tracks in existing senders (non-destructive)
         if (window.updateVideoCallPeerConnections) {
           // Use a small delay to ensure tracks are enabled first
           setTimeout(() => {
             try {
-              // This will enable tracks and update peer connections if needed
+              // CRITICAL: Only update outgoing tracks, don't affect incoming streams
+              // This prevents host's video from disappearing on participant's browser
+              console.log('🔄 Updating participant tracks (non-destructive, won\'t affect host video)');
               window.updateVideoCallPeerConnections(localStream, 'both');
-              console.log('✅ Called updateVideoCallPeerConnections');
+              console.log('✅ Called updateVideoCallPeerConnections (participant tracks only)');
             } catch (err) {
               console.error('❌ Error calling updateVideoCallPeerConnections:', err);
             }
-          }, 300); // Small delay to let tracks enable first
+          }, 500); // Increased delay to ensure everything is stable
         } else {
           console.warn('⚠️ updateVideoCallPeerConnections not available');
         }

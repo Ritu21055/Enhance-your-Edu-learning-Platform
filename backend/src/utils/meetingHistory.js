@@ -196,27 +196,75 @@ class MeetingHistoryManager {
 
   /**
    * Get all meeting histories
+   * @param {Object} options - Options for getting histories
+   * @param {number} options.limit - Maximum number of histories to return (default: no limit)
+   * @param {boolean} options.lightweight - If true, only return basic info without full data (default: false)
    * @returns {Promise<Array>} Array of meeting histories
    */
-  async getAllMeetingHistories() {
+  async getAllMeetingHistories(options = {}) {
     try {
+      const { limit, lightweight = false } = options;
+      
       const files = await fs.readdir(this.historyDir);
       const meetingFiles = files.filter(file => file.startsWith('meeting_') && file.endsWith('.json'));
       
-      const histories = [];
-      for (const file of meetingFiles) {
+      // OPTIMIZATION: Read all files in parallel instead of sequentially
+      const readPromises = meetingFiles.map(async (file) => {
         try {
           const filePath = path.join(this.historyDir, file);
           const fileContent = await fs.readFile(filePath, 'utf8');
           const history = JSON.parse(fileContent);
-          histories.push(history);
+          
+          // If lightweight mode, return only essential data
+          if (lightweight && history.meeting) {
+            return {
+              meeting: {
+                id: history.meeting.id,
+                title: history.meeting.title,
+                createdAt: history.meeting.createdAt,
+                endedAt: history.meeting.endedAt,
+                duration: history.meeting.duration,
+                status: history.meeting.status,
+                participants: history.meeting.participants ? {
+                  length: history.meeting.participants.length
+                } : []
+              },
+              highlights: history.highlights ? { total: history.highlights.total } : null,
+              highlightReel: history.highlightReel ? {
+                path: history.highlightReel.path,
+                url: history.highlightReel.url,
+                generatedAt: history.highlightReel.generatedAt,
+                highlightCount: history.highlightReel.highlightCount
+              } : null,
+              recording: history.recording ? { exists: true } : null,
+              transcript: history.transcript ? { totalEntries: history.transcript.totalEntries } : null
+            };
+          }
+          
+          return history;
         } catch (error) {
           console.warn('⚠️ Failed to parse meeting file:', file, error.message);
+          return null;
         }
-      }
+      });
+      
+      // Wait for all files to be read in parallel
+      const results = await Promise.all(readPromises);
+      
+      // Filter out null results (failed parses)
+      const histories = results.filter(history => history !== null);
 
       // Sort by creation date (newest first)
-      histories.sort((a, b) => new Date(b.meeting.createdAt) - new Date(a.meeting.createdAt));
+      histories.sort((a, b) => {
+        const dateA = new Date(a.meeting?.createdAt || 0);
+        const dateB = new Date(b.meeting?.createdAt || 0);
+        return dateB - dateA;
+      });
+
+      // Apply limit if specified
+      if (limit && limit > 0) {
+        return histories.slice(0, limit);
+      }
 
       return histories;
 
@@ -423,6 +471,59 @@ class MeetingHistoryManager {
     } catch (error) {
       console.error('❌ Failed to remove meeting from active meetings:', error);
       return false;
+    }
+  }
+
+  /**
+   * Delete all meeting histories
+   * @returns {Promise<number>} Number of files deleted
+   */
+  async deleteAllMeetingHistories() {
+    try {
+      const files = await fs.readdir(this.historyDir);
+      const meetingFiles = files.filter(file => file.startsWith('meeting_') && file.endsWith('.json'));
+      
+      let deletedCount = 0;
+      
+      // Delete all meeting files in parallel
+      const deletePromises = meetingFiles.map(async (file) => {
+        try {
+          const filePath = path.join(this.historyDir, file);
+          await fs.unlink(filePath);
+          deletedCount++;
+          console.log('🗑️ Deleted meeting history:', file);
+          return true;
+        } catch (error) {
+          console.warn('⚠️ Failed to delete file:', file, error.message);
+          return false;
+        }
+      });
+      
+      await Promise.all(deletePromises);
+      
+      // Also clear the active meetings index
+      try {
+        const indexPath = path.join(this.historyDir, 'active_meetings.json');
+        // Check if file exists using stat
+        try {
+          await fs.stat(indexPath);
+          // File exists, clear it
+          await fs.writeFile(indexPath, JSON.stringify([], null, 2));
+          console.log('✅ Cleared active meetings index');
+        } catch (statError) {
+          // File doesn't exist, that's okay
+          console.log('ℹ️ Active meetings index file does not exist, skipping');
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to clear active meetings index:', error.message);
+      }
+      
+      console.log(`🧹 All meeting histories deleted: ${deletedCount} files`);
+      return deletedCount;
+      
+    } catch (error) {
+      console.error('❌ Failed to delete all meeting histories:', error);
+      return 0;
     }
   }
 

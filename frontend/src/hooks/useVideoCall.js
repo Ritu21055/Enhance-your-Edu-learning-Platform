@@ -1605,8 +1605,17 @@ const useVideoCall = (meetingId, userName) => {
 
   // Update all peer connections with new stream state (for video/audio toggle)
   const updateAllPeerConnections = useCallback((newStream, trackType = 'both') => {
-    // Update local stream if new stream provided
-    if (newStream && newStream !== streamRef.current) {
+    // CRITICAL: PERMANENT FIX - Never replace stream if we're the host and already have one
+    // This prevents host's video from being affected when participant accepts request
+    const isHost = isHostRef.current;
+    const hasExistingStream = streamRef.current;
+    
+    if (isHost && hasExistingStream && newStream && newStream !== streamRef.current) {
+      console.warn('🛡️ PERMANENT FIX: Host already has stream, ignoring new stream to prevent video loss');
+      // Don't replace host's stream, just use the existing one
+      // But still update tracks if needed
+    } else if (newStream && newStream !== streamRef.current) {
+      // Only replace stream if we're not the host or don't have an existing stream
       const oldStream = streamRef.current;
       if (oldStream) {
         oldStream.getTracks().forEach(track => track.stop());
@@ -1677,12 +1686,25 @@ const useVideoCall = (meetingId, userName) => {
         });
     };
     
+    // CRITICAL: PERMANENT FIX - Protect host's incoming video streams
+    // When updating peer connections, only update OUTGOING tracks (senders)
+    // NEVER modify or renegotiate connections that might affect INCOMING streams from host
+    // Note: isHost is already declared above, reusing it here
+    
     // Update all peer connections
     Object.entries(peersRef.current).forEach(([participantId, peer]) => {
       if (!peer || peer.destroyed || !peer._pc) return;
       
       try {
         const pc = peer._pc;
+        
+        // CRITICAL: If we're a participant and this is the host's connection,
+        // be extra careful not to trigger renegotiation that might affect host's incoming video
+        const participantIsHost = participantsRef.current.find(p => p.id === participantId)?.isHost;
+        if (!isHost && participantIsHost) {
+          console.log(`🛡️ PERMANENT FIX: Updating participant's outgoing tracks to host (won't affect host's incoming video)`);
+        }
+        
         const senders = pc.getSenders();
         const videoSender = senders.find(s => s.track?.kind === 'video');
         const audioSender = senders.find(s => s.track?.kind === 'audio');

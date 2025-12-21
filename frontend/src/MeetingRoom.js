@@ -71,7 +71,7 @@ const MeetingRoom = () => {
   
   // If userName is empty or just whitespace, use Guest
   const finalUserName = userName && userName.trim() !== '' ? userName.trim() : 'Guest';
-  
+
   // State for UI
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
@@ -156,6 +156,15 @@ const MeetingRoom = () => {
       // Keep ref available even after cleanup
     };
   }, [isHost]);
+
+  // CRITICAL: PERMANENT FIX - Expose participants to window for VideoCall protection
+  useEffect(() => {
+    window.participantsRef = { current: participants };
+    console.log('✅ MeetingRoom: Exposed participants to window for host video protection:', participants.length);
+    return () => {
+      // Keep ref available even after cleanup
+    };
+  }, [participants]);
 
   // Handle participant-removed event (when host removes this participant)
   useEffect(() => {
@@ -886,7 +895,7 @@ const MeetingRoom = () => {
             {isHost ? 'You are the host' : 'Participant'}
           </Typography>
         </Box>
-
+        
 
         {/* AI Features - Sentiment Dashboard Toggle and Camera Request */}
         {isHost && (
@@ -900,7 +909,7 @@ const MeetingRoom = () => {
             >
               Request Camera Access
             </Button>
-            
+
             <Button
               variant="contained"
               color="primary"
@@ -1197,9 +1206,9 @@ const MeetingRoom = () => {
           key="video-call-stable" // Stable key prevents remounting when chat opens
           localStream={localStream}
           remoteStreams={remoteStreams}
-          localVideoRef={localVideoRef}
-          participants={participants}
-          currentUserId={socket?.id}
+            localVideoRef={localVideoRef}
+            participants={participants}
+            currentUserId={socket?.id}
           isVideoEnabled={isVideoEnabled}
           participantMediaState={participantMediaState}
         />
@@ -1236,7 +1245,7 @@ const MeetingRoom = () => {
       )}
 
       {/* Meeting Controls */}
-      <MeetingControls
+        <MeetingControls
           isAudioEnabled={isAudioEnabled}
           isVideoEnabled={isVideoEnabled}
           isScreenSharing={isScreenSharing}

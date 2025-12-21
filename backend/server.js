@@ -477,8 +477,19 @@ app.get('/api/meetings/:meetingId/history', async (req, res) => {
 
 app.get('/api/meetings/history/all', async (req, res) => {
   try {
-    const histories = await meetingHistoryManager.getAllMeetingHistories();
-    res.json({ meetingHistories: histories });
+    // OPTIMIZATION: Support query parameters for pagination and lightweight mode
+    const limit = req.query.limit ? parseInt(req.query.limit) : undefined;
+    const lightweight = req.query.lightweight === 'true';
+    
+    const histories = await meetingHistoryManager.getAllMeetingHistories({
+      limit,
+      lightweight
+    });
+    
+    res.json({ 
+      meetingHistories: histories,
+      count: histories.length
+    });
   } catch (error) {
     console.error('❌ Error getting all meeting histories:', error);
     res.status(500).json({ error: 'Failed to get meeting histories' });
@@ -530,6 +541,21 @@ app.delete('/api/meetings/:meetingId/history', async (req, res) => {
   } catch (error) {
     console.error('❌ Error deleting meeting history:', error);
     res.status(500).json({ error: 'Failed to delete meeting history' });
+  }
+});
+
+app.delete('/api/meetings/history/all', async (req, res) => {
+  try {
+    const deletedCount = await meetingHistoryManager.deleteAllMeetingHistories();
+    
+    res.json({ 
+      success: true,
+      message: `All meeting histories deleted: ${deletedCount} files`,
+      deletedCount 
+    });
+  } catch (error) {
+    console.error('❌ Error deleting all meeting histories:', error);
+    res.status(500).json({ error: 'Failed to delete all meeting histories' });
   }
 });
 

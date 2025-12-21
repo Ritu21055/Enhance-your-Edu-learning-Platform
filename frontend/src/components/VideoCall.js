@@ -669,10 +669,52 @@ const VideoCallComponent = memo(({
     // Initial update
     updateVideoDisplays();
 
+    // CRITICAL: PERMANENT FIX - Protect host's video from disappearing
     // Set up periodic check to catch track enabled/disabled changes
     // This helps when tracks are disabled but socket state hasn't updated yet
     const checkInterval = setInterval(() => {
       updateVideoDisplays();
+      
+      // CRITICAL: Extra protection for host's video - ensure it's always visible if it should be
+      // Check if we have access to participants list to identify host
+      const participantsList = window.participantsRef?.current || [];
+      Object.entries(remoteStreams).forEach(([participantId, stream]) => {
+        const participant = participantsList.find(p => p.id === participantId);
+        const isHostVideo = participant?.isHost === true;
+        
+        if (isHostVideo) {
+          const videoElement = remoteVideoRefs.current[participantId];
+          if (videoElement && stream && stream.active) {
+            const videoTrack = stream.getVideoTracks()[0];
+            const mediaState = participantMediaState[participantId];
+            const shouldShowVideo = mediaState?.videoEnabled !== false && videoTrack && videoTrack.readyState === 'live';
+            
+            // If host's video should be visible but isn't, force it to be visible
+            if (shouldShowVideo) {
+              if (videoElement.style.display === 'none' || 
+                  videoElement.style.opacity === '0' || 
+                  videoElement.style.visibility === 'hidden') {
+                console.warn('🛡️ PERMANENT FIX: Host video was hidden, forcing visibility');
+                videoElement.style.setProperty('opacity', '1', 'important');
+                videoElement.style.setProperty('visibility', 'visible', 'important');
+                videoElement.style.setProperty('display', 'block', 'important');
+                
+                // Ensure srcObject is set
+                if (videoElement.srcObject !== stream) {
+                  videoElement.srcObject = stream;
+                }
+                
+                // Force play
+                if (videoElement.paused) {
+                  videoElement.play().catch(err => {
+                    console.warn('⚠️ Failed to play host video:', err);
+                  });
+                }
+              }
+            }
+          }
+        }
+      });
     }, 500); // Check every 500ms
     
     // Cleanup function to remove event listeners and interval

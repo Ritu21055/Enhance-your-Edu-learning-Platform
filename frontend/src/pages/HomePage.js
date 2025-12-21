@@ -8,13 +8,15 @@ import {
   CardContent,
   Container,
   Grid,
-  TextField
+  TextField,
+  IconButton
 } from '@mui/material';
 import { 
   History,
   Logout,
   Person,
-  Refresh
+  Refresh,
+  ArrowBack
 } from '@mui/icons-material';
 import '../css/HomePage.css';
 import { isAuthenticated, clearAuthentication } from '../services/authService';
@@ -52,14 +54,23 @@ const HomePage = () => {
     navigate('/');
   };
 
+  const handleBack = () => {
+    navigate('/');
+  };
+
 
   return (
     <Box className="home-page">
       {/* Header with purple gradient */}
       <Box className="app-header">
-        <Typography variant="h6" className="header-title">
-          Enhance your Edu-learning Ecosystem
-        </Typography>
+        <Box className="header-left">
+          <IconButton onClick={handleBack} className="back-button">
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h6" className="header-title">
+            Enhance your Collaborative Edu-learning Ecosystem
+          </Typography>
+        </Box>
         <Box className="header-buttons">
           <Button 
             variant="contained" 

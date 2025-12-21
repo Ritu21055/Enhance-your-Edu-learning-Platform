@@ -30,7 +30,7 @@ import {
 } from '@mui/icons-material';
 import '../css/MeetingsHistory.css';
 import { getMeetings, getMeetingStats, clearAllMeetings } from '../services/meetingsService';
-import { getMeetingHistory, getAllMeetingHistories } from '../services/meetingHistoryApi';
+import { getMeetingHistory, getAllMeetingHistories, deleteAllMeetingHistories } from '../services/meetingHistoryApi';
 
 const MeetingsHistory = () => {
   const navigate = useNavigate();
@@ -43,9 +43,9 @@ const MeetingsHistory = () => {
   useEffect(() => {
     const loadMeetings = async () => {
       try {
-        console.log('📋 Loading meeting histories from backend...');
-        // Load meeting histories from backend API
-        const histories = await getAllMeetingHistories();
+        console.log('📋 Loading meeting histories from backend (optimized)...');
+        // OPTIMIZATION: Use lightweight mode for faster initial load
+        const histories = await getAllMeetingHistories({ lightweight: true });
         
         if (histories && histories.length > 0) {
           // Convert backend meeting history format to frontend meeting format
@@ -113,11 +113,43 @@ const MeetingsHistory = () => {
     navigate(`/lobby/${meetingId}`);
   };
 
+  const handleClearAll = async () => {
+    // Confirm before deleting
+    const confirmed = window.confirm('Are you sure you want to delete ALL meeting histories? This action cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      console.log('🗑️ Deleting all meeting histories...');
+      const result = await deleteAllMeetingHistories();
+      
+      if (result.success) {
+        console.log(`✅ Deleted ${result.deletedCount} meeting histories`);
+        // Clear local state
+        setMeetings([]);
+        setHighlightReels(new Map());
+        // Show success message
+        alert(`Successfully deleted ${result.deletedCount} meeting history file(s).`);
+      } else {
+        console.error('❌ Failed to delete all meetings:', result.message);
+        // Show more detailed error message
+        alert(`Failed to delete all meetings.\n\nError: ${result.message}\n\nPlease check the console for more details.`);
+      }
+    } catch (error) {
+      console.error('❌ Error deleting all meetings:', error);
+      alert(`Error deleting all meetings.\n\n${error.message}\n\nPlease check the console for more details.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      // Reload from backend API
-      const histories = await getAllMeetingHistories();
+      // OPTIMIZATION: Use lightweight mode for faster refresh
+      const histories = await getAllMeetingHistories({ lightweight: true });
       
       if (histories && histories.length > 0) {
         const meetingsData = histories.map(history => {
@@ -204,8 +236,20 @@ const MeetingsHistory = () => {
     return (
       <Box className="history-page">
         <Container maxWidth="lg">
-          <Box className="loading-container">
-            <Typography variant="h6">Loading meetings history...</Typography>
+          <Box className="loading-container" sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            minHeight: '60vh',
+            gap: 2
+          }}>
+            <Typography variant="h6" sx={{ color: 'white' }}>
+              Loading meetings history...
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              This may take a few seconds
+            </Typography>
           </Box>
         </Container>
       </Box>
@@ -225,15 +269,27 @@ const MeetingsHistory = () => {
             Meetings History
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          size="small"
-          onClick={handleRefresh}
-          className="refresh-button"
-          disabled={loading}
-        >
-          Refresh
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleRefresh}
+            className="refresh-button"
+            disabled={loading}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            size="small"
+            onClick={handleClearAll}
+            className="clear-all-button"
+            disabled={loading || meetings.length === 0}
+          >
+            Clear All
+          </Button>
+        </Box>
       </Box>
 
       <Container maxWidth="lg" className="history-container">
