@@ -83,14 +83,25 @@ const MeetingLobby = () => {
             connectToBackend(discoveryResult.url);
             return;
           } else {
-            // Show helpful error message
-            const errorMsg = `Connection timeout. Cannot reach server at ${url}.\n\n` +
-              `Please ensure:\n` +
-              `1. Backend server is running on port 5000\n` +
-              `2. Both devices are on the same network\n` +
-              `3. Firewall allows connections on port 5000\n` +
-              `4. The IP address is correct (current: ${url})\n\n` +
-              `To find your server IP, run: cd backend && node scripts/get-ip.js`;
+            // Show helpful error message with troubleshooting steps
+            const errorMsg = `❌ Cannot connect to backend server at ${url}\n\n` +
+              `🔧 Troubleshooting Steps:\n\n` +
+              `1. ✅ Check if backend server is running:\n` +
+              `   On host computer, run: cd backend && npm start\n\n` +
+              `2. 🌐 Find the correct IP address:\n` +
+              `   On host computer, run: cd backend && node scripts/get-ip.js\n` +
+              `   Or check: ipconfig (Windows) / ifconfig (Mac/Linux)\n\n` +
+              `3. 🔥 Check Windows Firewall:\n` +
+              `   - Open Windows Defender Firewall\n` +
+              `   - Allow port 5000 for Node.js\n` +
+              `   - Or temporarily disable firewall to test\n\n` +
+              `4. 📡 Verify both devices are on same network:\n` +
+              `   - Check WiFi/Network name matches\n` +
+              `   - Try pinging host IP from participant device\n\n` +
+              `5. 🔄 Try manual IP entry:\n` +
+              `   - Ask host for their IP address\n` +
+              `   - Update network.js or use URL: ?backend_ip=YOUR_IP\n\n` +
+              `Current trying: ${url}`;
             setError(errorMsg);
             return;
           }

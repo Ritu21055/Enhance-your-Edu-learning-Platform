@@ -156,13 +156,37 @@ export const findBackendServer = async () => {
     candidates.push(`http://${storedIP}:5000`);
   }
   
-  // Try common local network IPs
-  const commonIPs = [
-    '192.168.0.107',
+  // Try common local network IPs - smart scanning
+  const commonIPs = [];
+  
+  // Extract network prefix from stored IP if available
+  if (storedIP) {
+    const parts = storedIP.split('.');
+    if (parts.length === 4) {
+      const prefix = `${parts[0]}.${parts[1]}.${parts[2]}`;
+      // Scan nearby IPs in the same subnet (host IP ± 10)
+      const hostNum = parseInt(parts[3]);
+      for (let i = Math.max(1, hostNum - 10); i <= Math.min(254, hostNum + 10); i++) {
+        commonIPs.push(`${prefix}.${i}`);
+      }
+    }
+  }
+  
+  // Add common router IPs and fallback IPs
+  const fallbackIPs = [
+    '192.168.0.107', // Current fallback
+    '192.168.1.100',
+    '192.168.0.100',
     '192.168.1.1',
     '192.168.0.1',
     '10.0.0.1'
   ];
+  
+  for (const ip of fallbackIPs) {
+    if (!commonIPs.includes(ip)) {
+      commonIPs.push(ip);
+    }
+  }
   
   for (const ip of commonIPs) {
     if (!candidates.includes(`http://${ip}:5000`)) {
@@ -170,21 +194,31 @@ export const findBackendServer = async () => {
     }
   }
   
-  console.log('🔍 Trying to find backend server, testing:', candidates);
+  console.log('🔍 Trying to find backend server, testing:', candidates.length, 'candidates');
   
-  for (const url of candidates) {
-    const result = await testBackendConnection(url);
-    if (result.success) {
+  // Test candidates in parallel batches to speed up discovery
+  const batchSize = 5;
+  for (let i = 0; i < candidates.length; i += batchSize) {
+    const batch = candidates.slice(i, i + batchSize);
+    console.log(`🔍 Testing batch ${Math.floor(i/batchSize) + 1}, IPs:`, batch.map(url => url.match(/\d+\.\d+\.\d+\.\d+/)?.[0]));
+    
+    const results = await Promise.all(
+      batch.map(url => testBackendConnection(url))
+    );
+    
+    const successResult = results.find(r => r.success);
+    if (successResult) {
       // Store the working IP
-      const ip = url.match(/\d+\.\d+\.\d+\.\d+/)?.[0];
+      const ip = successResult.url.match(/\d+\.\d+\.\d+\.\d+/)?.[0];
       if (ip) {
         setStoredBackendIP(ip);
+        console.log('✅ Found backend server! Stored IP:', ip);
       }
-      return result;
+      return successResult;
     }
   }
   
-  return { success: false, error: 'Could not find backend server', url: null };
+  return { success: false, error: 'Could not find backend server. Please check if server is running and firewall settings.', url: null };
 };
 
 // Export IP management functions
