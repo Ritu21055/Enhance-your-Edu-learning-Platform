@@ -38,43 +38,79 @@ const ScreenShareViewer = ({
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
 
-  // Handle local screen stream
+  // Handle local screen stream - use ref callback for immediate setup
   useEffect(() => {
-    if (screenStream && localVideoRef.current) {
-      console.log('🖥️ ScreenShareViewer: Setting local screen stream');
-      const videoElement = localVideoRef.current;
-      const videoTrack = screenStream.getVideoTracks()[0];
-      
-      // Ensure video track is enabled
-      if (videoTrack && !videoTrack.enabled) {
+    if (!screenStream) {
+      console.log('🖥️ ScreenShareViewer: No local screen stream yet');
+      return;
+    }
+    
+    const videoElement = localVideoRef.current;
+    if (!videoElement) {
+      console.log('🖥️ ScreenShareViewer: Video element not ready yet');
+      return;
+    }
+    
+    console.log('🖥️ ScreenShareViewer: Setting local screen stream', {
+      streamId: screenStream.id,
+      active: screenStream.active,
+      videoTracks: screenStream.getVideoTracks().length,
+      audioTracks: screenStream.getAudioTracks().length
+    });
+    
+    const videoTrack = screenStream.getVideoTracks()[0];
+    
+    // CRITICAL: Ensure video track is enabled
+    if (videoTrack) {
+      if (!videoTrack.enabled) {
+        console.log('🖥️ ScreenShareViewer: Enabling video track');
         videoTrack.enabled = true;
       }
-      
-      // Set stream
-      if (videoElement.srcObject !== screenStream) {
-        videoElement.srcObject = screenStream;
-      }
-      
-      // Ensure element is visible
-      videoElement.style.opacity = '1';
-      videoElement.style.visibility = 'visible';
-      videoElement.style.display = 'block';
-      
-      // Play with retry
-      const playVideo = () => {
-        if (videoElement && screenStream.active && videoTrack?.enabled) {
-          videoElement.play().then(() => {
-            console.log('🖥️ ScreenShareViewer: Local screen stream playing');
-          }).catch(err => {
-            console.warn('🖥️ ScreenShareViewer: Local video play error (retrying):', err);
-            setTimeout(playVideo, 300);
-          });
-        } else {
-          setTimeout(playVideo, 300);
-        }
-      };
-      playVideo();
+      console.log('🖥️ ScreenShareViewer: Video track state', {
+        enabled: videoTrack.enabled,
+        readyState: videoTrack.readyState,
+        label: videoTrack.label
+      });
+    } else {
+      console.error('🖥️ ScreenShareViewer: No video track in stream!');
     }
+    
+    // CRITICAL: Set stream immediately
+    if (videoElement.srcObject !== screenStream) {
+      console.log('🖥️ ScreenShareViewer: Setting srcObject');
+      videoElement.srcObject = screenStream;
+    }
+    
+    // CRITICAL: Force visibility
+    videoElement.style.setProperty('opacity', '1', 'important');
+    videoElement.style.setProperty('visibility', 'visible', 'important');
+    videoElement.style.setProperty('display', 'block', 'important');
+    videoElement.style.setProperty('width', '100%', 'important');
+    videoElement.style.setProperty('height', '100%', 'important');
+    
+    // CRITICAL: Play immediately with retry
+    const playVideo = () => {
+      if (!videoElement || !screenStream) return;
+      
+      if (screenStream.active && videoTrack?.enabled) {
+        videoElement.play().then(() => {
+          console.log('🖥️✅ ScreenShareViewer: Local screen stream playing successfully');
+        }).catch(err => {
+          console.warn('🖥️ ScreenShareViewer: Play error, retrying:', err);
+          setTimeout(playVideo, 200);
+        });
+      } else {
+        console.warn('🖥️ ScreenShareViewer: Stream not ready, retrying...', {
+          streamActive: screenStream.active,
+          trackEnabled: videoTrack?.enabled
+        });
+        setTimeout(playVideo, 200);
+      }
+    };
+    
+    // Try immediately and also after a short delay
+    setTimeout(playVideo, 100);
+    setTimeout(playVideo, 500);
   }, [screenStream]);
 
   // Handle remote screen stream
@@ -280,7 +316,28 @@ const ScreenShareViewer = ({
           }}
         >
           <video
-            ref={localVideoRef}
+            ref={(el) => {
+              if (el) {
+                localVideoRef.current = el;
+                // CRITICAL: Set stream immediately when element is available
+                if (screenStream && el.srcObject !== screenStream) {
+                  console.log('🖥️ ScreenShareViewer: Setting stream in ref callback');
+                  el.srcObject = screenStream;
+                  const videoTrack = screenStream.getVideoTracks()[0];
+                  if (videoTrack && !videoTrack.enabled) {
+                    videoTrack.enabled = true;
+                  }
+                  // Force play
+                  setTimeout(() => {
+                    if (el && screenStream.active) {
+                      el.play().catch(err => {
+                        console.warn('🖥️ ScreenShareViewer: Ref callback play error:', err);
+                      });
+                    }
+                  }, 100);
+                }
+              }
+            }}
             autoPlay
             playsInline
             muted={isMuted}
