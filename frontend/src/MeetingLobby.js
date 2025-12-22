@@ -12,7 +12,7 @@ import {
   TextField
 } from '@mui/material';
 import io from 'socket.io-client';
-import { getBackendUrl, testBackendConnection } from './config/network';
+import { getBackendUrl, testBackendConnection, findBackendServer, setStoredBackendIP } from './config/network';
 import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
 import PasswordDialog from './components/PasswordDialog';
@@ -54,95 +54,129 @@ const MeetingLobby = () => {
   }, [showPasswordDialog, hasJoined, isHost]);
 
   useEffect(() => {
-    // Initialize socket connection
-    const backendUrl = getBackendUrl();
-    console.log('🔍 Lobby: Connecting to backend URL:', backendUrl);
-    console.log('🔍 Lobby: Current hostname:', window.location.hostname);
-    console.log('🔍 Lobby: Current protocol:', window.location.protocol);
-    
-    // Test backend connection first
-    testBackendConnection().then(result => {
-      if (!result.success) {
-        console.error('❌ Backend connection test failed:', result.error);
-        setError(`Cannot connect to server at ${backendUrl}. Please check your network connection.`);
+    let newSocket = null;
+    let connectionTimeout = null;
+    let isMounted = true;
+
+    const connectToBackend = async (url) => {
+      if (!isMounted) return;
+      
+      console.log('🔍 Lobby: Connecting to backend URL:', url);
+      console.log('🔍 Lobby: Current hostname:', window.location.hostname);
+      console.log('🔍 Lobby: Current protocol:', window.location.protocol);
+      
+      // Test backend connection first
+      const testResult = await testBackendConnection(url);
+      if (!testResult.success) {
+        console.error('❌ Backend connection test failed:', testResult.error);
+        
+        // Try to find backend server automatically
+        if (isMounted) {
+          setError(`Cannot connect to server at ${url}. Trying to find server...`);
+          console.log('🔍 Attempting to auto-discover backend server...');
+          
+          const discoveryResult = await findBackendServer();
+          if (discoveryResult.success && isMounted) {
+            console.log('✅ Found backend server at:', discoveryResult.url);
+            setError(''); // Clear error
+            // Reconnect with discovered URL
+            connectToBackend(discoveryResult.url);
+            return;
+          } else {
+            // Show helpful error message
+            const errorMsg = `Connection timeout. Cannot reach server at ${url}.\n\n` +
+              `Please ensure:\n` +
+              `1. Backend server is running on port 5000\n` +
+              `2. Both devices are on the same network\n` +
+              `3. Firewall allows connections on port 5000\n` +
+              `4. The IP address is correct (current: ${url})\n\n` +
+              `To find your server IP, run: cd backend && node scripts/get-ip.js`;
+            setError(errorMsg);
+            return;
+          }
+        }
         return;
       }
+      
       console.log('✅ Backend connection test passed');
-    });
-    
-    const newSocket = io(backendUrl, {
-      transports: ['websocket', 'polling'],
-      timeout: 10000,
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5
-    });
-    setSocket(newSocket);
-
-    let connectionTimeout;
-
-    newSocket.on('connect', () => {
-      console.log('✅ Lobby: Connected to server at:', backendUrl);
-      console.log('✅ Lobby: Socket ID:', newSocket.id);
-      setIsConnected(true);
-      setError(''); // Clear any previous errors
-      if (connectionTimeout) {
-        clearTimeout(connectionTimeout);
-        connectionTimeout = null;
-      }
-    });
-
-    newSocket.on('connect_error', (error) => {
-      console.error('❌ Lobby: Connection error:', error);
-      console.error('❌ Lobby: Failed to connect to:', backendUrl);
-      console.error('❌ Lobby: Error details:', {
-        message: error.message,
-        description: error.description,
-        context: error.context,
-        type: error.type
+      
+      if (!isMounted) return;
+      
+      // Create socket connection
+      newSocket = io(url, {
+        transports: ['websocket', 'polling'],
+        timeout: 15000, // Increased timeout
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5
       });
-      setIsConnected(false);
-      setError(`Failed to connect to server at ${backendUrl}. Please ensure the server is running and accessible. Error: ${error.message}`);
-    });
+      setSocket(newSocket);
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('⚠️ Lobby: Disconnected from server:', reason);
-      setIsConnected(false);
-      if (reason === 'io server disconnect') {
-        // Server disconnected, try to reconnect
-        setError('Disconnected from server. Attempting to reconnect...');
-      }
-    });
-    
-    // Set a connection timeout
-    connectionTimeout = setTimeout(() => {
-      if (!newSocket.connected) {
-        console.error('❌ Lobby: Connection timeout - socket not connected after 10 seconds');
-        setError(`Connection timeout. Cannot reach server at ${backendUrl}. Please check your network connection and ensure the server is running.`);
+      newSocket.on('connect', () => {
+        if (!isMounted) return;
+        console.log('✅ Lobby: Connected to server at:', url);
+        console.log('✅ Lobby: Socket ID:', newSocket.id);
+        setIsConnected(true);
+        setError(''); // Clear any previous errors
+        if (connectionTimeout) {
+          clearTimeout(connectionTimeout);
+          connectionTimeout = null;
+        }
+      });
+
+      newSocket.on('connect_error', (error) => {
+        if (!isMounted) return;
+        console.error('❌ Lobby: Connection error:', error);
+        console.error('❌ Lobby: Failed to connect to:', url);
         setIsConnected(false);
-      }
-    }, 10000);
+        
+        // Try auto-discovery on connection error
+        findBackendServer().then(discoveryResult => {
+          if (discoveryResult.success && isMounted && !newSocket?.connected) {
+            console.log('✅ Found backend server at:', discoveryResult.url);
+            setError(''); // Clear error
+            // Reconnect with discovered URL
+            if (newSocket) {
+              newSocket.disconnect();
+            }
+            connectToBackend(discoveryResult.url);
+          } else if (isMounted) {
+            setError(`Failed to connect to server at ${url}. Please ensure the server is running and accessible. Error: ${error.message}`);
+          }
+        });
+      });
 
-    // REMOVED: Connection timeout was causing unnecessary errors
-
-    // Add debugging for all socket events
-    const originalEmit = newSocket.emit;
-    newSocket.emit = function(event, ...args) {
-      console.log('🔍 Lobby emitting:', event, args);
-      return originalEmit.call(this, event, ...args);
-    };
-
-    newSocket.on('meeting-joined', (data) => {
-      // CRITICAL: Verify host status by checking if socket ID matches hostId
-      const actualHostId = data.meeting?.hostId;
-      const isActuallyHost = actualHostId === newSocket.id;
+      newSocket.on('disconnect', (reason) => {
+        if (!isMounted) return;
+        console.log('⚠️ Lobby: Disconnected from server:', reason);
+        setIsConnected(false);
+        if (reason === 'io server disconnect') {
+          // Server disconnected, try to reconnect
+          setError('Disconnected from server. Attempting to reconnect...');
+        }
+      });
       
-      setMeetingInfo(data);
-      
+      // Set a connection timeout
+      connectionTimeout = setTimeout(() => {
+        if (newSocket && !newSocket.connected && isMounted) {
+          console.error('❌ Lobby: Connection timeout - socket not connected after 15 seconds');
+          setError(`Connection timeout. Cannot reach server at ${url}. Please check your network connection and ensure the server is running.`);
+          setIsConnected(false);
+        }
+      }, 15000);
+
+      // Socket event handlers
+      newSocket.on('meeting-joined', (data) => {
+        // CRITICAL: Verify host status by checking if socket ID matches hostId
+        const actualHostId = data.meeting?.hostId;
+        const isActuallyHost = actualHostId === newSocket.id;
+        
+        setMeetingInfo(data);
+        
         const currentUsername = usernameRef.current || username;
         
         if (!currentUsername || currentUsername.trim() === '') {
-        setError('Username is required to join the meeting');
+          setError('Username is required to join the meeting');
           return;
         }
         
@@ -157,59 +191,72 @@ const MeetingLobby = () => {
           console.error('Failed to store meeting:', error);
         });
         
-      // Host navigates directly, participants join directly (password already verified if required)
-      if (isActuallyHost) {
-        setIsHost(true);
-        navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true&host=true`);
-      } else {
-        setIsHost(false);
-        // Participant navigates to meeting room (password was already verified if meeting had one)
-        navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true`);
-      }
-    });
+        // Host navigates directly, participants join directly (password already verified if required)
+        if (isActuallyHost) {
+          setIsHost(true);
+          navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true&host=true`);
+        } else {
+          setIsHost(false);
+          // Participant navigates to meeting room (password was already verified if meeting had one)
+          navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true`);
+        }
+      });
 
-    // Handle password required
-    newSocket.on('meeting-password-required', (data) => {
-      console.log('🔒 Password required event received:', data);
-      console.log('🔒 Setting showPasswordDialog to true');
-      console.log('🔒 Current state before update:', { showPasswordDialog, hasJoined, isHost });
-      setShowPasswordDialog(true);
-      setError(data.error || 'This meeting requires a password');
-      setHasJoined(false);
-      console.log('🔒 Password dialog should now be open');
-    });
+      // Handle password required
+      newSocket.on('meeting-password-required', (data) => {
+        console.log('🔒 Password required event received:', data);
+        console.log('🔒 Setting showPasswordDialog to true');
+        console.log('🔒 Current state before update:', { showPasswordDialog, hasJoined, isHost });
+        setShowPasswordDialog(true);
+        setError(data.error || 'This meeting requires a password');
+        setHasJoined(false);
+        console.log('🔒 Password dialog should now be open');
+      });
 
-    // NOTE: Password verification is now handled directly in PasswordDialog onSubmit
-    // This handler is kept for backward compatibility but may not be used
-    newSocket.on('meeting-password-verified', (data) => {
-      console.log('✅ Password verified event received (may not be used):', data);
-      // Password verification is now handled directly in PasswordDialog onSubmit
-      // which retries join-meeting with the password
-    });
+      // NOTE: Password verification is now handled directly in PasswordDialog onSubmit
+      // This handler is kept for backward compatibility but may not be used
+      newSocket.on('meeting-password-verified', (data) => {
+        console.log('✅ Password verified event received (may not be used):', data);
+        // Password verification is now handled directly in PasswordDialog onSubmit
+        // which retries join-meeting with the password
+      });
 
-    // Handle password error
-    newSocket.on('meeting-password-error', (data) => {
-      console.log('❌ Password error:', data);
-      setError(data.error || 'Password verification failed');
-    });
+      // Handle password error
+      newSocket.on('meeting-password-error', (data) => {
+        console.log('❌ Password error:', data);
+        setError(data.error || 'Password verification failed');
+      });
 
-    newSocket.on('meeting-not-found', () => {
-      console.log('Meeting not found');
-      setError('Meeting not found. Please check the meeting ID.');
-    });
+      newSocket.on('meeting-not-found', () => {
+        console.log('Meeting not found');
+        setError('Meeting not found. Please check the meeting ID.');
+      });
 
-    newSocket.on('meeting-full', () => {
-      console.log('Meeting is full');
-      setError('Meeting is full. Cannot join at this time.');
-    });
+      newSocket.on('meeting-full', () => {
+        console.log('Meeting is full');
+        setError('Meeting is full. Cannot join at this time.');
+      });
 
-    newSocket.on('error', (error) => {
-      console.error('Socket error:', error);
-      setError(`Connection error: ${error.message}`);
-    });
+      newSocket.on('error', (error) => {
+        console.error('Socket error:', error);
+        setError(`Connection error: ${error.message}`);
+      });
+    };
 
+    // Initialize connection
+    const backendUrl = getBackendUrl();
+    connectToBackend(backendUrl);
+
+    // Cleanup function
     return () => {
-      newSocket.close();
+      isMounted = false;
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+      }
+      if (newSocket) {
+        newSocket.removeAllListeners();
+        newSocket.disconnect();
+      }
     };
   }, [meetingId, navigate]);
 
