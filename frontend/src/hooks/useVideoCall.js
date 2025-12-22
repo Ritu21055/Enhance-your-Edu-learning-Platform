@@ -986,6 +986,7 @@ const useVideoCall = (meetingId, userName) => {
       });
       
       // CRITICAL: Double-check that stream tracks are actually added
+
       const videoSender = senders.find(s => s.track?.kind === 'video');
       const audioSender = senders.find(s => s.track?.kind === 'audio');
       const videoTrack = streamRef.current.getVideoTracks()[0];
