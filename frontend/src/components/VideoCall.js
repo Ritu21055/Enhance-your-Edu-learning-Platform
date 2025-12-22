@@ -1073,7 +1073,7 @@ const VideoCallComponent = memo(({
                     
                     // CRITICAL: Always ensure video element muted state matches audio state
                     // Audio plays through the video element, so it must be unmuted when audio is enabled
-                    // If socketAudioEnabled is undefined, assume audio is enabled (fallback to track state)
+                    // Default: If socketAudioEnabled is undefined, assume audio is enabled (unless explicitly disabled)
                     const shouldMuteVideoElement = socketAudioEnabled === false;
                     if (el.muted !== shouldMuteVideoElement) {
                       el.muted = shouldMuteVideoElement;
@@ -1082,11 +1082,21 @@ const VideoCallComponent = memo(({
                     }
                     
                     audioTracks.forEach((audioTrack) => {
-                      // Enable audio if socket says true, or if socket state is undefined (fallback to track enabled state)
-                      const shouldEnableAudio = socketAudioEnabled === true || (socketAudioEnabled === undefined && audioTrack.enabled);
-                      if (audioTrack.enabled !== shouldEnableAudio) {
-                        audioTrack.enabled = shouldEnableAudio;
-                        console.log(`🔊 Audio track ${shouldEnableAudio ? 'enabled' : 'disabled'} for ${participantId}:`, {
+                      // Simple logic: Enable audio unless socket explicitly says false
+                      // If socketAudioEnabled is undefined, enable audio (default behavior)
+                      const shouldEnableAudio = socketAudioEnabled !== false;
+                      if (!audioTrack.enabled && shouldEnableAudio) {
+                        audioTrack.enabled = true;
+                        console.log(`🔊 Audio track enabled for ${participantId}:`, {
+                          trackId: audioTrack.id,
+                          enabled: audioTrack.enabled,
+                          readyState: audioTrack.readyState,
+                          socketAudioEnabled,
+                          videoElementMuted: el.muted
+                        });
+                      } else if (audioTrack.enabled && !shouldEnableAudio) {
+                        audioTrack.enabled = false;
+                        console.log(`🔊 Audio track disabled for ${participantId}:`, {
                           trackId: audioTrack.id,
                           enabled: audioTrack.enabled,
                           readyState: audioTrack.readyState,
@@ -1097,8 +1107,8 @@ const VideoCallComponent = memo(({
                     });
                     
                     // CRITICAL: Force play video element if audio is enabled (audio plays through video element)
-                    // Check both socket state and track enabled state
-                    const audioIsEnabled = socketAudioEnabled === true || (socketAudioEnabled === undefined && audioTracks.some(t => t.enabled));
+                    // Simple: Audio is enabled unless socket explicitly says false
+                    const audioIsEnabled = socketAudioEnabled !== false;
                     if (audioIsEnabled && audioTracks.length > 0) {
                       if (el.paused && stream.active) {
                         el.play().catch(err => {
