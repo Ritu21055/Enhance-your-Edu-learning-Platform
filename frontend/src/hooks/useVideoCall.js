@@ -1728,14 +1728,25 @@ const useVideoCall = (meetingId, userName) => {
               }
               console.log(`ℹ️ Video track already in sender for ${participantId}, track enabled: ${currentTrack.enabled}`);
             } else {
-              // Different track, replace it
-              console.log(`🔄 Replacing video track for ${participantId} (track ID changed)`);
-              videoSender.replaceTrack(videoTrack)
-                .then(() => {
-                  console.log(`✅ Video track replaced for ${participantId}, triggering renegotiation`);
-                  triggerRenegotiation(pc, participantId);
-                })
-                .catch(err => console.error(`❌ Failed to replace video track for ${participantId}:`, err));
+              // Different track, replace it - but only if connection is stable
+              // ROOT CAUSE FIX: Don't trigger renegotiation if this is just enabling tracks after accept
+              const shouldReplace = pc.signalingState === 'stable' && 
+                                   (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+              
+              if (shouldReplace) {
+                console.log(`🔄 Replacing video track for ${participantId} (track ID changed)`);
+                videoSender.replaceTrack(videoTrack)
+                  .then(() => {
+                    console.log(`✅ Video track replaced for ${participantId}, triggering renegotiation`);
+                    triggerRenegotiation(pc, participantId);
+                  })
+                  .catch(err => console.error(`❌ Failed to replace video track for ${participantId}:`, err));
+              } else {
+                // Connection not stable, just enable existing track
+                if (currentTrack && !currentTrack.enabled) {
+                  currentTrack.enabled = true;
+                }
+              }
             }
           } else {
             // No sender, add track
@@ -1764,17 +1775,28 @@ const useVideoCall = (meetingId, userName) => {
               }
               console.log(`ℹ️ Audio track already in sender for ${participantId}, track enabled: ${currentTrack.enabled}`);
             } else {
-              // Different track, replace it
-              console.log(`🔄 Replacing audio track for ${participantId} (track ID changed)`);
-              audioSender.replaceTrack(audioTrack)
-                .then(() => {
-                  if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
-                    videoTrack.enabled = true;
-                  }
-                  console.log(`✅ Audio track replaced for ${participantId}, triggering renegotiation`);
-                  triggerRenegotiation(pc, participantId);
-                })
-                .catch(err => console.error(`❌ Failed to replace audio track for ${participantId}:`, err));
+              // Different track, replace it - but only if connection is stable
+              // ROOT CAUSE FIX: Don't trigger renegotiation if this is just enabling tracks after accept
+              const shouldReplace = pc.signalingState === 'stable' && 
+                                   (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+              
+              if (shouldReplace) {
+                console.log(`🔄 Replacing audio track for ${participantId} (track ID changed)`);
+                audioSender.replaceTrack(audioTrack)
+                  .then(() => {
+                    if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
+                      videoTrack.enabled = true;
+                    }
+                    console.log(`✅ Audio track replaced for ${participantId}, triggering renegotiation`);
+                    triggerRenegotiation(pc, participantId);
+                  })
+                  .catch(err => console.error(`❌ Failed to replace audio track for ${participantId}:`, err));
+              } else {
+                // Connection not stable, just enable existing track
+                if (currentTrack && !currentTrack.enabled) {
+                  currentTrack.enabled = true;
+                }
+              }
             }
           } else {
             // No sender, add track
@@ -1799,6 +1821,14 @@ const useVideoCall = (meetingId, userName) => {
     if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
       videoTrack.enabled = true;
     }
+  }, []);
+
+  // Expose peersRef to window for useMediaRequest to access
+  useEffect(() => {
+    window.peersRef = peersRef;
+    return () => {
+      // Keep ref available
+    };
   }, []);
 
   return {

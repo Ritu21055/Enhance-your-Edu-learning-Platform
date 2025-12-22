@@ -233,24 +233,36 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
           audioTrackEnabled: audioTrack?.enabled
         });
         
-        // CRITICAL: PERMANENT FIX - Only update participant's own outgoing tracks
-        // DO NOT trigger renegotiation that might affect host's incoming video
-        // Instead, just enable tracks in existing senders (non-destructive)
-        if (window.updateVideoCallPeerConnections) {
-          // Use a small delay to ensure tracks are enabled first
-          setTimeout(() => {
+        // ROOT CAUSE FIX: Enable tracks directly without triggering renegotiation
+        // This prevents host's video from disappearing when participant accepts
+        if (window.peersRef && localStream) {
+          const videoTrack = localStream.getVideoTracks()[0];
+          const audioTrack = localStream.getAudioTracks()[0];
+          
+          Object.entries(window.peersRef.current || {}).forEach(([participantId, peer]) => {
+            if (!peer || !peer._pc) return;
+            
             try {
-              // CRITICAL: Only update outgoing tracks, don't affect incoming streams
-              // This prevents host's video from disappearing on participant's browser
-              console.log('🔄 Updating participant tracks (non-destructive, won\'t affect host video)');
-              window.updateVideoCallPeerConnections(localStream, 'both');
-              console.log('✅ Called updateVideoCallPeerConnections (participant tracks only)');
+              const pc = peer._pc;
+              const senders = pc.getSenders();
+              
+              if (videoTrack) {
+                const videoSender = senders.find(s => s.track?.kind === 'video');
+                if (videoSender?.track && !videoSender.track.enabled) {
+                  videoSender.track.enabled = true;
+                }
+              }
+              
+              if (audioTrack) {
+                const audioSender = senders.find(s => s.track?.kind === 'audio');
+                if (audioSender?.track && !audioSender.track.enabled) {
+                  audioSender.track.enabled = true;
+                }
+              }
             } catch (err) {
-              console.error('❌ Error calling updateVideoCallPeerConnections:', err);
+              // Silent fail - tracks will be enabled via media-state-change
             }
-          }, 500); // Increased delay to ensure everything is stable
-        } else {
-          console.warn('⚠️ updateVideoCallPeerConnections not available');
+          });
         }
       }
 
