@@ -9,7 +9,11 @@ import {
   Avatar,
   Chip,
   CircularProgress,
-  TextField
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import io from 'socket.io-client';
 import { getBackendUrl, testBackendConnection, findBackendServer, setStoredBackendIP } from './config/network';
@@ -35,6 +39,8 @@ const MeetingLobby = () => {
   const [hostPasswordError, setHostPasswordError] = useState('');
   const [participantPassword, setParticipantPassword] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showIPDialog, setShowIPDialog] = useState(false);
+  const [manualIP, setManualIP] = useState('');
   
   // Use ref to store username persistently
   const usernameRef = useRef('');
@@ -83,26 +89,15 @@ const MeetingLobby = () => {
             connectToBackend(discoveryResult.url);
             return;
           } else {
-            // Show helpful error message with troubleshooting steps
-            const errorMsg = `❌ Cannot connect to backend server at ${url}\n\n` +
-              `🔧 Troubleshooting Steps:\n\n` +
-              `1. ✅ Check if backend server is running:\n` +
-              `   On host computer, run: cd backend && npm start\n\n` +
-              `2. 🌐 Find the correct IP address:\n` +
-              `   On host computer, run: cd backend && node scripts/get-ip.js\n` +
-              `   Or check: ipconfig (Windows) / ifconfig (Mac/Linux)\n\n` +
-              `3. 🔥 Check Windows Firewall:\n` +
-              `   - Open Windows Defender Firewall\n` +
-              `   - Allow port 5000 for Node.js\n` +
-              `   - Or temporarily disable firewall to test\n\n` +
-              `4. 📡 Verify both devices are on same network:\n` +
-              `   - Check WiFi/Network name matches\n` +
-              `   - Try pinging host IP from participant device\n\n` +
-              `5. 🔄 Try manual IP entry:\n` +
-              `   - Ask host for their IP address\n` +
-              `   - Update network.js or use URL: ?backend_ip=YOUR_IP\n\n` +
+            // Show helpful error message and offer manual IP input
+            const errorMsg = `Cannot connect to backend server.\n\n` +
+              `Please ask the host for their IP address and enter it in the dialog, or check:\n` +
+              `1. Backend server is running (cd backend && npm start)\n` +
+              `2. Both devices are on the same network\n` +
+              `3. Firewall allows port 5000\n\n` +
               `Current trying: ${url}`;
             setError(errorMsg);
+            setShowIPDialog(true); // Show manual IP input dialog
             return;
           }
         }
@@ -543,6 +538,79 @@ const MeetingLobby = () => {
         </CardContent>
       </Card>
       
+      {/* Manual IP Input Dialog */}
+      <Dialog 
+        open={showIPDialog} 
+        onClose={() => setShowIPDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Enter Backend Server IP Address</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            Cannot connect to the backend server. Please ask the host for their IP address and enter it below.
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="IP Address"
+            type="text"
+            fullWidth
+            variant="outlined"
+            placeholder="e.g., 192.168.0.107"
+            value={manualIP}
+            onChange={(e) => {
+              const value = e.target.value.trim();
+              // Only allow valid IP format
+              if (value === '' || /^(\d{1,3}\.){0,3}\d{0,3}$/.test(value)) {
+                setManualIP(value);
+              }
+            }}
+            helperText="Enter the host computer's IP address (e.g., 192.168.0.107)"
+            error={manualIP && !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP)}
+          />
+          <Typography variant="caption" sx={{ mt: 2, display: 'block', color: 'text.secondary' }}>
+            💡 To find the IP: On host computer, run: <code>cd backend && node scripts/get-ip.js</code> or <code>ipconfig</code>
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowIPDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={async () => {
+              if (!manualIP || !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP)) {
+                setError('Please enter a valid IP address (e.g., 192.168.0.107)');
+                return;
+              }
+              
+              // Store the IP
+              setStoredBackendIP(manualIP);
+              
+              // Test connection
+              const testUrl = `http://${manualIP}:5000`;
+              const { testBackendConnection } = await import('./config/network');
+              const result = await testBackendConnection(testUrl);
+              
+              if (result.success) {
+                setError('');
+                setShowIPDialog(false);
+                // Reconnect with new IP
+                if (socket) {
+                  socket.disconnect();
+                }
+                // Trigger reconnection by updating URL
+                window.location.search = `?backend_ip=${manualIP}`;
+              } else {
+                setError(`Still cannot connect to ${testUrl}. Please verify:\n1. Backend server is running\n2. IP address is correct\n3. Firewall allows port 5000`);
+              }
+            }}
+            variant="contained"
+            disabled={!manualIP || !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP)}
+          >
+            Connect
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Password Dialog for Participants */}
       <PasswordDialog
         open={showPasswordDialog}
