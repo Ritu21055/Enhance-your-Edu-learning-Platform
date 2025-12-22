@@ -1034,7 +1034,7 @@ const VideoCallComponent = memo(({
                     // CRITICAL: Check if video track is enabled AND check media state from socket
                     const videoTrack = stream.getVideoTracks()[0];
                     const trackEnabled = videoTrack?.enabled ?? false;
-                    const trackReady = videoTrack?.readyState === 'live';
+                    const trackNotEnded = videoTrack?.readyState !== 'ended'; // Only check if track is NOT ended
                     
                     // CRITICAL: Check media state from socket events (most reliable)
                     // When participant turns off camera, socket event is more reliable than track.enabled
@@ -1045,8 +1045,8 @@ const VideoCallComponent = memo(({
                     // Use socket state if available, otherwise fall back to track state
                     // If socket says video is disabled, hide it regardless of track state
                     const shouldShowVideo = socketVideoEnabled !== undefined 
-                      ? socketVideoEnabled && trackReady
-                      : trackEnabled && trackReady;
+                      ? socketVideoEnabled && trackNotEnded
+                      : trackEnabled && trackNotEnded;
                     
                     if (shouldShowVideo) {
                       // Video is enabled - show and play
@@ -1054,15 +1054,18 @@ const VideoCallComponent = memo(({
                       el.style.visibility = 'visible';
                       el.style.display = 'block';
                       
-                      // Ensure video plays
-                      if (stream.active) {
+                      // Ensure video plays (only if paused to avoid stuttering)
+                      if (stream.active && el.paused) {
                         el.play().catch(() => {});
                       }
                     } else {
                       // Video is disabled - hide the video element
+                      // Only pause if video is actually playing to avoid unnecessary pause/play cycles
+                      if (!el.paused) {
+                        el.pause();
+                      }
                       el.style.opacity = '0';
                       el.style.visibility = 'hidden';
-                      el.pause();
                     }
                     
                     // CRITICAL: Handle audio tracks based on participant's audio state
@@ -1070,6 +1073,7 @@ const VideoCallComponent = memo(({
                     
                     // CRITICAL: Always ensure video element muted state matches audio state
                     // Audio plays through the video element, so it must be unmuted when audio is enabled
+                    // If socketAudioEnabled is undefined, assume audio is enabled (fallback to track state)
                     const shouldMuteVideoElement = socketAudioEnabled === false;
                     if (el.muted !== shouldMuteVideoElement) {
                       el.muted = shouldMuteVideoElement;
@@ -1078,8 +1082,8 @@ const VideoCallComponent = memo(({
                     }
                     
                     audioTracks.forEach((audioTrack) => {
-                      // Strict: only enable if socket explicitly says true, otherwise disable
-                      const shouldEnableAudio = socketAudioEnabled === true;
+                      // Enable audio if socket says true, or if socket state is undefined (fallback to track enabled state)
+                      const shouldEnableAudio = socketAudioEnabled === true || (socketAudioEnabled === undefined && audioTrack.enabled);
                       if (audioTrack.enabled !== shouldEnableAudio) {
                         audioTrack.enabled = shouldEnableAudio;
                         console.log(`🔊 Audio track ${shouldEnableAudio ? 'enabled' : 'disabled'} for ${participantId}:`, {
@@ -1093,7 +1097,9 @@ const VideoCallComponent = memo(({
                     });
                     
                     // CRITICAL: Force play video element if audio is enabled (audio plays through video element)
-                    if (socketAudioEnabled === true && audioTracks.length > 0) {
+                    // Check both socket state and track enabled state
+                    const audioIsEnabled = socketAudioEnabled === true || (socketAudioEnabled === undefined && audioTracks.some(t => t.enabled));
+                    if (audioIsEnabled && audioTracks.length > 0) {
                       if (el.paused && stream.active) {
                         el.play().catch(err => {
                           console.warn(`🔊 Failed to play audio for ${participantId}:`, err);
