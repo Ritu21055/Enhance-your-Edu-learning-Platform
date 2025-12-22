@@ -68,5 +68,15 @@
     "hasRecording": false,
     "hasTranscript": false,
     "lastUpdated": "2025-12-22T09:09:55.447Z"
+  },
+  "BQA792": {
+    "title": "Meeting BQA792",
+    "createdAt": "2025-12-22T09:56:17.749Z",
+    "endedAt": "2025-12-22T09:56:12.934Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-12-22T09:56:12.955Z"
   }
 }

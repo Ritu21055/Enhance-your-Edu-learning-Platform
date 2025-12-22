@@ -233,7 +233,7 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
           audioTrackEnabled: audioTrack?.enabled
         });
         
-        // ROOT CAUSE FIX: Enable tracks directly without triggering renegotiation
+        // ROOT CAUSE FIX: Enable tracks and add missing tracks directly
         // This prevents host's video from disappearing when participant accepts
         if (window.peersRef && localStream) {
           const videoTrack = localStream.getVideoTracks()[0];
@@ -248,19 +248,38 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
               
               if (videoTrack) {
                 const videoSender = senders.find(s => s.track?.kind === 'video');
-                if (videoSender?.track && !videoSender.track.enabled) {
-                  videoSender.track.enabled = true;
+                if (videoSender?.track) {
+                  if (!videoSender.track.enabled) {
+                    videoSender.track.enabled = true;
+                  }
+                } else {
+                  // No video sender, add track
+                  console.log(`➕ Adding video track to peer connection for ${participantId}`);
+                  pc.addTrack(videoTrack, localStream);
                 }
               }
               
               if (audioTrack) {
                 const audioSender = senders.find(s => s.track?.kind === 'audio');
-                if (audioSender?.track && !audioSender.track.enabled) {
-                  audioSender.track.enabled = true;
+                if (audioSender?.track) {
+                  if (!audioSender.track.enabled) {
+                    audioSender.track.enabled = true;
+                    console.log(`✅ Enabled audio track in sender for ${participantId}`);
+                  }
+                } else {
+                  // CRITICAL: No audio sender, add track immediately
+                  console.log(`➕➕➕ Adding audio track to peer connection for ${participantId} (was missing)`);
+                  try {
+                    pc.addTrack(audioTrack, localStream);
+                    console.log(`✅ Audio track added to peer connection for ${participantId}`);
+                    // updateAllPeerConnections will handle renegotiation
+                  } catch (err) {
+                    console.error(`❌ Failed to add audio track:`, err);
+                  }
                 }
               }
             } catch (err) {
-              // Silent fail - tracks will be enabled via media-state-change
+              console.error(`❌ Error updating peer ${participantId}:`, err);
             }
           });
         }

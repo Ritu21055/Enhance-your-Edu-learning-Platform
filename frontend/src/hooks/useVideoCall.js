@@ -986,6 +986,11 @@ const useVideoCall = (meetingId, userName) => {
       });
       
       // CRITICAL: Double-check that stream tracks are actually added
+      const videoSender = senders.find(s => s.track?.kind === 'video');
+      const audioSender = senders.find(s => s.track?.kind === 'audio');
+      const videoTrack = streamRef.current.getVideoTracks()[0];
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+      
       if (senders.length === 0) {
         console.error(`❌❌❌ CRITICAL: No senders found in peer connection! Stream may not be added properly.`);
         console.error(`  - Stream tracks: ${streamRef.current.getTracks().length}`);
@@ -1002,6 +1007,28 @@ const useVideoCall = (meetingId, userName) => {
             console.error(`❌ Error adding ${track.kind} track:`, error);
           }
         });
+      } else {
+        // CRITICAL: Check if audio track is missing (common issue)
+        if (audioTrack && !audioSender) {
+          console.warn(`⚠️⚠️⚠️ Audio track exists but no audio sender found! Adding audio track manually...`);
+          try {
+            peer._pc.addTrack(audioTrack, streamRef.current);
+            console.log(`✅✅✅ Added missing audio track to peer connection for ${participantId}`);
+          } catch (error) {
+            console.error(`❌ Failed to add audio track:`, error);
+          }
+        }
+        
+        // Also check video track
+        if (videoTrack && !videoSender) {
+          console.warn(`⚠️ Video track exists but no video sender found! Adding video track manually...`);
+          try {
+            peer._pc.addTrack(videoTrack, streamRef.current);
+            console.log(`✅ Added missing video track to peer connection for ${participantId}`);
+          } catch (error) {
+            console.error(`❌ Failed to add video track:`, error);
+          }
+        }
       }
     }
 
