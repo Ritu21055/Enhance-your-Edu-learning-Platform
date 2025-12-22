@@ -278,6 +278,15 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
         });
         console.log('✅ Media state change emitted to socket');
       }
+
+      // CRITICAL: Update all peer connections to ensure audio track is added
+      if (window.updateAllPeerConnections && localStream) {
+        console.log('🔄 Calling updateAllPeerConnections to add audio track to peer connections');
+        setTimeout(() => {
+          window.updateAllPeerConnections(localStream, 'both');
+          console.log('✅ updateAllPeerConnections called for audio and video');
+        }, 500); // Delay to ensure tracks are ready
+      }
     }, 200); // Increased delay to ensure tracks are ready
 
     // Force video element to play if available
