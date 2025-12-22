@@ -90,12 +90,27 @@ const MeetingLobby = () => {
             return;
           } else {
             // Show helpful error message and offer manual IP input
-            const errorMsg = `Cannot connect to backend server.\n\n` +
-              `Please ask the host for their IP address and enter it in the dialog, or check:\n` +
-              `1. Backend server is running (cd backend && npm start)\n` +
-              `2. Both devices are on the same network\n` +
-              `3. Firewall allows port 5000\n\n` +
-              `Current trying: ${url}`;
+            const currentHostname = window.location.hostname;
+            const isLocalhost = currentHostname === 'localhost' || currentHostname === '127.0.0.1';
+            
+            let errorMsg = `Cannot connect to backend server at ${url}\n\n`;
+            
+            if (isLocalhost) {
+              errorMsg += `⚠️ IMPORTANT: You are accessing via localhost!\n\n` +
+                `✅ SOLUTION: Access the app using the HOST's IP address instead:\n` +
+                `   Instead of: http://localhost:3000\n` +
+                `   Use: http://192.168.0.107:3000\n\n` +
+                `   (Replace 192.168.0.107 with the actual host IP)\n\n` +
+                `Or enter the host IP below to connect:\n\n`;
+            } else {
+              errorMsg += `Please check:\n` +
+                `1. Backend server is running on host (cd backend && npm start)\n` +
+                `2. Both devices are on the same network\n` +
+                `3. Firewall allows port 5000 on host\n` +
+                `4. Host IP is correct (current: ${url})\n\n` +
+                `Or enter the correct host IP below:\n\n`;
+            }
+            
             setError(errorMsg);
             setShowIPDialog(true); // Show manual IP input dialog
             return;
@@ -545,10 +560,26 @@ const MeetingLobby = () => {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Enter Backend Server IP Address</DialogTitle>
+        <DialogTitle>Enter Host IP Address</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-            Cannot connect to the backend server. Please ask the host for their IP address and enter it below.
+            Cannot connect to the backend server. 
+            {window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? (
+              <>
+                <br /><br />
+                <strong>⚠️ You are accessing via localhost!</strong>
+                <br /><br />
+                <strong>✅ Solution:</strong> Instead of using <code>http://localhost:3000</code>, 
+                access the app using the host's IP address: <code>http://192.168.0.107:3000</code>
+                <br /><br />
+                Or enter the host IP below and we'll update the connection:
+              </>
+            ) : (
+              <>
+                <br /><br />
+                Please ask the host for their IP address and enter it below.
+              </>
+            )}
           </Typography>
           <TextField
             autoFocus
@@ -570,7 +601,10 @@ const MeetingLobby = () => {
             error={manualIP && !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP)}
           />
           <Typography variant="caption" sx={{ mt: 2, display: 'block', color: 'text.secondary' }}>
-            💡 To find the IP: On host computer, run: <code>cd backend && node scripts/get-ip.js</code> or <code>ipconfig</code>
+            💡 To find the host IP: On host computer, run: <code>cd backend && node scripts/get-ip.js</code> or <code>ipconfig</code>
+            {window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? (
+              <><br /><strong style={{ color: '#d32f2f' }}>⚠️ After entering IP, you'll be redirected to: http://[HOST_IP]:3000</strong></>
+            ) : null}
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -597,10 +631,20 @@ const MeetingLobby = () => {
                 if (socket) {
                   socket.disconnect();
                 }
-                // Trigger reconnection by updating URL
-                window.location.search = `?backend_ip=${manualIP}`;
+                
+                // If accessing via localhost, redirect to host IP
+                const currentHostname = window.location.hostname;
+                if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
+                  // Redirect to host IP for proper access
+                  const currentPath = window.location.pathname;
+                  const currentSearch = window.location.search;
+                  window.location.href = `http://${manualIP}:3000${currentPath}${currentSearch}`;
+                } else {
+                  // Just update URL params for backend IP
+                  window.location.search = `?backend_ip=${manualIP}`;
+                }
               } else {
-                setError(`Still cannot connect to ${testUrl}. Please verify:\n1. Backend server is running\n2. IP address is correct\n3. Firewall allows port 5000`);
+                setError(`Still cannot connect to ${testUrl}.\n\nPlease verify:\n1. Backend server is running on host (cd backend && npm start)\n2. IP address is correct (${manualIP})\n3. Firewall allows port 5000 on host\n4. Both devices are on the same network`);
               }
             }}
             variant="contained"
