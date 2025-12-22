@@ -16,7 +16,7 @@ import {
   DialogActions
 } from '@mui/material';
 import io from 'socket.io-client';
-import { getBackendUrl, testBackendConnection, findBackendServer, setStoredBackendIP } from './config/network';
+import { getBackendUrl, setStoredBackendIP } from './config/network';
 import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
 import PasswordDialog from './components/PasswordDialog';
@@ -64,69 +64,15 @@ const MeetingLobby = () => {
     let connectionTimeout = null;
     let isMounted = true;
 
-    const connectToBackend = async (url) => {
+    const connectToBackend = (url) => {
       if (!isMounted) return;
       
       console.log('🔍 Lobby: Connecting to backend URL:', url);
-      console.log('🔍 Lobby: Current hostname:', window.location.hostname);
-      console.log('🔍 Lobby: Current protocol:', window.location.protocol);
-      
-      // Test backend connection first
-      const testResult = await testBackendConnection(url);
-      if (!testResult.success) {
-        console.error('❌ Backend connection test failed:', testResult.error);
-        
-        // Try to find backend server automatically
-        if (isMounted) {
-          setError(`Cannot connect to server at ${url}. Trying to find server...`);
-          console.log('🔍 Attempting to auto-discover backend server...');
-          
-          const discoveryResult = await findBackendServer();
-          if (discoveryResult.success && isMounted) {
-            console.log('✅ Found backend server at:', discoveryResult.url);
-            setError(''); // Clear error
-            // Reconnect with discovered URL
-            connectToBackend(discoveryResult.url);
-            return;
-          } else {
-            // Show helpful error message and offer manual IP input
-            const currentHostname = window.location.hostname;
-            const isLocalhost = currentHostname === 'localhost' || currentHostname === '127.0.0.1';
-            
-            let errorMsg = `Cannot connect to backend server at ${url}\n\n`;
-            
-            if (isLocalhost) {
-              errorMsg += `⚠️ IMPORTANT: You are accessing via localhost!\n\n` +
-                `✅ SOLUTION: Access the app using the HOST's IP address instead:\n` +
-                `   Instead of: http://localhost:3000\n` +
-                `   Use: http://192.168.0.107:3000\n\n` +
-                `   (Replace 192.168.0.107 with the actual host IP)\n\n` +
-                `Or enter the host IP below to connect:\n\n`;
-            } else {
-              errorMsg += `Please check:\n` +
-                `1. Backend server is running on host (cd backend && npm start)\n` +
-                `2. Both devices are on the same network\n` +
-                `3. Firewall allows port 5000 on host\n` +
-                `4. Host IP is correct (current: ${url})\n\n` +
-                `Or enter the correct host IP below:\n\n`;
-            }
-            
-            setError(errorMsg);
-            setShowIPDialog(true); // Show manual IP input dialog
-            return;
-          }
-        }
-        return;
-      }
-      
-      console.log('✅ Backend connection test passed');
-      
-      if (!isMounted) return;
       
       // Create socket connection
       newSocket = io(url, {
         transports: ['websocket', 'polling'],
-        timeout: 15000, // Increased timeout
+        timeout: 10000,
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionAttempts: 5
@@ -135,10 +81,9 @@ const MeetingLobby = () => {
 
       newSocket.on('connect', () => {
         if (!isMounted) return;
-        console.log('✅ Lobby: Connected to server at:', url);
-        console.log('✅ Lobby: Socket ID:', newSocket.id);
+        console.log('✅ Lobby: Connected to server');
         setIsConnected(true);
-        setError(''); // Clear any previous errors
+        setError('');
         if (connectionTimeout) {
           clearTimeout(connectionTimeout);
           connectionTimeout = null;
@@ -147,24 +92,10 @@ const MeetingLobby = () => {
 
       newSocket.on('connect_error', (error) => {
         if (!isMounted) return;
-        console.error('❌ Lobby: Connection error:', error);
-        console.error('❌ Lobby: Failed to connect to:', url);
+        console.error('❌ Lobby: Connection error:', error.message);
         setIsConnected(false);
-        
-        // Try auto-discovery on connection error
-        findBackendServer().then(discoveryResult => {
-          if (discoveryResult.success && isMounted && !newSocket?.connected) {
-            console.log('✅ Found backend server at:', discoveryResult.url);
-            setError(''); // Clear error
-            // Reconnect with discovered URL
-            if (newSocket) {
-              newSocket.disconnect();
-            }
-            connectToBackend(discoveryResult.url);
-          } else if (isMounted) {
-            setError(`Failed to connect to server at ${url}. Please ensure the server is running and accessible. Error: ${error.message}`);
-          }
-        });
+        setError(`Cannot connect to server at ${url}. Please check if server is running or enter host IP in the dialog.`);
+        setShowIPDialog(true);
       });
 
       newSocket.on('disconnect', (reason) => {
@@ -180,11 +111,11 @@ const MeetingLobby = () => {
       // Set a connection timeout
       connectionTimeout = setTimeout(() => {
         if (newSocket && !newSocket.connected && isMounted) {
-          console.error('❌ Lobby: Connection timeout - socket not connected after 15 seconds');
-          setError(`Connection timeout. Cannot reach server at ${url}. Please check your network connection and ensure the server is running.`);
+          setError(`Connection timeout. Cannot reach server at ${url}. Please enter host IP in the dialog.`);
           setIsConnected(false);
+          setShowIPDialog(true);
         }
-      }, 15000);
+      }, 10000);
 
       // Socket event handlers
       newSocket.on('meeting-joined', (data) => {
@@ -620,30 +551,17 @@ const MeetingLobby = () => {
               // Store the IP
               setStoredBackendIP(manualIP);
               
-              // Test connection
-              const testUrl = `http://${manualIP}:5000`;
-              const { testBackendConnection } = await import('./config/network');
-              const result = await testBackendConnection(testUrl);
-              
-              if (result.success) {
-                setError('');
-                setShowIPDialog(false);
-                // Reconnect with new IP
-                if (socket) {
-                  socket.disconnect();
-                }
-                
-                // Store IP and reload to use new backend URL
-                // This allows localhost access while using host's backend
-                const currentPath = window.location.pathname;
-                const currentSearch = window.location.search;
-                // Add backend_ip to URL params so network.js picks it up
-                const urlParams = new URLSearchParams(currentSearch);
-                urlParams.set('backend_ip', manualIP);
-                window.location.search = urlParams.toString();
-              } else {
-                setError(`Still cannot connect to ${testUrl}.\n\nPlease verify:\n1. Backend server is running on host (cd backend && npm start)\n2. IP address is correct (${manualIP})\n3. Firewall allows port 5000 on host\n4. Both devices are on the same network`);
+              // Reconnect with new IP
+              if (socket) {
+                socket.disconnect();
               }
+              
+              // Add backend_ip to URL params and reload
+              const currentPath = window.location.pathname;
+              const currentSearch = window.location.search;
+              const urlParams = new URLSearchParams(currentSearch);
+              urlParams.set('backend_ip', manualIP);
+              window.location.search = urlParams.toString();
             }}
             variant="contained"
             disabled={!manualIP || !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP)}
