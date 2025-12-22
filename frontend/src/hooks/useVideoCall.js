@@ -447,6 +447,16 @@ const useVideoCall = (meetingId, userName) => {
             
             // CRITICAL: Skip ALL media initialization and proceed directly to connection creation
             // This ensures host's stream is NEVER touched
+          } else if (!isHost && !hasExistingStream) {
+            // CRITICAL FIX: Participant must initialize media BEFORE creating connection
+            console.log('🎥 Participant: Media not initialized, initializing now...');
+            try {
+              await initializeMedia();
+              console.log('✅ Participant: Media initialized successfully');
+            } catch (error) {
+              console.error('❌ Participant: Failed to initialize media:', error);
+              return; // Don't create connection if media fails
+            }
           }
 
           // Wait for stream to be ready before creating connection (faster)
