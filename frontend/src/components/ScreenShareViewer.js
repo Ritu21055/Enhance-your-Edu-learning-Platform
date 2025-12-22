@@ -42,10 +42,38 @@ const ScreenShareViewer = ({
   useEffect(() => {
     if (screenStream && localVideoRef.current) {
       console.log('🖥️ ScreenShareViewer: Setting local screen stream');
-      localVideoRef.current.srcObject = screenStream;
-      localVideoRef.current.play().catch(err => {
-        console.log('🖥️ ScreenShareViewer: Local video play error:', err);
-      });
+      const videoElement = localVideoRef.current;
+      const videoTrack = screenStream.getVideoTracks()[0];
+      
+      // Ensure video track is enabled
+      if (videoTrack && !videoTrack.enabled) {
+        videoTrack.enabled = true;
+      }
+      
+      // Set stream
+      if (videoElement.srcObject !== screenStream) {
+        videoElement.srcObject = screenStream;
+      }
+      
+      // Ensure element is visible
+      videoElement.style.opacity = '1';
+      videoElement.style.visibility = 'visible';
+      videoElement.style.display = 'block';
+      
+      // Play with retry
+      const playVideo = () => {
+        if (videoElement && screenStream.active && videoTrack?.enabled) {
+          videoElement.play().then(() => {
+            console.log('🖥️ ScreenShareViewer: Local screen stream playing');
+          }).catch(err => {
+            console.warn('🖥️ ScreenShareViewer: Local video play error (retrying):', err);
+            setTimeout(playVideo, 300);
+          });
+        } else {
+          setTimeout(playVideo, 300);
+        }
+      };
+      playVideo();
     }
   }, [screenStream]);
 
@@ -93,24 +121,30 @@ const ScreenShareViewer = ({
       
       // Play video with retry mechanism
       const playVideo = () => {
-        if (videoElement && remoteScreenStream.active && videoTrack?.enabled) {
+        if (videoElement && remoteScreenStream && remoteScreenStream.active && videoTrack?.enabled) {
+          // Ensure srcObject is set
+          if (videoElement.srcObject !== remoteScreenStream) {
+            videoElement.srcObject = remoteScreenStream;
+          }
+          
           videoElement.play().then(() => {
             console.log('🖥️ ScreenShareViewer: Remote screen stream playing successfully');
           }).catch(err => {
             console.warn('🖥️ ScreenShareViewer: Remote video play error (will retry):', err);
-            setTimeout(playVideo, 500); // Retry playing
+            setTimeout(playVideo, 300); // Retry playing
           });
         } else {
-          console.warn('🖥️ ScreenShareViewer: Remote stream not active or video track not enabled, retrying...', {
-            streamActive: remoteScreenStream.active,
+          console.warn('🖥️ ScreenShareViewer: Remote stream not ready, retrying...', {
+            streamActive: remoteScreenStream?.active,
             trackEnabled: videoTrack?.enabled,
+            trackReady: videoTrack?.readyState,
             hasElement: !!videoElement
           });
-          setTimeout(playVideo, 500); // Retry if not active or enabled
+          setTimeout(playVideo, 300); // Retry if not ready
         }
       };
       
-      // Start playing
+      // Start playing immediately and also retry
       playVideo();
       
       // Also listen for track enabled/disabled events
