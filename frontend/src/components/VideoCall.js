@@ -244,13 +244,13 @@ const VideoCallComponent = memo(({
       const shouldBeEnabled = isVideoEnabled; // Use prop directly
       const currentStream = localStream; // Use prop directly
       const trackEnabled = videoTrack.enabled;
-      const trackReady = videoTrack.readyState === 'live'; // Check if track is still active
+      const trackNotEnded = videoTrack.readyState !== 'ended'; // Check if track is not ended
       
-      // CRITICAL: Show video only if ALL conditions are met:
+      // CRITICAL: Show video if:
       // 1. State says video should be enabled
       // 2. Track is enabled
-      // 3. Track is still live (not stopped/ended)
-      if (shouldBeEnabled && trackEnabled && trackReady) {
+      // 3. Track is not ended (allow 'live' or other states)
+      if (shouldBeEnabled && trackEnabled && trackNotEnded) {
         // CRITICAL: Check if video is actually visible before showing
         const wasHidden = videoElement.style.opacity === '0' || 
                          videoElement.style.visibility === 'hidden' ||
@@ -815,15 +815,15 @@ const VideoCallComponent = memo(({
       return false;
     }
     
-    // If video should be enabled, check if track exists, is enabled, AND is still live
+    // If video should be enabled, check if track exists and is enabled
     if (videoTrack) {
       const trackEnabled = videoTrack.enabled;
-      const trackReady = videoTrack.readyState === 'live'; // Track must be active, not stopped
-      // Show video only if ALL conditions are met:
+      const trackNotEnded = videoTrack.readyState !== 'ended'; // Only check if track is NOT ended
+      // Show video if:
       // 1. isVideoEnabled prop is true
       // 2. Track is enabled
-      // 3. Track is still live (not stopped/ended)
-      return trackEnabled && isVideoEnabled && trackReady;
+      // 3. Track is not ended (allow 'live' or other states)
+      return trackEnabled && trackNotEnded;
     }
     // No video track - use prop value
     return isVideoEnabled;
@@ -866,7 +866,7 @@ const VideoCallComponent = memo(({
                     const shouldShow = isVideoEnabled && 
                                      videoTrack && 
                                      videoTrack.enabled && 
-                                     videoTrack.readyState === 'live';
+                                     videoTrack.readyState !== 'ended';
                     
                     // Force play function - defined outside if/else so it's accessible in both blocks
                     const playVideo = () => {
