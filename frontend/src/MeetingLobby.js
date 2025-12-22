@@ -9,14 +9,10 @@ import {
   Avatar,
   Chip,
   CircularProgress,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
+  TextField
 } from '@mui/material';
 import io from 'socket.io-client';
-import { getBackendUrl, setStoredBackendIP } from './config/network';
+import { getBackendUrl, testBackendConnection } from './config/network';
 import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
 import PasswordDialog from './components/PasswordDialog';
@@ -39,8 +35,6 @@ const MeetingLobby = () => {
   const [hostPasswordError, setHostPasswordError] = useState('');
   const [participantPassword, setParticipantPassword] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
-  const [showIPDialog, setShowIPDialog] = useState(false);
-  const [manualIP, setManualIP] = useState('');
   
   // Use ref to store username persistently
   const usernameRef = useRef('');
@@ -94,8 +88,7 @@ const MeetingLobby = () => {
         if (!isMounted) return;
         console.error('❌ Lobby: Connection error:', error.message);
         setIsConnected(false);
-        setError(`Cannot connect to server at ${url}. Please check if server is running or enter host IP in the dialog.`);
-        setShowIPDialog(true);
+        setError(`Failed to connect to server at ${url}. Please ensure the server is running and accessible.`);
       });
 
       newSocket.on('disconnect', (reason) => {
@@ -111,9 +104,8 @@ const MeetingLobby = () => {
       // Set a connection timeout
       connectionTimeout = setTimeout(() => {
         if (newSocket && !newSocket.connected && isMounted) {
-          setError(`Connection timeout. Cannot reach server at ${url}. Please enter host IP in the dialog.`);
+          setError(`Connection timeout. Cannot reach server at ${url}. Please check your network connection and ensure the server is running.`);
           setIsConnected(false);
-          setShowIPDialog(true);
         }
       }, 10000);
 
@@ -477,93 +469,6 @@ const MeetingLobby = () => {
         </CardContent>
       </Card>
       
-      {/* Manual IP Input Dialog */}
-      <Dialog 
-        open={showIPDialog} 
-        onClose={() => setShowIPDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Enter Host IP Address</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-            Cannot connect to the backend server. 
-            {window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? (
-              <>
-                <br /><br />
-                <strong>✅ Good news!</strong> You can continue using <code>localhost:3000</code>
-                <br /><br />
-                Just enter the <strong>HOST's IP address</strong> below (e.g., <code>192.168.0.107</code>)
-                <br />
-                and we'll connect your localhost frontend to the host's backend server.
-                <br /><br />
-                <strong>No need to change your browser URL!</strong>
-              </>
-            ) : (
-              <>
-                <br /><br />
-                Please ask the host for their IP address and enter it below.
-              </>
-            )}
-          </Typography>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="IP Address"
-            type="text"
-            fullWidth
-            variant="outlined"
-            placeholder="e.g., 192.168.0.107"
-            value={manualIP}
-            onChange={(e) => {
-              const value = e.target.value.trim();
-              // Only allow valid IP format
-              if (value === '' || /^(\d{1,3}\.){0,3}\d{0,3}$/.test(value)) {
-                setManualIP(value);
-              }
-            }}
-            helperText="Enter the host computer's IP address (e.g., 192.168.0.107)"
-            error={!!(manualIP && !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP))}
-          />
-          <Typography variant="caption" sx={{ mt: 2, display: 'block', color: 'text.secondary' }}>
-            💡 To find the host IP: On host computer, run: <code>cd backend && node scripts/get-ip.js</code> or <code>ipconfig</code>
-            {window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? (
-              <><br /><strong style={{ color: '#2e7d32' }}>✅ You can keep using localhost:3000 - no redirect needed!</strong></>
-            ) : null}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowIPDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={async () => {
-              if (!manualIP || !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP)) {
-                setError('Please enter a valid IP address (e.g., 192.168.0.107)');
-                return;
-              }
-              
-              // Store the IP
-              setStoredBackendIP(manualIP);
-              
-              // Reconnect with new IP
-              if (socket) {
-                socket.disconnect();
-              }
-              
-              // Add backend_ip to URL params and reload
-              const currentPath = window.location.pathname;
-              const currentSearch = window.location.search;
-              const urlParams = new URLSearchParams(currentSearch);
-              urlParams.set('backend_ip', manualIP);
-              window.location.search = urlParams.toString();
-            }}
-            variant="contained"
-            disabled={!manualIP || !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP)}
-          >
-            Connect
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       {/* Password Dialog for Participants */}
       <PasswordDialog
         open={showPasswordDialog}
