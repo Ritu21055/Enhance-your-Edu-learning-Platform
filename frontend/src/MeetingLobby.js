@@ -567,12 +567,13 @@ const MeetingLobby = () => {
             {window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? (
               <>
                 <br /><br />
-                <strong>⚠️ You are accessing via localhost!</strong>
+                <strong>✅ Good news!</strong> You can continue using <code>localhost:3000</code>
                 <br /><br />
-                <strong>✅ Solution:</strong> Instead of using <code>http://localhost:3000</code>, 
-                access the app using the host's IP address: <code>http://192.168.0.107:3000</code>
+                Just enter the <strong>HOST's IP address</strong> below (e.g., <code>192.168.0.107</code>)
+                <br />
+                and we'll connect your localhost frontend to the host's backend server.
                 <br /><br />
-                Or enter the host IP below and we'll update the connection:
+                <strong>No need to change your browser URL!</strong>
               </>
             ) : (
               <>
@@ -598,12 +599,12 @@ const MeetingLobby = () => {
               }
             }}
             helperText="Enter the host computer's IP address (e.g., 192.168.0.107)"
-            error={manualIP && !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP)}
+            error={!!(manualIP && !/^(\d{1,3}\.){3}\d{1,3}$/.test(manualIP))}
           />
           <Typography variant="caption" sx={{ mt: 2, display: 'block', color: 'text.secondary' }}>
             💡 To find the host IP: On host computer, run: <code>cd backend && node scripts/get-ip.js</code> or <code>ipconfig</code>
             {window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? (
-              <><br /><strong style={{ color: '#d32f2f' }}>⚠️ After entering IP, you'll be redirected to: http://[HOST_IP]:3000</strong></>
+              <><br /><strong style={{ color: '#2e7d32' }}>✅ You can keep using localhost:3000 - no redirect needed!</strong></>
             ) : null}
           </Typography>
         </DialogContent>
@@ -632,17 +633,14 @@ const MeetingLobby = () => {
                   socket.disconnect();
                 }
                 
-                // If accessing via localhost, redirect to host IP
-                const currentHostname = window.location.hostname;
-                if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
-                  // Redirect to host IP for proper access
-                  const currentPath = window.location.pathname;
-                  const currentSearch = window.location.search;
-                  window.location.href = `http://${manualIP}:3000${currentPath}${currentSearch}`;
-                } else {
-                  // Just update URL params for backend IP
-                  window.location.search = `?backend_ip=${manualIP}`;
-                }
+                // Store IP and reload to use new backend URL
+                // This allows localhost access while using host's backend
+                const currentPath = window.location.pathname;
+                const currentSearch = window.location.search;
+                // Add backend_ip to URL params so network.js picks it up
+                const urlParams = new URLSearchParams(currentSearch);
+                urlParams.set('backend_ip', manualIP);
+                window.location.search = urlParams.toString();
               } else {
                 setError(`Still cannot connect to ${testUrl}.\n\nPlease verify:\n1. Backend server is running on host (cd backend && npm start)\n2. IP address is correct (${manualIP})\n3. Firewall allows port 5000 on host\n4. Both devices are on the same network`);
               }

@@ -64,9 +64,10 @@ const getNetworkConfig = () => {
       };
     }
     // Last fallback: use a common local network IP (user should update this)
-    console.log('🏠 Using fallback localhost config (update IP in network.js if needed)');
+    // Try to auto-detect from common network ranges
+    console.log('🏠 Using fallback localhost config - will try to auto-detect host IP');
     return {
-      BACKEND_URL: 'http://192.168.0.107:5000', // User should update this to their actual IP
+      BACKEND_URL: 'http://192.168.0.107:5000', // Default fallback - will be updated by auto-discovery
       FRONTEND_URL: 'http://localhost:3000'
     };
   }
