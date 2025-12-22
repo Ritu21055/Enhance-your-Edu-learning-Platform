@@ -253,13 +253,11 @@ const ScreenShareViewer = ({
         backgroundColor: '#000',
         zIndex: 9999,
         display: isScreenSharing || remoteScreenStream ? 'block' : 'none',
-        // Minimize interface when sharing to prevent recursive capture
-        ...(isScreenSharing && {
-          transform: 'scale(0.1)',
-          transformOrigin: 'top right',
-          opacity: 0.1,
-          pointerEvents: 'none'
-        })
+        // CRITICAL: Don't scale down the container - it makes video invisible
+        // Only scale controls to prevent recursive capture
+        transform: 'none',
+        opacity: 1,
+        pointerEvents: 'auto'
       }}
     >
       {/* Local Screen Share */}
@@ -273,7 +271,12 @@ const ScreenShareViewer = ({
             height: '100%',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            zIndex: 1,
+            // CRITICAL: Don't scale down the video - only scale controls
+            transform: 'none',
+            opacity: 1,
+            pointerEvents: 'auto'
           }}
         >
           <video
@@ -285,7 +288,11 @@ const ScreenShareViewer = ({
               width: '100%',
               height: '100%',
               objectFit: 'contain',
-              backgroundColor: '#000'
+              backgroundColor: '#000',
+              opacity: 1,
+              visibility: 'visible',
+              display: 'block',
+              zIndex: 1
             }}
           />
         </Box>
