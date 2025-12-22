@@ -463,17 +463,10 @@ const MeetingLobby = () => {
               <Button
                 variant="outlined"
                 size="small"
-                onClick={async () => {
-                  console.log('🔍 Lobby Debug: Testing backend connection...');
-                  const result = await testBackendConnection();
-                  
-                  if (result.success) {
-                    console.log('✅ Lobby Debug: Backend is reachable!');
-                    setError('');
-                  } else {
-                    console.log('❌ Lobby Debug: Backend connection failed:', result.error);
-                    setError(`Backend not reachable: ${result.error} (URL: ${result.url})`);
-                  }
+                onClick={() => {
+                  const backendUrl = getBackendUrl();
+                  console.log('🔍 Lobby Debug: Backend URL:', backendUrl);
+                  setError(`Backend URL: ${backendUrl}. If connection fails, enter host IP in the dialog.`);
                 }}
                 style={{ marginTop: '8px' }}
               >
