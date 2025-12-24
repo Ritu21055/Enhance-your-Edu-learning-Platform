@@ -172,12 +172,26 @@ class MediaRecorder {
       const allChunks = [...recordingSession.audioChunks, ...recordingSession.videoChunks]
         .sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp
       
-      console.log('🎬 Chunks summary before deduplication:', {
-        totalChunks: allChunks.length,
-        audioChunks: recordingSession.audioChunks.length,
-        videoChunks: recordingSession.videoChunks.length,
-        totalSize: allChunks.reduce((sum, chunk) => sum + chunk.data.length, 0)
-      });
+      const totalSize = allChunks.reduce((sum, chunk) => sum + (chunk.data?.length || 0), 0);
+      console.log('🎬 Chunks summary before deduplication:');
+      console.log('  - Total Chunks:', allChunks.length);
+      console.log('  - Audio Chunks:', recordingSession.audioChunks.length);
+      console.log('  - Video Chunks:', recordingSession.videoChunks.length);
+      console.log('  - Total Size:', totalSize, 'bytes');
+      
+      if (totalSize === 0) {
+        console.error('❌ ERROR: Total chunk size is 0! No data was recorded.');
+        console.log('  - Audio chunks sample:', recordingSession.audioChunks.slice(0, 3).map(c => ({
+          hasData: !!c.data,
+          dataLength: c.data?.length || 0,
+          timestamp: c.timestamp
+        })));
+        console.log('  - Video chunks sample:', recordingSession.videoChunks.slice(0, 3).map(c => ({
+          hasData: !!c.data,
+          dataLength: c.data?.length || 0,
+          timestamp: c.timestamp
+        })));
+      }
       
       // Remove duplicates (since audio_chunk and video_frame might contain same data)
       // But prefer audio_chunk over video_frame if timestamps are very close (< 50ms)
@@ -191,26 +205,37 @@ class MediaRecorder {
         }
       });
       
-      console.log('🎬 Chunks after deduplication:', {
-        uniqueChunks: uniqueChunks.length,
-        totalSize: uniqueChunks.reduce((sum, chunk) => sum + chunk.data.length, 0)
-      });
+      const uniqueTotalSize = uniqueChunks.reduce((sum, chunk) => sum + (chunk.data?.length || 0), 0);
+      console.log('🎬 Chunks after deduplication:');
+      console.log('  - Unique Chunks:', uniqueChunks.length);
+      console.log('  - Total Size:', uniqueTotalSize, 'bytes');
       
       if (uniqueChunks.length === 0) {
         throw new Error('No chunks to combine - recording was empty');
       }
       
+      if (uniqueTotalSize === 0) {
+        console.error('❌ ERROR: All chunks have 0 size! Data may not be stored correctly.');
+        throw new Error('All chunks are empty - cannot create recording');
+      }
+      
       // Write all chunks to temp WebM file
       let bytesWritten = 0;
+      let emptyChunks = 0;
       for (const chunk of uniqueChunks) {
         if (chunk.data && chunk.data.length > 0) {
           webmStream.write(chunk.data);
           bytesWritten += chunk.data.length;
+        } else {
+          emptyChunks++;
         }
       }
       webmStream.end();
       
       console.log('🎬 Wrote', bytesWritten, 'bytes to temp WebM file');
+      if (emptyChunks > 0) {
+        console.warn('⚠️ Skipped', emptyChunks, 'empty chunks');
+      }
       
       // Wait for stream to finish writing
       await new Promise((resolve) => {
