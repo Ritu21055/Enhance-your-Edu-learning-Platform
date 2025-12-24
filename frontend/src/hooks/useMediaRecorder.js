@@ -385,45 +385,6 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       // Calculate grid layout
       const totalVideos = (localVideoRef?.current ? 1 : 0) + remoteVideoElements.size;
       
-      // Debug every 30 frames (1 second at 30fps)
-      if (drawCount % 30 === 0) {
-        const localVideo = localVideoRef?.current;
-        const localInfo = localVideo ? {
-          videoWidth: localVideo.videoWidth,
-          videoHeight: localVideo.videoHeight,
-          readyState: localVideo.readyState,
-          srcObject: !!localVideo.srcObject,
-          paused: localVideo.paused,
-          ended: localVideo.ended
-        } : null;
-        
-        const remoteInfo = Array.from(remoteVideoElements.entries()).map(([id, video]) => ({
-          id,
-          videoWidth: video.videoWidth,
-          videoHeight: video.videoHeight,
-          readyState: video.readyState,
-          srcObject: !!video.srcObject,
-          paused: video.paused,
-          ended: video.ended
-        }));
-        
-        console.log('🎬 Canvas drawing debug:', {
-          drawCount,
-          totalVideos,
-          localVideo: localInfo,
-          remoteVideos: remoteInfo,
-          drawnCount: drawnCount || 0
-        });
-        
-        // Warn if no videos are being drawn
-        if (drawnCount === 0 && totalVideos > 0) {
-          console.warn('⚠️ Canvas: Videos exist but none are being drawn!', {
-            localReady: localVideo && localVideo.videoWidth > 0 && localVideo.readyState >= 2,
-            remoteReady: remoteInfo.some(v => v.videoWidth > 0 && v.readyState >= 2)
-          });
-        }
-      }
-      
       if (totalVideos === 0) {
         // No videos, just show background
         if (isDrawing) {
@@ -439,6 +400,9 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       
       let index = 0;
       let drawnCount = 0;
+      
+      // Debug every 30 frames (1 second at 30fps) - after drawnCount is declared
+      const shouldDebug = drawCount % 30 === 0;
       
       // Draw local video
       if (localVideoRef && localVideoRef.current) {
@@ -483,9 +447,43 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
         }
       });
       
-      // If no videos drawn, canvas will be black - this is expected if videos aren't ready yet
-      if (drawCount % 30 === 0 && drawnCount === 0) {
-        console.warn('⚠️ Canvas: No videos drawn - all videos may not be ready yet');
+      // Debug logging after drawing is complete
+      if (shouldDebug) {
+        const localVideo = localVideoRef?.current;
+        const localInfo = localVideo ? {
+          videoWidth: localVideo.videoWidth,
+          videoHeight: localVideo.videoHeight,
+          readyState: localVideo.readyState,
+          srcObject: !!localVideo.srcObject,
+          paused: localVideo.paused,
+          ended: localVideo.ended
+        } : null;
+        
+        const remoteInfo = Array.from(remoteVideoElements.entries()).map(([id, video]) => ({
+          id,
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          readyState: video.readyState,
+          srcObject: !!video.srcObject,
+          paused: video.paused,
+          ended: video.ended
+        }));
+        
+        console.log('🎬 Canvas drawing debug:', {
+          drawCount,
+          totalVideos,
+          localVideo: localInfo,
+          remoteVideos: remoteInfo,
+          drawnCount
+        });
+        
+        // Warn if no videos are being drawn
+        if (drawnCount === 0 && totalVideos > 0) {
+          console.warn('⚠️ Canvas: Videos exist but none are being drawn!', {
+            localReady: localVideo && localVideo.videoWidth > 0 && localVideo.readyState >= 2,
+            remoteReady: remoteInfo.some(v => v.videoWidth > 0 && v.readyState >= 2)
+          });
+        }
       }
       
       // Continue drawing
