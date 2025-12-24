@@ -326,15 +326,40 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
         video.autoplay = true;
         video.playsInline = true;
         video.muted = true; // Mute to prevent feedback
-        video.play().catch(() => {}); // Start playing
+        
+        // Wait for video to be ready before adding to map
+        video.addEventListener('loadedmetadata', () => {
+          console.log(`🎬 Remote video ${participantId} loaded:`, {
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            readyState: video.readyState
+          });
+        });
+        
+        video.addEventListener('canplay', () => {
+          console.log(`🎬 Remote video ${participantId} can play`);
+        });
+        
+        video.play().catch((err) => {
+          console.warn(`⚠️ Failed to play remote video ${participantId}:`, err);
+        });
+        
         remoteVideoElements.set(participantId, video);
       }
     });
     
+    console.log('🎬 Created remote video elements:', {
+      count: remoteVideoElements.size,
+      participants: Array.from(remoteVideoElements.keys())
+    });
+    
     // Draw video frames to canvas
     let isDrawing = true;
+    let drawCount = 0;
     const drawVideoFrames = () => {
       if (!isDrawing) return;
+      
+      drawCount++;
       
       // Clear canvas
       ctx.fillStyle = '#1a1a1a';
@@ -342,6 +367,26 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       
       // Calculate grid layout
       const totalVideos = (localVideoRef?.current ? 1 : 0) + remoteVideoElements.size;
+      
+      // Debug every 30 frames (1 second at 30fps)
+      if (drawCount % 30 === 0) {
+        console.log('🎬 Canvas drawing debug:', {
+          totalVideos,
+          localVideo: localVideoRef?.current ? {
+            videoWidth: localVideoRef.current.videoWidth,
+            videoHeight: localVideoRef.current.videoHeight,
+            readyState: localVideoRef.current.readyState,
+            srcObject: !!localVideoRef.current.srcObject
+          } : null,
+          remoteVideos: Array.from(remoteVideoElements.entries()).map(([id, video]) => ({
+            id,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            readyState: video.readyState
+          }))
+        });
+      }
+      
       if (totalVideos === 0) {
         // No videos, just show background
         if (isDrawing) {
@@ -356,11 +401,14 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       const cellHeight = canvas.height / rows;
       
       let index = 0;
+      let drawnCount = 0;
       
       // Draw local video
       if (localVideoRef && localVideoRef.current) {
         const localVideo = localVideoRef.current;
-        if (localVideo.videoWidth > 0 && localVideo.videoHeight > 0 && localVideo.readyState >= 2) {
+        // Check if video is ready and has actual content
+        if (localVideo.videoWidth > 0 && localVideo.videoHeight > 0 && 
+            localVideo.readyState >= 2 && localVideo.srcObject) {
           try {
             const col = index % cols;
             const row = Math.floor(index / cols);
@@ -368,15 +416,20 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
             const y = row * cellHeight;
             ctx.drawImage(localVideo, x, y, cellWidth, cellHeight);
             index++;
+            drawnCount++;
           } catch (err) {
-            console.warn('🎬 Failed to draw local video:', err);
+            if (drawCount % 30 === 0) {
+              console.warn('🎬 Failed to draw local video:', err);
+            }
           }
         }
       }
       
       // Draw remote videos
       remoteVideoElements.forEach((video, participantId) => {
-        if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+        // Check if video is ready and has actual content
+        if (video.videoWidth > 0 && video.videoHeight > 0 && 
+            video.readyState >= 2 && video.srcObject) {
           try {
             const col = index % cols;
             const row = Math.floor(index / cols);
@@ -384,11 +437,19 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
             const y = row * cellHeight;
             ctx.drawImage(video, x, y, cellWidth, cellHeight);
             index++;
+            drawnCount++;
           } catch (err) {
-            console.warn(`🎬 Failed to draw remote video for ${participantId}:`, err);
+            if (drawCount % 30 === 0) {
+              console.warn(`🎬 Failed to draw remote video for ${participantId}:`, err);
+            }
           }
         }
       });
+      
+      // If no videos drawn, canvas will be black - this is expected if videos aren't ready yet
+      if (drawCount % 30 === 0 && drawnCount === 0) {
+        console.warn('⚠️ Canvas: No videos drawn - all videos may not be ready yet');
+      }
       
       // Continue drawing
       if (isDrawing) {
@@ -396,11 +457,40 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       }
     };
     
-    // Wait a bit for videos to load, then start drawing
-    setTimeout(() => {
-      console.log('🎬 Starting canvas drawing after video load delay');
+    // Wait for videos to be ready before starting canvas stream
+    const waitForVideos = async () => {
+      let attempts = 0;
+      const maxAttempts = 20; // 2 seconds max wait
+      
+      while (attempts < maxAttempts) {
+        const localReady = localVideoRef?.current && 
+          localVideoRef.current.videoWidth > 0 && 
+          localVideoRef.current.readyState >= 2;
+        
+        const remoteReady = Array.from(remoteVideoElements.values()).some(video => 
+          video.videoWidth > 0 && video.readyState >= 2
+        );
+        
+        if (localReady || remoteReady || remoteVideoElements.size === 0) {
+          console.log('🎬 Videos are ready, starting canvas drawing:', {
+            localReady,
+            remoteReady,
+            remoteCount: remoteVideoElements.size
+          });
+          drawVideoFrames();
+          return;
+        }
+        
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+      }
+      
+      // Start anyway after max attempts
+      console.warn('⚠️ Videos not fully ready after 2 seconds, starting canvas drawing anyway');
       drawVideoFrames();
-    }, 500); // 500ms delay to ensure videos are ready
+    };
+    
+    waitForVideos();
     
     // Store cleanup function
     const cleanup = () => {

@@ -172,21 +172,45 @@ class MediaRecorder {
       const allChunks = [...recordingSession.audioChunks, ...recordingSession.videoChunks]
         .sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp
       
+      console.log('🎬 Chunks summary before deduplication:', {
+        totalChunks: allChunks.length,
+        audioChunks: recordingSession.audioChunks.length,
+        videoChunks: recordingSession.videoChunks.length,
+        totalSize: allChunks.reduce((sum, chunk) => sum + chunk.data.length, 0)
+      });
+      
       // Remove duplicates (since audio_chunk and video_frame might contain same data)
+      // But prefer audio_chunk over video_frame if timestamps are very close (< 50ms)
       const uniqueChunks = [];
       const seenTimestamps = new Set();
       allChunks.forEach(chunk => {
-        if (!seenTimestamps.has(chunk.timestamp)) {
-          seenTimestamps.add(chunk.timestamp);
+        const roundedTimestamp = Math.floor(chunk.timestamp / 50) * 50; // Round to 50ms
+        if (!seenTimestamps.has(roundedTimestamp)) {
+          seenTimestamps.add(roundedTimestamp);
           uniqueChunks.push(chunk);
         }
       });
       
+      console.log('🎬 Chunks after deduplication:', {
+        uniqueChunks: uniqueChunks.length,
+        totalSize: uniqueChunks.reduce((sum, chunk) => sum + chunk.data.length, 0)
+      });
+      
+      if (uniqueChunks.length === 0) {
+        throw new Error('No chunks to combine - recording was empty');
+      }
+      
       // Write all chunks to temp WebM file
+      let bytesWritten = 0;
       for (const chunk of uniqueChunks) {
-        webmStream.write(chunk.data);
+        if (chunk.data && chunk.data.length > 0) {
+          webmStream.write(chunk.data);
+          bytesWritten += chunk.data.length;
+        }
       }
       webmStream.end();
+      
+      console.log('🎬 Wrote', bytesWritten, 'bytes to temp WebM file');
       
       // Wait for stream to finish writing
       await new Promise((resolve) => {
@@ -328,7 +352,12 @@ class MediaRecorder {
       // Store chunks in memory for later processing
       // Real-time file writing will be handled during stopRecording
       
-      console.log('🎤 Added audio chunk to recording:', meetingId, audioChunk.length, 'bytes');
+      console.log('🎤 Added audio chunk to recording:', {
+        meetingId,
+        chunkSize: audioChunk.length,
+        totalChunks: recordingSession.audioChunks.length,
+        isRecording: recordingSession.isRecording
+      });
     } catch (error) {
       console.error('❌ Failed to add audio chunk:', error);
     }
@@ -355,7 +384,12 @@ class MediaRecorder {
       // Store chunks in memory for later processing
       // Real-time file writing will be handled during stopRecording
       
-      console.log('📹 Added video frame to recording:', meetingId, videoFrame.length, 'bytes');
+      console.log('📹 Added video frame to recording:', {
+        meetingId,
+        frameSize: videoFrame.length,
+        totalFrames: recordingSession.videoChunks.length,
+        isRecording: recordingSession.isRecording
+      });
     } catch (error) {
       console.error('❌ Failed to add video frame:', error);
     }
