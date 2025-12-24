@@ -92,9 +92,36 @@ class MediaRecorder {
       
       const recordingSession = this.recordings.get(meetingId);
       if (!recordingSession) {
+        // Check if recording was already stopped and cleaned up
+        console.warn('⚠️ No active recording found for meeting:', meetingId, '- may have already been stopped');
         throw new Error(`No active recording found for meeting: ${meetingId}`);
       }
 
+      // Idempotency guard: Check if already stopping or stopped
+      if (recordingSession.isStopping) {
+        console.warn('⚠️ Recording stop already in progress for meeting:', meetingId);
+        // Wait for the existing stop operation to complete
+        while (recordingSession.isStopping) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        // Return the path if it was set during the stop
+        if (recordingSession.finalPath) {
+          return recordingSession.finalPath;
+        }
+        throw new Error('Recording stop was cancelled or failed');
+      }
+
+      if (!recordingSession.isRecording) {
+        console.warn('⚠️ Recording already stopped for meeting:', meetingId);
+        // Return existing path if available
+        if (recordingSession.finalPath) {
+          return recordingSession.finalPath;
+        }
+        throw new Error(`Recording for meeting ${meetingId} is not active`);
+      }
+
+      // Mark as stopping to prevent concurrent calls
+      recordingSession.isStopping = true;
       recordingSession.isRecording = false;
       recordingSession.endTime = Date.now();
       recordingSession.duration = recordingSession.endTime - recordingSession.startTime;
@@ -105,16 +132,24 @@ class MediaRecorder {
       const hasAudioChunks = recordingSession.audioChunks.length > 0;
       const hasVideoChunks = recordingSession.videoChunks.length > 0;
       
+      // Check if chunks have actual data (not just empty arrays)
+      const audioChunksWithData = recordingSession.audioChunks.filter(c => c.data && c.data.length > 0);
+      const videoChunksWithData = recordingSession.videoChunks.filter(c => c.data && c.data.length > 0);
+      const hasActualData = audioChunksWithData.length > 0 || videoChunksWithData.length > 0;
+      
       console.log('🎬 Recording summary:', {
         audioChunks: recordingSession.audioChunks.length,
         videoChunks: recordingSession.videoChunks.length,
+        audioChunksWithData: audioChunksWithData.length,
+        videoChunksWithData: videoChunksWithData.length,
         duration: recordingSession.duration,
         hasAudio: hasAudioChunks,
-        hasVideo: hasVideoChunks
+        hasVideo: hasVideoChunks,
+        hasActualData: hasActualData
       });
 
-      // If we have actual chunks, use them; otherwise create placeholder
-      if (hasAudioChunks || hasVideoChunks) {
+      // If we have actual chunks with data, use them; otherwise create placeholder
+      if (hasActualData) {
         // Convert WebM to MP4 for better compatibility
         const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
         
@@ -126,6 +161,8 @@ class MediaRecorder {
             // Convert the actual recording
             await this.convertToMP4(recordingSession.recordingPath, mp4Path);
             console.log('✅ Real recording converted to MP4:', mp4Path);
+            recordingSession.finalPath = mp4Path;
+            recordingSession.isStopping = false;
             return mp4Path;
           }
         } catch (error) {
@@ -133,19 +170,33 @@ class MediaRecorder {
         }
         
         // If file doesn't exist, combine chunks and create recording
-        await this.combineChunksToRecording(recordingSession, mp4Path);
-        console.log('✅ Recording created from chunks:', mp4Path);
-        return mp4Path;
-      } else {
-        // Fallback: Create placeholder if no chunks collected
-        console.warn('⚠️ No chunks collected, creating placeholder recording');
-        const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
-        await this.createPlaceholderRecording(mp4Path, recordingSession.duration);
-        return mp4Path;
+        try {
+          await this.combineChunksToRecording(recordingSession, mp4Path);
+          console.log('✅ Recording created from chunks:', mp4Path);
+          recordingSession.finalPath = mp4Path;
+          recordingSession.isStopping = false;
+          return mp4Path;
+        } catch (error) {
+          console.error('❌ Failed to combine chunks, creating placeholder instead:', error);
+          // Fall through to placeholder creation
+        }
       }
+      
+      // Fallback: Create placeholder if no chunks collected or combination failed
+      console.warn('⚠️ No valid chunks collected or combination failed, creating placeholder recording');
+      const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
+      await this.createPlaceholderRecording(mp4Path, recordingSession.duration);
+      recordingSession.finalPath = mp4Path;
+      recordingSession.isStopping = false;
+      return mp4Path;
       
     } catch (error) {
       console.error('❌ Failed to stop recording:', error);
+      // Clear the stopping flag on error
+      const recordingSession = this.recordings.get(meetingId);
+      if (recordingSession) {
+        recordingSession.isStopping = false;
+      }
       throw error;
     }
   }
@@ -194,16 +245,33 @@ class MediaRecorder {
       }
       
       // Remove duplicates (since audio_chunk and video_frame might contain same data)
-      // But prefer audio_chunk over video_frame if timestamps are very close (< 50ms)
-      const uniqueChunks = [];
-      const seenTimestamps = new Set();
-      allChunks.forEach(chunk => {
-        const roundedTimestamp = Math.floor(chunk.timestamp / 50) * 50; // Round to 50ms
-        if (!seenTimestamps.has(roundedTimestamp)) {
-          seenTimestamps.add(roundedTimestamp);
-          uniqueChunks.push(chunk);
+      // Prefer audio_chunk over video_frame since MediaRecorder sends WebM chunks with both audio+video
+      // Group chunks by rounded timestamp and keep only one per group
+      const chunkMap = new Map(); // roundedTimestamp -> chunk
+      
+      // First pass: prefer audio chunks (they come from audio_chunk event)
+      recordingSession.audioChunks.forEach(chunk => {
+        if (chunk.data && chunk.data.length > 0) {
+          const roundedTimestamp = Math.floor(chunk.timestamp / 50) * 50; // Round to 50ms
+          if (!chunkMap.has(roundedTimestamp)) {
+            chunkMap.set(roundedTimestamp, chunk);
+          }
         }
       });
+      
+      // Second pass: add video chunks only if no audio chunk exists for that timestamp
+      recordingSession.videoChunks.forEach(chunk => {
+        if (chunk.data && chunk.data.length > 0) {
+          const roundedTimestamp = Math.floor(chunk.timestamp / 50) * 50;
+          if (!chunkMap.has(roundedTimestamp)) {
+            chunkMap.set(roundedTimestamp, chunk);
+          }
+        }
+      });
+      
+      // Convert map to sorted array
+      const uniqueChunks = Array.from(chunkMap.values())
+        .sort((a, b) => a.timestamp - b.timestamp);
       
       const uniqueTotalSize = uniqueChunks.reduce((sum, chunk) => sum + (chunk.data?.length || 0), 0);
       console.log('🎬 Chunks after deduplication:');
@@ -222,10 +290,19 @@ class MediaRecorder {
       // Write all chunks to temp WebM file
       let bytesWritten = 0;
       let emptyChunks = 0;
+      let chunksWithData = 0;
+      
       for (const chunk of uniqueChunks) {
         if (chunk.data && chunk.data.length > 0) {
-          webmStream.write(chunk.data);
-          bytesWritten += chunk.data.length;
+          // Ensure chunk.data is a Buffer
+          const buffer = Buffer.isBuffer(chunk.data) ? chunk.data : Buffer.from(chunk.data);
+          if (buffer.length > 0) {
+            webmStream.write(buffer);
+            bytesWritten += buffer.length;
+            chunksWithData++;
+          } else {
+            emptyChunks++;
+          }
         } else {
           emptyChunks++;
         }
@@ -233,14 +310,50 @@ class MediaRecorder {
       webmStream.end();
       
       console.log('🎬 Wrote', bytesWritten, 'bytes to temp WebM file');
+      console.log('🎬 Chunks written:', chunksWithData, 'empty chunks:', emptyChunks);
+      
+      if (bytesWritten === 0) {
+        throw new Error('No data written to WebM file - all chunks were empty');
+      }
+      
       if (emptyChunks > 0) {
         console.warn('⚠️ Skipped', emptyChunks, 'empty chunks');
       }
       
       // Wait for stream to finish writing
-      await new Promise((resolve) => {
-        webmStream.on('finish', resolve);
+      await new Promise((resolve, reject) => {
+        webmStream.on('finish', () => {
+          console.log('✅ WebM file write completed');
+          resolve();
+        });
+        webmStream.on('error', (err) => {
+          console.error('❌ WebM file write error:', err);
+          reject(err);
+        });
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          if (webmStream.writable) {
+            reject(new Error('WebM file write timeout'));
+          }
+        }, 10000);
       });
+      
+      // Verify file was created and has content
+      try {
+        const stats = await fs.promises.stat(tempWebMPath);
+        console.log('✅ Temp WebM file created:', {
+          path: tempWebMPath,
+          size: stats.size,
+          bytesWritten: bytesWritten
+        });
+        
+        if (stats.size === 0) {
+          throw new Error('Temp WebM file is empty after writing');
+        }
+      } catch (err) {
+        console.error('❌ Failed to verify temp WebM file:', err);
+        throw new Error(`Temp WebM file verification failed: ${err.message}`);
+      }
       
       // Convert WebM to MP4 for better compatibility
       try {

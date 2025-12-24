@@ -1,5 +1,4 @@
 // Recording-related socket event handlers
-import { recordingSessions } from '../config/stores.js';
 import mediaRecorder from '../src/utils/mediaRecorder.js';
 
 /**
@@ -95,7 +94,13 @@ export default function registerRecordingHandlers(socket, io) {
       
       // Add to media recorder if recording is active
       if (isRecording) {
-        await mediaRecorder.addAudioChunk(meetingId, Buffer.from(audioChunk));
+        // Convert array to Buffer properly
+        const buffer = Buffer.isBuffer(audioChunk) ? audioChunk : Buffer.from(audioChunk);
+        if (buffer.length === 0) {
+          console.warn('⚠️ Received audio chunk but buffer is empty for meeting:', meetingId);
+          return;
+        }
+        await mediaRecorder.addAudioChunk(meetingId, buffer);
       } else {
         console.warn('⚠️ Received audio chunk but recording is not active for meeting:', meetingId);
       }
@@ -136,76 +141,19 @@ export default function registerRecordingHandlers(socket, io) {
       
       // Add to media recorder if recording is active
       if (isRecording) {
-        await mediaRecorder.addVideoFrame(meetingId, Buffer.from(videoFrame));
+        // Convert array to Buffer properly
+        const buffer = Buffer.isBuffer(videoFrame) ? videoFrame : Buffer.from(videoFrame);
+        if (buffer.length === 0) {
+          console.warn('⚠️ Received video frame but buffer is empty for meeting:', meetingId);
+          return;
+        }
+        await mediaRecorder.addVideoFrame(meetingId, buffer);
       } else {
         console.warn('⚠️ Received video frame but recording is not active for meeting:', meetingId);
       }
       
     } catch (error) {
       console.error('❌ Failed to process video frame:', error);
-    }
-  });
-
-  // AI-Generated Meeting Highlights - Start Recording Event (legacy)
-  socket.on('start_recording', (data) => {
-    try {
-      const { meetingId } = data;
-      console.log('🎥 Starting recording for meeting:', meetingId);
-      
-      // Initialize recording session
-      const recordingSession = {
-        meetingId,
-        startTime: Date.now(),
-        isRecording: true,
-        filePath: null
-      };
-      
-      recordingSessions.set(meetingId, recordingSession);
-      
-      // Emit recording started event
-      io.to(meetingId).emit('recording_started', {
-        meetingId,
-        startTime: recordingSession.startTime
-      });
-      
-      console.log('🎥 Recording session started for meeting:', meetingId);
-      
-    } catch (error) {
-      console.error('❌ Error starting recording:', error);
-      socket.emit('recording_error', {
-        meetingId: data.meetingId,
-        error: error.message
-      });
-    }
-  });
-
-  // AI-Generated Meeting Highlights - Stop Recording Event (legacy)
-  socket.on('stop_recording', (data) => {
-    try {
-      const { meetingId } = data;
-      console.log('🛑 Stopping recording for meeting:', meetingId);
-      
-      const recordingSession = recordingSessions.get(meetingId);
-      if (recordingSession) {
-        recordingSession.isRecording = false;
-        recordingSession.endTime = Date.now();
-        
-        // Emit recording stopped event
-        io.to(meetingId).emit('recording_stopped', {
-          meetingId,
-          endTime: recordingSession.endTime,
-          duration: recordingSession.endTime - recordingSession.startTime
-        });
-        
-        console.log('🛑 Recording session stopped for meeting:', meetingId);
-      }
-      
-    } catch (error) {
-      console.error('❌ Error stopping recording:', error);
-      socket.emit('recording_error', {
-        meetingId: data.meetingId,
-        error: error.message
-      });
     }
   });
 }
