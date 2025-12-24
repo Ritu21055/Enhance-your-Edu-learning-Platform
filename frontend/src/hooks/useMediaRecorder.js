@@ -317,6 +317,20 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       combinedStream.addTrack(track);
     });
     
+    // Create temporary video elements for remote streams
+    const remoteVideoElements = new Map();
+    Object.entries(remoteStreams).forEach(([participantId, stream]) => {
+      if (stream && stream.getVideoTracks().length > 0) {
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.muted = true; // Mute to prevent feedback
+        video.play().catch(() => {}); // Start playing
+        remoteVideoElements.set(participantId, video);
+      }
+    });
+    
     // Draw video frames to canvas
     let isDrawing = true;
     const drawVideoFrames = () => {
@@ -326,17 +340,55 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Draw local video if available
+      // Calculate grid layout
+      const totalVideos = (localVideoRef?.current ? 1 : 0) + remoteVideoElements.size;
+      if (totalVideos === 0) {
+        // No videos, just show background
+        if (isDrawing) {
+          animationFrameRef.current = requestAnimationFrame(drawVideoFrames);
+        }
+        return;
+      }
+      
+      const cols = Math.ceil(Math.sqrt(totalVideos));
+      const rows = Math.ceil(totalVideos / cols);
+      const cellWidth = canvas.width / cols;
+      const cellHeight = canvas.height / rows;
+      
+      let index = 0;
+      
+      // Draw local video
       if (localVideoRef && localVideoRef.current) {
         const localVideo = localVideoRef.current;
         if (localVideo.videoWidth > 0 && localVideo.videoHeight > 0 && localVideo.readyState >= 2) {
           try {
-            ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            const x = col * cellWidth;
+            const y = row * cellHeight;
+            ctx.drawImage(localVideo, x, y, cellWidth, cellHeight);
+            index++;
           } catch (err) {
-            // Video might not be ready, skip this frame
+            console.warn('🎬 Failed to draw local video:', err);
           }
         }
       }
+      
+      // Draw remote videos
+      remoteVideoElements.forEach((video, participantId) => {
+        if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+          try {
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            const x = col * cellWidth;
+            const y = row * cellHeight;
+            ctx.drawImage(video, x, y, cellWidth, cellHeight);
+            index++;
+          } catch (err) {
+            console.warn(`🎬 Failed to draw remote video for ${participantId}:`, err);
+          }
+        }
+      });
       
       // Continue drawing
       if (isDrawing) {
@@ -344,8 +396,11 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       }
     };
     
-    // Start drawing
-    drawVideoFrames();
+    // Wait a bit for videos to load, then start drawing
+    setTimeout(() => {
+      console.log('🎬 Starting canvas drawing after video load delay');
+      drawVideoFrames();
+    }, 500); // 500ms delay to ensure videos are ready
     
     // Store cleanup function
     const cleanup = () => {
@@ -354,10 +409,21 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
+      // Clean up remote video elements
+      remoteVideoElements.forEach((video) => {
+        if (video.srcObject) {
+          video.srcObject.getTracks().forEach(track => track.stop());
+        }
+        video.srcObject = null;
+      });
+      remoteVideoElements.clear();
     };
     
     // Attach cleanup to stream
     combinedStream.addEventListener('inactive', cleanup);
+    
+    // Also cleanup on window unload
+    window.addEventListener('beforeunload', cleanup);
     
     console.log('✅ Combined recording stream created');
     return combinedStream;
