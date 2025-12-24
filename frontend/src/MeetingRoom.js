@@ -548,6 +548,7 @@ const MeetingRoom = () => {
   }, [isAudioLocked, isVideoLocked, activeRequest]);
 
   // Media Recorder hook for real-time recording
+  // Pass remoteStreams and localVideoRef to record actual meeting (all participants)
   const {
     isRecording: isMediaRecording,
     recordingStatus,
@@ -556,7 +557,7 @@ const MeetingRoom = () => {
     stopRecording: stopMediaRecording,
     toggleRecording,
     getRecordingInfo
-  } = useMediaRecorder(socket, meetingId, localStream);
+  } = useMediaRecorder(socket, meetingId, localStream, remoteStreams, localVideoRef);
 
   // Debug recording status
   useEffect(() => {

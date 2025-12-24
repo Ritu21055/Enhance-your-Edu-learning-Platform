@@ -4,12 +4,16 @@ import { useState, useCallback, useRef, useEffect } from 'react';
  * Custom hook for managing real-time meeting recording
  * Handles WebRTC stream recording and server communication
  */
-const useMediaRecorder = (socket, meetingId, localStream) => {
+const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, localVideoRef = null) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState('idle'); // idle, starting, recording, stopping, error
   const [recordingError, setRecordingError] = useState(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  const canvasRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const combinedStreamRef = useRef(null);
+  const animationFrameRef = useRef(null);
 
   // Handle recording status updates from server
   useEffect(() => {
@@ -76,20 +80,51 @@ const useMediaRecorder = (socket, meetingId, localStream) => {
         }
       });
 
-      // Start local media recording for backup
-      if (localStream) {
-        console.log('🎬 Creating MediaRecorder with stream:', localStream);
+      // Create combined stream from all participants (local + remote)
+      let streamToRecord = localStream;
+      
+      // If we have remote streams or video element, create a combined recording
+      const hasRemoteStreams = remoteStreams && Object.keys(remoteStreams).length > 0;
+      const hasVideoElement = localVideoRef && localVideoRef.current;
+      
+      if (hasRemoteStreams || hasVideoElement) {
+        console.log('🎬 Creating combined stream for recording (local + remote participants)...');
+        try {
+          streamToRecord = await createCombinedRecordingStream(localStream, remoteStreams, localVideoRef, canvasRef, audioContextRef, animationFrameRef);
+          combinedStreamRef.current = streamToRecord;
+        } catch (error) {
+          console.error('❌ Failed to create combined stream, using local stream only:', error);
+          streamToRecord = localStream;
+        }
+      } else {
+        console.log('🎬 Recording only local stream (no remote participants yet)');
+      }
+      
+      // Start recording with the combined stream
+      if (streamToRecord) {
+        console.log('🎬 Creating MediaRecorder with stream:', streamToRecord);
         
         // Check MediaRecorder support
         if (!window.MediaRecorder) {
           throw new Error('MediaRecorder API not supported in this browser');
         }
         
-        const mediaRecorder = new MediaRecorder(localStream, {
-          mimeType: 'video/webm;codecs=vp9,opus'
+        // Try different mime types for better compatibility
+        let mimeType = 'video/webm;codecs=vp9,opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm;codecs=vp8,opus';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'video/webm';
+          }
+        }
+        
+        const mediaRecorder = new MediaRecorder(streamToRecord, {
+          mimeType: mimeType,
+          videoBitsPerSecond: 2500000, // 2.5 Mbps for good quality
+          audioBitsPerSecond: 128000 // 128 kbps for audio
         });
         
-        console.log('🎬 MediaRecorder created successfully');
+        console.log('🎬 MediaRecorder created successfully with mimeType:', mimeType);
 
         mediaRecorderRef.current = mediaRecorder;
         recordedChunksRef.current = [];
@@ -154,9 +189,34 @@ const useMediaRecorder = (socket, meetingId, localStream) => {
     try {
       setRecordingStatus('stopping');
 
+      // Stop canvas animation if running
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
       // Stop local media recording
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
+      }
+      
+      // Clean up combined stream
+      if (combinedStreamRef.current) {
+        combinedStreamRef.current.getTracks().forEach(track => track.stop());
+        combinedStreamRef.current = null;
+      }
+      
+      // Clean up canvas
+      if (canvasRef.current) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      
+      // Clean up audio context
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
       }
 
       // Notify server to stop recording
@@ -203,5 +263,109 @@ const useMediaRecorder = (socket, meetingId, localStream) => {
     getRecordingInfo
   };
 };
+
+/**
+ * Create a combined recording stream from local + remote streams
+ * Uses Canvas for video and AudioContext for audio mixing
+ */
+async function createCombinedRecordingStream(localStream, remoteStreams, localVideoRef, canvasRef, audioContextRef, animationFrameRef) {
+  try {
+    // Create canvas for video capture
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280;
+    canvas.height = 720;
+    const ctx = canvas.getContext('2d');
+    canvasRef.current = canvas;
+    
+    // Create audio context for mixing
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const destination = audioContext.createMediaStreamDestination();
+    audioContextRef.current = audioContext;
+    
+    // Add local audio track
+    if (localStream) {
+      const localAudioTracks = localStream.getAudioTracks();
+      localAudioTracks.forEach(track => {
+        if (track.enabled) {
+          const source = audioContext.createMediaStreamSource(new MediaStream([track]));
+          source.connect(destination);
+        }
+      });
+    }
+    
+    // Add remote audio tracks
+    Object.values(remoteStreams).forEach(remoteStream => {
+      if (remoteStream && remoteStream.getAudioTracks) {
+        const remoteAudioTracks = remoteStream.getAudioTracks();
+        remoteAudioTracks.forEach(track => {
+          if (track.enabled) {
+            const source = audioContext.createMediaStreamSource(new MediaStream([track]));
+            source.connect(destination);
+          }
+        });
+      }
+    });
+    
+    // Create video track from canvas
+    const videoStream = canvas.captureStream(30); // 30 fps
+    const videoTrack = videoStream.getVideoTracks()[0];
+    
+    // Combine video and audio
+    const combinedStream = new MediaStream();
+    combinedStream.addTrack(videoTrack);
+    destination.stream.getAudioTracks().forEach(track => {
+      combinedStream.addTrack(track);
+    });
+    
+    // Draw video frames to canvas
+    let isDrawing = true;
+    const drawVideoFrames = () => {
+      if (!isDrawing) return;
+      
+      // Clear canvas
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw local video if available
+      if (localVideoRef && localVideoRef.current) {
+        const localVideo = localVideoRef.current;
+        if (localVideo.videoWidth > 0 && localVideo.videoHeight > 0 && localVideo.readyState >= 2) {
+          try {
+            ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
+          } catch (err) {
+            // Video might not be ready, skip this frame
+          }
+        }
+      }
+      
+      // Continue drawing
+      if (isDrawing) {
+        animationFrameRef.current = requestAnimationFrame(drawVideoFrames);
+      }
+    };
+    
+    // Start drawing
+    drawVideoFrames();
+    
+    // Store cleanup function
+    const cleanup = () => {
+      isDrawing = false;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+    
+    // Attach cleanup to stream
+    combinedStream.addEventListener('inactive', cleanup);
+    
+    console.log('✅ Combined recording stream created');
+    return combinedStream;
+    
+  } catch (error) {
+    console.error('❌ Failed to create combined stream:', error);
+    throw error;
+  }
+}
 
 export default useMediaRecorder;
