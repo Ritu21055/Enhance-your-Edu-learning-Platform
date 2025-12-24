@@ -72,20 +72,90 @@ const useSimplePeer = (meetingId, userName) => {
     }
   }, [meetingId, userName]);
 
-  // Initialize media
+  // Initialize media with optimized quality settings
   const initializeMedia = useCallback(async () => {
     try {
-      console.log('🎥 SimplePeer: Starting media initialization...');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
+      console.log('🎥 SimplePeer: Starting media initialization with optimized quality...');
+      
+      // Get participant count to adjust quality
+      const participantCount = participants.length + 1; // +1 for self
+      
+      // Adaptive quality based on participant count
+      // More participants = slightly lower quality to maintain stability
+      let videoWidth = 1280;
+      let videoHeight = 720;
+      let frameRate = 30;
+      let videoBitrate = 2500000; // 2.5 Mbps
+      
+      if (participantCount > 3) {
+        // For 4+ participants, reduce quality slightly
+        videoWidth = 960;
+        videoHeight = 540;
+        frameRate = 25;
+        videoBitrate = 2000000; // 2 Mbps
+      } else if (participantCount > 5) {
+        // For 6+ participants, further reduce
+        videoWidth = 640;
+        videoHeight = 480;
+        frameRate = 20;
+        videoBitrate = 1500000; // 1.5 Mbps
+      }
+      
+      console.log('🎥 SimplePeer: Quality settings:', {
+        participantCount,
+        videoWidth,
+        videoHeight,
+        frameRate,
+        videoBitrate: `${videoBitrate / 1000000} Mbps`
       });
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: videoWidth, max: videoWidth },
+          height: { ideal: videoHeight, max: videoHeight },
+          frameRate: { ideal: frameRate, max: frameRate },
+          facingMode: 'user'
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 48000,
+          channelCount: 1
+        }
+      });
+      
+      // Apply bitrate constraints to video track
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && videoTrack.getSettings) {
+        const settings = videoTrack.getSettings();
+        console.log('🎥 SimplePeer: Video track settings:', settings);
+        
+        // Try to apply bitrate constraint if supported
+        if (videoTrack.applyConstraints) {
+          try {
+            await videoTrack.applyConstraints({
+              advanced: [
+                { width: videoWidth },
+                { height: videoHeight },
+                { frameRate: frameRate }
+              ]
+            });
+            console.log('✅ SimplePeer: Applied video constraints');
+          } catch (constraintError) {
+            console.warn('⚠️ SimplePeer: Could not apply all video constraints:', constraintError);
+          }
+        }
+      }
       
       console.log('🎥 SimplePeer: Media stream obtained:', {
         streamId: stream.id,
         trackCount: stream.getTracks().length,
         videoTracks: stream.getVideoTracks().length,
-        audioTracks: stream.getAudioTracks().length
+        audioTracks: stream.getAudioTracks().length,
+        videoWidth: videoTrack?.getSettings()?.width,
+        videoHeight: videoTrack?.getSettings()?.height,
+        frameRate: videoTrack?.getSettings()?.frameRate
       });
 
       setLocalStream(stream);
@@ -99,25 +169,64 @@ const useSimplePeer = (meetingId, userName) => {
       return stream;
     } catch (error) {
       console.error('❌ SimplePeer: Failed to get media:', error);
-      return null;
+      // Fallback to basic constraints if advanced constraints fail
+      try {
+        console.log('🔄 SimplePeer: Trying fallback with basic constraints...');
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
+        });
+        setLocalStream(fallbackStream);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = fallbackStream;
+        }
+        return fallbackStream;
+      } catch (fallbackError) {
+        console.error('❌ SimplePeer: Fallback also failed:', fallbackError);
+        return null;
+      }
     }
-  }, []);
+  }, [participants.length]);
 
-  // Create peer connection
+  // Connection monitoring refs
+  const connectionMonitoringRef = useRef({});
+  const reconnectionAttemptsRef = useRef({});
+
+  // Attempt to reconnect a failed connection (defined after createPeer to avoid circular dependency)
+  const attemptReconnectionRef = useRef(null);
+
+  // Create peer connection with improved stability
   const createPeer = useCallback((participantId, initiator = false) => {
+    // Don't create duplicate connections
+    if (peersRef.current[participantId]) {
+      console.log(`⚠️ SimplePeer: Connection to ${participantId} already exists, skipping...`);
+      return peersRef.current[participantId];
+    }
+    
     console.log(`🔗 SimplePeer: Creating peer connection for ${participantId}, initiator: ${initiator}`);
     
     const peer = new SimplePeer({
       initiator,
-      trickle: false,
+      trickle: true, // Enable trickle ICE for faster connection
       stream: localStream, // Always pass the local stream
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ]
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 10 // Pre-gather ICE candidates for faster connection
       }
     });
+    
+    // Initialize connection monitoring
+    connectionMonitoringRef.current[participantId] = {
+      lastConnectionState: 'new',
+      lastIceState: 'new',
+      reconnectAttempts: 0,
+      monitoringInterval: null
+    };
+    reconnectionAttemptsRef.current[participantId] = 0;
 
     peer.on('signal', (data) => {
       console.log(`📡 SimplePeer: Sending signal to ${participantId}`);
@@ -183,6 +292,9 @@ const useSimplePeer = (meetingId, userName) => {
         peerIceConnectionState: peer._pc?.iceConnectionState
       });
       
+      // Reset reconnection attempts on successful connection
+      reconnectionAttemptsRef.current[participantId] = 0;
+      
       // Ensure local stream is added to the peer connection
       if (localStream) {
         console.log(`🔗 SimplePeer: Ensuring local stream is added to peer for ${participantId}`);
@@ -195,16 +307,112 @@ const useSimplePeer = (meetingId, userName) => {
       } else {
         console.log(`🔗 SimplePeer: No local stream available for ${participantId}`);
       }
+      
+      // Start monitoring connection state
+      if (peer._pc) {
+        startConnectionMonitoring(participantId, peer);
+      }
     });
+    
+    // Monitor connection state changes
+    const startConnectionMonitoring = (pid, peerConnection) => {
+      if (!peerConnection._pc) return;
+      
+      const pc = peerConnection._pc;
+      
+      // Monitor connection state
+      const checkConnection = () => {
+        const connectionState = pc.connectionState;
+        const iceState = pc.iceConnectionState;
+        const monitoring = connectionMonitoringRef.current[pid];
+        
+        if (!monitoring) return;
+        
+        // Log state changes
+        if (monitoring.lastConnectionState !== connectionState) {
+          console.log(`📊 SimplePeer: Connection state changed for ${pid}:`, {
+            from: monitoring.lastConnectionState,
+            to: connectionState,
+            iceState: iceState
+          });
+          monitoring.lastConnectionState = connectionState;
+        }
+        
+        if (monitoring.lastIceState !== iceState) {
+          console.log(`📊 SimplePeer: ICE state changed for ${pid}:`, {
+            from: monitoring.lastIceState,
+            to: iceState,
+            connectionState: connectionState
+          });
+          monitoring.lastIceState = iceState;
+        }
+        
+        // Handle connection failures
+        if (connectionState === 'failed' || iceState === 'failed') {
+          console.warn(`⚠️ SimplePeer: Connection failed for ${pid}, attempting reconnection...`);
+          if (attemptReconnectionRef.current) {
+            attemptReconnectionRef.current(pid);
+          }
+        } else if (connectionState === 'disconnected' && iceState === 'disconnected') {
+          console.warn(`⚠️ SimplePeer: Connection disconnected for ${pid}, monitoring for recovery...`);
+          // Wait a bit before attempting reconnection
+          setTimeout(() => {
+            if (pc.connectionState === 'disconnected' && pc.iceConnectionState === 'disconnected') {
+              if (attemptReconnectionRef.current) {
+                attemptReconnectionRef.current(pid);
+              }
+            }
+          }, 3000);
+        } else if (connectionState === 'connected' && iceState === 'connected') {
+          // Connection is healthy
+          reconnectionAttemptsRef.current[pid] = 0;
+        }
+      };
+      
+      // Check connection state every 2 seconds
+      const interval = setInterval(checkConnection, 2000);
+      connectionMonitoringRef.current[pid].monitoringInterval = interval;
+      
+      // Also listen to statechange events
+      pc.addEventListener('connectionstatechange', () => {
+        checkConnection();
+      });
+      
+      pc.addEventListener('iceconnectionstatechange', () => {
+        checkConnection();
+      });
+    };
 
     peer.on('error', (error) => {
       console.error(`❌ SimplePeer: Error with ${participantId}:`, error);
-      // Don't destroy the peer on error, just log it
-      // The peer might still be usable
+      
+      // Don't immediately destroy on error - try to recover
+      if (peer._pc) {
+        const connectionState = peer._pc.connectionState;
+        const iceState = peer._pc.iceConnectionState;
+        
+        // Only attempt reconnection if connection is actually failed
+        if (connectionState === 'failed' || iceState === 'failed') {
+          console.log(`🔄 SimplePeer: Connection failed for ${participantId}, will attempt reconnection...`);
+          setTimeout(() => {
+            if (attemptReconnectionRef.current) {
+              attemptReconnectionRef.current(participantId);
+            }
+          }, 1000);
+        }
+      }
     });
 
     peer.on('close', () => {
       console.log(`🔌 SimplePeer: Connection closed with ${participantId}`);
+      
+      // Clean up monitoring
+      if (connectionMonitoringRef.current[participantId]?.monitoringInterval) {
+        clearInterval(connectionMonitoringRef.current[participantId].monitoringInterval);
+      }
+      delete connectionMonitoringRef.current[participantId];
+      delete reconnectionAttemptsRef.current[participantId];
+      
       setRemoteStreams(prev => {
         const newStreams = { ...prev };
         delete newStreams[participantId];
@@ -214,10 +422,75 @@ const useSimplePeer = (meetingId, userName) => {
       // Clean up processed signals for this participant
       const signalsToRemove = Array.from(processedSignalsRef.current).filter(key => key.startsWith(participantId));
       signalsToRemove.forEach(signal => processedSignalsRef.current.delete(signal));
+      
+      // Attempt reconnection if socket is still connected
+      if (socketRef.current?.connected && localStream) {
+        const participant = participants.find(p => p.id === participantId);
+        if (participant && participant.isApproved) {
+          console.log(`🔄 SimplePeer: Attempting to reconnect to ${participantId} after close...`);
+          setTimeout(() => {
+            if (!peersRef.current[participantId] && attemptReconnectionRef.current) {
+              attemptReconnectionRef.current(participantId);
+            }
+          }, 2000);
+        }
+      }
     });
 
     return peer;
   }, [localStream]);
+
+  // Define attemptReconnection after createPeer to avoid circular dependency
+  const attemptReconnection = useCallback((pid) => {
+    const maxAttempts = 3;
+    const attempts = reconnectionAttemptsRef.current[pid] || 0;
+    
+    if (attempts >= maxAttempts) {
+      console.error(`❌ SimplePeer: Max reconnection attempts reached for ${pid}`);
+      return;
+    }
+    
+    reconnectionAttemptsRef.current[pid] = attempts + 1;
+    console.log(`🔄 SimplePeer: Reconnection attempt ${attempts + 1}/${maxAttempts} for ${pid}`);
+    
+    // Destroy existing peer
+    if (peersRef.current[pid]) {
+      try {
+        peersRef.current[pid].destroy();
+      } catch (e) {
+        console.warn(`⚠️ SimplePeer: Error destroying peer for ${pid}:`, e);
+      }
+      delete peersRef.current[pid];
+    }
+    
+    // Remove from remote streams
+    setRemoteStreams(prev => {
+      const newStreams = { ...prev };
+      delete newStreams[pid];
+      return newStreams;
+    });
+    
+    // Clean up monitoring
+    if (connectionMonitoringRef.current[pid]?.monitoringInterval) {
+      clearInterval(connectionMonitoringRef.current[pid].monitoringInterval);
+    }
+    delete connectionMonitoringRef.current[pid];
+    
+    // Recreate connection after a delay
+    setTimeout(() => {
+      if (localStream && socketRef.current?.connected) {
+        console.log(`🔄 SimplePeer: Recreating connection to ${pid}`);
+        const participant = participants.find(p => p.id === pid);
+        if (participant && participant.isApproved && !peersRef.current[pid]) {
+          const newPeer = createPeer(pid, true);
+          peersRef.current[pid] = newPeer;
+        }
+      }
+    }, 2000);
+  }, [localStream, participants, createPeer]);
+
+  // Assign to ref for use in createPeer
+  attemptReconnectionRef.current = attemptReconnection;
 
   // Track processed signals to avoid duplicates
   const processedSignalsRef = useRef(new Set());
