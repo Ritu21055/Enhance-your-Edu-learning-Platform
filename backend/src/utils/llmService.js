@@ -293,13 +293,21 @@ class LLMService {
   }
 
   // Generate follow-up questions using available LLM
-  async generateFollowUpQuestion(transcriptContext, meetingId) {
+  async generateFollowUpQuestion(transcriptContext, meetingId, allParticipantsWithEmotions = [], participantEmotions = {}, participantNames = {}, emotionCategories = {}) {
     const startTime = Date.now();
     this.performanceStats.totalRequests++;
     this.performanceStats.lastRequestTime = startTime;
     
     try {
-      console.log(`🤖 Generating follow-up question with ${this.llmType}...`, { meetingId, contextLength: transcriptContext.length });
+      console.log(`🤖 Generating follow-up question with ${this.llmType}...`, { 
+        meetingId, 
+        contextLength: transcriptContext.length,
+        totalParticipants: allParticipantsWithEmotions.length,
+        negativeEmotions: emotionCategories.negative?.length || 0,
+        positiveEmotions: emotionCategories.positive?.length || 0,
+        neutralEmotions: emotionCategories.neutral?.length || 0,
+        participantEmotionsCount: Object.keys(participantEmotions).length
+      });
       
       // Analyze transcript context for topic detection
       const topics = this.detectTopics(transcriptContext);
@@ -312,20 +320,28 @@ class LLMService {
       // Try different LLM options based on availability
       if (this.llmType === 'gemini') {
         try {
-        const result = await this.generateWithGemini(transcriptContext, topics, sentiment);
+        const result = await this.generateWithGemini(
+          transcriptContext, 
+          topics, 
+          sentiment,
+          allParticipantsWithEmotions,
+          participantEmotions,
+          participantNames,
+          emotionCategories
+        );
         generatedQuestion = result.question;
         modelName = this.geminiModel;
         confidence = 0.9;
         } catch (error) {
           console.log('🤖 Gemini failed, falling back to rule-based:', error.message);
-          const result = this.generateWithRuleBased(topics, sentiment, transcriptContext);
+          const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
           generatedQuestion = result.question;
           modelName = 'rule-based-fallback';
           confidence = 0.6;
         }
       } else {
         // Fallback to rule-based
-        const result = this.generateWithRuleBased(topics, sentiment, transcriptContext);
+        const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
         generatedQuestion = result.question;
         modelName = 'rule-based';
         confidence = 0.6;
@@ -359,7 +375,7 @@ class LLMService {
       console.log('🔄 Falling back to rule-based question generation...');
       const topics = this.detectTopics(transcriptContext);
       const sentiment = this.analyzeSentiment(transcriptContext);
-      const result = this.generateWithRuleBased(topics, sentiment, transcriptContext);
+      const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
       
       return {
         question: result.question,
@@ -374,11 +390,15 @@ class LLMService {
   }
 
   // Generate question using Google Gemini 2.5 Flash (or 1.5 Flash fallback)
-  async generateWithGemini(transcriptContext, topics, sentiment) {
+  async generateWithGemini(transcriptContext, topics, sentiment, allParticipantsWithEmotions = [], participantEmotions = {}, participantNames = {}, emotionCategories = {}) {
     console.log('🤖 Gemini: Generating question with context:', {
       transcriptLength: transcriptContext?.length || 0,
       topicsCount: topics?.length || 0,
       sentiment: sentiment,
+      totalParticipants: allParticipantsWithEmotions.length,
+      negativeEmotions: emotionCategories.negative?.length || 0,
+      positiveEmotions: emotionCategories.positive?.length || 0,
+      neutralEmotions: emotionCategories.neutral?.length || 0,
       model: this.geminiModel
     });
 
@@ -392,6 +412,37 @@ class LLMService {
     // Analyze conversation context more deeply
     const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
     
+    // Build participant state context based on ALL emotions (not just confused)
+    let participantStateContext = '';
+    if (allParticipantsWithEmotions.length > 0) {
+      const emotionDetails = allParticipantsWithEmotions.map(p => `${p.name}: ${p.emotion}`).join(', ');
+      
+      let emotionSummary = [];
+      if (emotionCategories.negative && emotionCategories.negative.length > 0) {
+        const negativeNames = emotionCategories.negative.map(p => p.name).join(', ');
+        const negativeEmotions = emotionCategories.negative.map(p => p.emotion).join(', ');
+        emotionSummary.push(`- Negative emotions (${negativeEmotions}): ${negativeNames}`);
+      }
+      if (emotionCategories.positive && emotionCategories.positive.length > 0) {
+        const positiveNames = emotionCategories.positive.map(p => p.name).join(', ');
+        const positiveEmotions = emotionCategories.positive.map(p => p.emotion).join(', ');
+        emotionSummary.push(`- Positive emotions (${positiveEmotions}): ${positiveNames}`);
+      }
+      if (emotionCategories.neutral && emotionCategories.neutral.length > 0) {
+        const neutralNames = emotionCategories.neutral.map(p => p.name).join(', ');
+        emotionSummary.push(`- Neutral emotions: ${neutralNames}`);
+      }
+      
+      participantStateContext = `\n\nPARTICIPANT STATE (IMPORTANT):
+${emotionSummary.join('\n')}
+- All participant emotions: ${emotionDetails}
+- Generate questions that:
+  * For negative emotions (confused, sad, fear, angry): Help clarify or address concerns
+  * For positive emotions (happy, surprised): Build on their engagement or excitement
+  * For neutral emotions: Maintain engagement or check understanding
+- Consider the overall emotional state when generating the question`;
+    }
+    
     const prompt = `You are an intelligent meeting facilitator. Analyze this conversation and generate ONE highly relevant follow-up question that will advance the discussion.
 
 CONVERSATION CONTEXT:
@@ -403,17 +454,36 @@ ANALYSIS:
 - Language: ${detectedLanguage}
 - Key Points: ${conversationAnalysis.keyPoints.join(', ')}
 - Unresolved Issues: ${conversationAnalysis.unresolvedIssues.join(', ')}
-- Recent Focus: ${conversationAnalysis.recentFocus}
+- Recent Focus: ${conversationAnalysis.recentFocus}${participantStateContext}
 
-INSTRUCTIONS:
-1. Generate a question that builds directly on what was just discussed
-2. Focus on the most important or unresolved aspects
-3. Make it actionable and specific to the conversation
-4. Use the same language as the conversation
-5. Keep it concise but meaningful
-6. Avoid generic questions - be specific to this discussion
+CRITICAL REQUIREMENTS:
+1. The question MUST be DIRECTLY related to what was discussed in the conversation above
+2. The question MUST reference specific topics, points, or issues mentioned in the conversation
+3. ${allParticipantsWithEmotions.length > 0 ? `Consider participant emotions when generating questions:
+   - For negative emotions (confused, sad, fear, angry): Generate questions that help clarify or address concerns
+   - For positive emotions (happy, surprised, excited): Generate questions that build on their engagement or excitement
+   - For neutral emotions: Generate questions that maintain engagement or check understanding` : ''}
+4. DO NOT generate generic questions that could apply to any meeting
+5. DO NOT generate questions about topics NOT mentioned in the conversation
+6. If the conversation is unclear or too short, DO NOT generate a question
+7. The question should build on the LAST 2-3 sentences or main points discussed
+8. Use the same language as the conversation (${detectedLanguage})
+9. Keep it concise (one sentence, maximum 20 words)
 
-Generate only the question, no explanations.`;
+EXAMPLES OF GOOD QUESTIONS:
+- If conversation mentions "budget", ask: "What is the total budget allocated for this project?"
+- If conversation mentions "timeline", ask: "When do we need to complete this by?"
+- If conversation mentions "team", ask: "Who will be responsible for this task?"
+${allParticipantsWithEmotions.length > 0 ? `- If participants show negative emotions: "Would you like to clarify ${emotionCategories.negative && emotionCategories.negative.length > 0 ? emotionCategories.negative[0].name + '\'s' : 'the'} question about [specific topic]?"
+- If participants show positive emotions: "What aspects of [topic] are you most excited about?"
+- If participants show neutral emotions: "How do you feel about [topic]? Any questions?"` : ''}
+
+EXAMPLES OF BAD QUESTIONS (DO NOT GENERATE THESE):
+- "Are there any dependencies we need to consider?" (too generic, not specific to conversation)
+- "What are your thoughts on this?" (too vague)
+- "Can you elaborate?" (not specific enough)
+
+Generate ONLY the question, no explanations or additional text.`;
 
     try {
       // Get the model (try primary model, fallback if needed)
@@ -554,7 +624,17 @@ Generate only the question, no explanations.`;
     // Use conversation analysis for better rule-based questions
     const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
     const followUpQuestions = this.generateContextualQuestions(topics, sentiment, transcriptContext, conversationAnalysis);
-    const selectedQuestion = followUpQuestions[Math.floor(Math.random() * followUpQuestions.length)];
+    
+    // Filter out empty questions
+    const validQuestions = followUpQuestions.filter(q => q && q.trim().length > 0);
+    
+    if (validQuestions.length === 0) {
+      console.log('📝 No valid context-specific questions - conversation not specific enough');
+      // Return a very generic question only as last resort, but this should rarely happen
+      return { question: '' };
+    }
+    
+    const selectedQuestion = validQuestions[Math.floor(Math.random() * validQuestions.length)];
     return { question: selectedQuestion };
   }
 
@@ -608,94 +688,197 @@ Generate only the question, no explanations.`;
     }
   }
 
-  // Generate contextual follow-up questions
-  generateContextualQuestions(topics, sentiment, transcript, conversationAnalysis = null) {
+  // Generate question using rule-based system
+  generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions = [], participantNames = {}, emotionCategories = {}) {
+    // Use conversation analysis for better rule-based questions
+    const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
+    const followUpQuestions = this.generateContextualQuestions(topics, sentiment, transcriptContext, conversationAnalysis, allParticipantsWithEmotions, participantNames, emotionCategories);
+    
+    // Filter out empty questions
+    const validQuestions = followUpQuestions.filter(q => q && q.trim().length > 0);
+    
+    if (validQuestions.length === 0) {
+      console.log('📝 No valid context-specific questions - conversation not specific enough');
+      // Return a very generic question only as last resort, but this should rarely happen
+      return { question: '' };
+    }
+    
+    const selectedQuestion = validQuestions[Math.floor(Math.random() * validQuestions.length)];
+    return { question: selectedQuestion };
+  }
+
+  // Generate contextual follow-up questions - STRICT: Only questions directly related to conversation
+  generateContextualQuestions(topics, sentiment, transcript, conversationAnalysis = null, allParticipantsWithEmotions = [], participantNames = {}, emotionCategories = {}) {
     const questions = [];
+    const lowerTranscript = transcript.toLowerCase();
+
+    // CRITICAL: Only generate questions if we have clear topics or issues from the conversation
+    if (topics.length === 0 && (!conversationAnalysis || conversationAnalysis.unresolvedIssues.length === 0)) {
+      console.log('📝 No clear topics or issues found - skipping question generation');
+      return ['']; // Return empty to prevent generic questions
+    }
 
     // If we have conversation analysis, use it for more specific questions
     if (conversationAnalysis && conversationAnalysis.unresolvedIssues.length > 0) {
-      // Generate questions based on unresolved issues
+      // Generate questions based on unresolved issues - MUST reference specific issue
       conversationAnalysis.unresolvedIssues.forEach(issue => {
-        if (issue.toLowerCase().includes('budget') || issue.toLowerCase().includes('cost')) {
-          questions.push("What's the budget impact of this decision?");
-          questions.push("How can we optimize costs while maintaining quality?");
-        } else if (issue.toLowerCase().includes('timeline') || issue.toLowerCase().includes('schedule')) {
-          questions.push("What's a realistic timeline for resolving this?");
-          questions.push("Are there any dependencies we need to consider?");
-        } else if (issue.toLowerCase().includes('team') || issue.toLowerCase().includes('people')) {
-          questions.push("What resources do we need to address this?");
-          questions.push("Who should be involved in solving this?");
+        const lowerIssue = issue.toLowerCase();
+        // Only generate if the issue is actually mentioned in transcript
+        if (!lowerTranscript.includes(lowerIssue.substring(0, 10))) {
+          return; // Skip if issue not in transcript
+        }
+        
+        if (lowerIssue.includes('budget') || lowerIssue.includes('cost') || lowerIssue.includes('money')) {
+          // Extract specific budget/cost mention from transcript
+          const budgetMention = this.extractSpecificMention(transcript, ['budget', 'cost', 'money', 'financial']);
+          if (budgetMention) {
+            questions.push(`What's the budget for ${budgetMention}?`);
+            questions.push(`How much will ${budgetMention} cost?`);
+          }
+        } else if (lowerIssue.includes('timeline') || lowerIssue.includes('schedule') || lowerIssue.includes('deadline')) {
+          const timelineMention = this.extractSpecificMention(transcript, ['timeline', 'schedule', 'deadline', 'when']);
+          if (timelineMention) {
+            questions.push(`When do we need to complete ${timelineMention}?`);
+            questions.push(`What's the deadline for ${timelineMention}?`);
+          }
+        } else if (lowerIssue.includes('team') || lowerIssue.includes('people') || lowerIssue.includes('resource')) {
+          const teamMention = this.extractSpecificMention(transcript, ['team', 'people', 'resource', 'who']);
+          if (teamMention) {
+            questions.push(`Who will handle ${teamMention}?`);
+            questions.push(`What resources do we need for ${teamMention}?`);
+          }
         } else {
-          questions.push("What are the next steps to resolve this?");
-          questions.push("How can we move forward with this issue?");
+          // Generic but still related to the specific issue
+          const issueWords = issue.split(/\s+/).slice(0, 3).join(' ');
+          questions.push(`How do we resolve the ${issueWords} issue?`);
         }
       });
     }
 
-    // Topic-based questions
+    // Topic-based questions - ONLY if topic is clearly mentioned
     topics.forEach(topicData => {
+      // Verify topic is actually in transcript
+      const topicKeywords = topicData.matches || [];
+      if (topicKeywords.length === 0) return;
+      
+      // Extract specific mention of the topic
+      const specificMention = this.extractSpecificMention(transcript, topicKeywords);
+      if (!specificMention) return; // Skip if no specific mention found
+      
       switch (topicData.topic) {
         case 'budget':
-          questions.push(
-            "What's the budget allocation for this initiative?",
-            "Are there any cost-saving opportunities we should explore?",
-            "How does this impact our overall financial planning?"
-          );
+          questions.push(`What's the budget for ${specificMention}?`);
+          questions.push(`How much does ${specificMention} cost?`);
           break;
         case 'timeline':
-          questions.push(
-            "What's the realistic timeline for completion?",
-            "Are there any dependencies that could affect the schedule?",
-            "Should we consider breaking this into smaller milestones?"
-          );
+          questions.push(`What's the timeline for ${specificMention}?`);
+          questions.push(`When will ${specificMention} be completed?`);
           break;
         case 'technical':
-          questions.push(
-            "What are the main technical challenges we need to address?",
-            "Do we have the right technical resources for this project?",
-            "What's the implementation approach you'd recommend?"
-          );
+          questions.push(`What are the technical challenges for ${specificMention}?`);
+          questions.push(`How will we implement ${specificMention}?`);
           break;
         case 'team':
-          questions.push(
-            "How can we improve team collaboration on this project?",
-            "What additional resources or skills do we need?",
-            "Who should be the key stakeholders in this initiative?"
-          );
+          questions.push(`Who will work on ${specificMention}?`);
+          questions.push(`What team is needed for ${specificMention}?`);
           break;
         case 'features':
-          questions.push(
-            "What are the most critical features to prioritize?",
-            "How do these features align with user needs?",
-            "Should we consider a phased rollout approach?"
-          );
+          questions.push(`What features are needed for ${specificMention}?`);
+          questions.push(`Which features are most important for ${specificMention}?`);
           break;
         case 'user':
-          questions.push(
-            "How will this impact our user experience?",
-            "What feedback have we received from users so far?",
-            "How can we better understand user needs?"
-          );
+          questions.push(`How will ${specificMention} affect users?`);
+          questions.push(`What do users need from ${specificMention}?`);
           break;
       }
     });
 
-    // Sentiment-based questions
-    if (sentiment === 'negative') {
-      questions.push(
-        "What specific concerns do you have about this approach?",
-        "How can we address the challenges you've mentioned?",
-        "What would make you feel more confident about this project?"
-      );
-    } else if (sentiment === 'positive') {
-      questions.push(
-        "What aspects of this are you most excited about?",
-        "How can we build on this positive momentum?",
-        "What would success look like for this initiative?"
-      );
+    // Add participant-specific questions based on ALL emotions (not just confused)
+    if (allParticipantsWithEmotions.length > 0) {
+      const mainTopic = topics.length > 0 ? topics[0].topic : 'the current topic';
+      
+      // Questions for negative emotions (confused, sad, fear, angry)
+      if (emotionCategories.negative && emotionCategories.negative.length > 0) {
+        const negativeNames = emotionCategories.negative.map(p => p.name).join(', ');
+        if (emotionCategories.negative.length === 1) {
+          const participant = emotionCategories.negative[0];
+          questions.push(`Would you like to clarify ${participant.name}'s question about ${mainTopic}?`);
+          questions.push(`${participant.name} appears ${participant.emotion}. Should we revisit ${mainTopic}?`);
+        } else {
+          questions.push(`Would you like to clarify the discussion for ${negativeNames}?`);
+          questions.push(`Some participants appear concerned. Should we revisit ${mainTopic}?`);
+        }
+      }
+      
+      // Questions for positive emotions (happy, surprised, excited)
+      if (emotionCategories.positive && emotionCategories.positive.length > 0) {
+        const positiveNames = emotionCategories.positive.map(p => p.name).join(', ');
+        if (emotionCategories.positive.length === 1) {
+          questions.push(`What aspects of ${mainTopic} is ${positiveNames} most excited about?`);
+          questions.push(`Should we explore ${mainTopic} further based on ${positiveNames}'s interest?`);
+        } else {
+          questions.push(`What aspects of ${mainTopic} are ${positiveNames} most excited about?`);
+          questions.push(`Should we build on the positive engagement around ${mainTopic}?`);
+        }
+      }
+      
+      // Questions for neutral emotions
+      if (emotionCategories.neutral && emotionCategories.neutral.length > 0) {
+        const neutralNames = emotionCategories.neutral.map(p => p.name).join(', ');
+        if (emotionCategories.neutral.length === 1) {
+          questions.push(`How does ${neutralNames} feel about ${mainTopic}?`);
+          questions.push(`Any questions from ${neutralNames} about ${mainTopic}?`);
+        } else {
+          questions.push(`How do ${neutralNames} feel about ${mainTopic}?`);
+          questions.push(`Any questions from the participants about ${mainTopic}?`);
+        }
+      }
     }
 
-    // General follow-up questions
+    // REMOVED: Sentiment-based and general questions - they're too generic
+    // Only use questions that reference specific topics from the conversation
+
+    // If no specific questions generated, return empty array to prevent generic questions
+    if (questions.length === 0) {
+      console.log('📝 No context-specific questions generated - conversation too generic');
+      return [''];
+    }
+
+    return questions;
+  }
+
+  // Helper function to extract specific mention from transcript
+  extractSpecificMention(transcript, keywords) {
+    if (!transcript || !keywords || keywords.length === 0) return null;
+    
+    const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const lowerTranscript = transcript.toLowerCase();
+    
+    // Find sentence containing the keyword
+    for (const keyword of keywords) {
+      const lowerKeyword = keyword.toLowerCase();
+      if (lowerTranscript.includes(lowerKeyword)) {
+        // Find the sentence with the keyword
+        for (const sentence of sentences) {
+          if (sentence.toLowerCase().includes(lowerKeyword)) {
+            // Extract 3-5 words around the keyword
+            const words = sentence.trim().split(/\s+/);
+            const keywordIndex = words.findIndex(w => w.toLowerCase().includes(lowerKeyword));
+            if (keywordIndex >= 0) {
+              const start = Math.max(0, keywordIndex - 2);
+              const end = Math.min(words.length, keywordIndex + 3);
+              const mention = words.slice(start, end).join(' ');
+              // Clean up mention (remove punctuation at start/end)
+              return mention.replace(/^[^\w]+|[^\w]+$/g, '').trim() || keyword;
+            }
+          }
+        }
+        // Fallback: return the keyword itself
+        return keyword;
+      }
+    }
+    
+    return null;
     questions.push(
       "What are the next steps we should take?",
       "Is there anything else we should consider?",
@@ -762,30 +945,38 @@ Generate only the question, no explanations.`;
 
   // Intelligent question generation trigger based on conversation flow
   shouldGenerateQuestionIntelligently(meetingId, transcriptContext) {
-    // First check basic time interval - exactly 3 minutes minimum
-    if (!this.shouldGenerateQuestion(meetingId, 3)) {
-      console.log('🤖 Question trigger: Time interval not met (need 3 minutes)');
+    // First check basic time interval - exactly 5 minutes minimum (increased from 3)
+    // This ensures questions only appear after substantial conversation time
+    if (!this.shouldGenerateQuestion(meetingId, 5)) {
+      console.log('🤖 Question trigger: Time interval not met (need 5 minutes)');
       return false;
     }
 
-    // Only require basic conversation (reduced from 500 to 200 characters)
-    if (!transcriptContext || transcriptContext.length < 200) {
-      console.log('🤖 Question trigger: Insufficient conversation content (need at least 200 chars)');
+    // STRICT validation - require substantial conversation (increased from 200 to 800 characters)
+    if (!transcriptContext || transcriptContext.length < 800) {
+      console.log('🤖 Question trigger: Insufficient conversation content (need at least 800 chars)');
       return false;
     }
     
-    // Check for basic meaningful conversation (reduced requirements)
+    // Check for meaningful conversation with higher requirements
     const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
     const uniqueWords = new Set(words.map(word => word.toLowerCase()));
     
-    if (words.length < 15 || uniqueWords.size < 5) {
-      console.log('🤖 Question trigger: Insufficient meaningful conversation (need at least 15 words, 5 unique)');
+    // Increased requirements: at least 60 words and 25 unique words
+    if (words.length < 60 || uniqueWords.size < 25) {
+      console.log('🤖 Question trigger: Insufficient meaningful conversation (need at least 60 words, 25 unique)');
+      return false;
+    }
+    
+    // Check for complete sentences - ensure it's actual conversation
+    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 15);
+    if (sentences.length < 5) {
+      console.log('🤖 Question trigger: Insufficient complete sentences (need at least 5 sentences)');
       return false;
     }
 
-    // Always generate questions every 3 minutes if there's basic conversation
-    // This ensures regular question generation based on conversation
-    console.log('🤖 Question trigger: Time interval met with sufficient conversation - generating question');
+    // Only generate questions if there's substantial, meaningful conversation
+    console.log('🤖 Question trigger: Time interval met with substantial conversation - generating question');
     return true;
   }
 

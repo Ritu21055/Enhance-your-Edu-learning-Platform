@@ -406,41 +406,9 @@ const MeetingRoom = () => {
     };
   }, [socket, isHost, isQuestionGenerationActive, handleStartQuestionGeneration]);
 
-  // Auto-start question generation for host when they join the meeting
-  useEffect(() => {
-    // Only auto-start for host
-    if (!isHost) {
-      return;
-    }
-
-    // Wait for all prerequisites to be ready
-    if (!socket || !meetingId) {
-      return;
-    }
-
-    // Don't auto-start if already active
-    if (isQuestionGenerationActive) {
-      return;
-    }
-
-    // Add a delay to ensure AI service is initialized
-    const autoStartTimer = setTimeout(() => {
-      console.log('🤖 Auto-starting AI question generation for host...');
-      console.log('🤖 Prerequisites:', {
-        isHost,
-        hasSocket: !!socket,
-        meetingId,
-        currentStatus: isQuestionGenerationActive
-      });
-
-      // Start question generation automatically
-      handleStartQuestionGeneration();
-    }, 3000); // 3 second delay to ensure AI service is ready
-
-    return () => {
-      clearTimeout(autoStartTimer);
-    };
-  }, [isHost, socket, meetingId, isQuestionGenerationActive, handleStartQuestionGeneration]);
+  // REMOVED: Auto-start question generation
+  // Questions will only start when host manually clicks the button
+  // This prevents questions from appearing before actual conversation starts
 
 
   // Start sentiment analysis when models are loaded and video is available (participants only)

@@ -178,16 +178,31 @@ export default function registerAIHandlers(socket, io) {
           context: recentContext.substring(0, 100) + '...'
         });
         
-        // Basic validation - require minimal conversation
-        if (recentContext.length < 100) {
-          console.log('📝 Skipping question generation - insufficient transcript context (need at least 100 chars)');
+        // STRICT validation - require substantial conversation
+        // Minimum 500 characters to ensure real conversation, not just noise
+        if (recentContext.length < 500) {
+          console.log('📝 Skipping question generation - insufficient transcript context (need at least 500 chars)');
           return;
         }
         
-        // Check if context contains actual conversation (not just empty strings)
+        // Check if context contains actual meaningful conversation (not just empty strings or noise)
         const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
-        if (meaningfulWords < 10) {
-          console.log('📝 Skipping question generation - insufficient meaningful words (need at least 10 words)');
+        if (meaningfulWords < 50) {
+          console.log('📝 Skipping question generation - insufficient meaningful words (need at least 50 words)');
+          return;
+        }
+        
+        // Check for actual speech patterns - ensure it's not just silence or noise
+        const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+        if (sentences.length < 3) {
+          console.log('📝 Skipping question generation - insufficient complete sentences (need at least 3 sentences)');
+          return;
+        }
+        
+        // Check for variety in words - ensure it's not repetitive noise
+        const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+        if (uniqueWords.size < 20) {
+          console.log('📝 Skipping question generation - insufficient word variety (need at least 20 unique words)');
           return;
         }
         
@@ -197,10 +212,64 @@ export default function registerAIHandlers(socket, io) {
           return;
         }
         
-        // Generate follow-up question
-        const questionResult = await llmService.generateFollowUpQuestion(recentContext, meetingId);
+        // Get facial expression sentiment data for intelligent question generation
+        const meetingSentimentData = sentimentData.get(meetingId);
+        const allParticipantsWithEmotions = [];
+        const participantEmotions = {};
+        const participantNames = {};
         
-        if (questionResult && questionResult.question) {
+        if (meetingSentimentData && meetingSentimentData.participants) {
+          const meeting = activeMeetings.get(meetingId);
+          
+          meetingSentimentData.participants.forEach((data, participantId) => {
+            participantEmotions[participantId] = data.emotion;
+            
+            // Get participant name
+            if (meeting && meeting.participants) {
+              const participant = meeting.participants.find(p => p.id === participantId);
+              if (participant) {
+                participantNames[participantId] = participant.name;
+              }
+            }
+            
+            // Collect ALL participants with their emotions (not just negative ones)
+            allParticipantsWithEmotions.push({
+              id: participantId,
+              name: participantNames[participantId] || 'a participant',
+              emotion: data.emotion,
+              timestamp: data.timestamp
+            });
+          });
+        }
+        
+        // Categorize emotions for better context
+        const emotionCategories = {
+          positive: allParticipantsWithEmotions.filter(p => ['happy', 'surprised', 'excited'].includes(p.emotion)),
+          negative: allParticipantsWithEmotions.filter(p => ['confused', 'sad', 'fear', 'angry', 'disgusted'].includes(p.emotion)),
+          neutral: allParticipantsWithEmotions.filter(p => ['neutral', 'calm'].includes(p.emotion))
+        };
+        
+        console.log('🤖 Question generation with sentiment context:', {
+          meetingId,
+          totalParticipants: allParticipantsWithEmotions.length,
+          positive: emotionCategories.positive.length,
+          negative: emotionCategories.negative.length,
+          neutral: emotionCategories.neutral.length,
+          emotions: allParticipantsWithEmotions.map(p => `${p.name}: ${p.emotion}`)
+        });
+        
+        // Generate follow-up question with ALL facial sentiment context
+        const questionResult = await llmService.generateFollowUpQuestion(
+          recentContext, 
+          meetingId,
+          allParticipantsWithEmotions, // Pass ALL participants with emotions
+          participantEmotions, // Pass all participant emotions
+          participantNames, // Pass participant names
+          emotionCategories // Pass emotion categories
+        );
+        
+        // CRITICAL: Only send question if it's not empty and is meaningful
+        if (questionResult && questionResult.question && questionResult.question.trim().length > 10) {
           // Update last question time
           llmService.updateLastQuestionTime(meetingId);
           
@@ -218,6 +287,8 @@ export default function registerAIHandlers(socket, io) {
             
             console.log('❓ Sent intelligent follow-up question to host:', questionResult.question);
           }
+        } else {
+          console.log('📝 Skipping question - empty or too short:', questionResult?.question);
         }
         
       } catch (error) {
