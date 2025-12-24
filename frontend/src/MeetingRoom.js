@@ -645,49 +645,8 @@ const MeetingRoom = () => {
     }
   }, [isVideoEnabled, isAudioEnabled, localStream, localVideoRef]);
 
-  // Auto-start recording for host when they join the meeting
-  useEffect(() => {
-    // Only auto-start for host
-    if (!isHost) {
-      return;
-    }
-
-    // Wait for all prerequisites to be ready
-    if (!socket || !localStream || !meetingId) {
-      return;
-    }
-
-    // Don't auto-start if already recording or if recording is in progress
-    if (isMediaRecording || recordingStatus === 'starting' || recordingStatus === 'recording') {
-      return;
-    }
-
-    // Add a small delay to ensure everything is initialized
-    const autoStartTimer = setTimeout(() => {
-      console.log('🎬 Auto-starting recording for host...');
-      console.log('🎬 Prerequisites:', {
-        isHost,
-        hasSocket: !!socket,
-        hasLocalStream: !!localStream,
-        meetingId,
-        currentRecordingStatus: recordingStatus,
-        isCurrentlyRecording: isMediaRecording
-      });
-
-      // Start recording automatically
-      if (startMediaRecording) {
-        startMediaRecording().then(() => {
-          console.log('✅ Auto-recording started successfully for host');
-        }).catch((error) => {
-          console.error('❌ Auto-recording failed:', error);
-        });
-      }
-    }, 2000); // 2 second delay to ensure everything is ready
-
-    return () => {
-      clearTimeout(autoStartTimer);
-    };
-  }, [isHost, socket, localStream, meetingId, isMediaRecording, recordingStatus, startMediaRecording]);
+  // Recording should only start when host manually clicks the recording button
+  // No auto-start - removed to allow host control
 
   // Listen for highlight events
   useEffect(() => {
