@@ -940,6 +940,7 @@ const VideoCallComponent = memo(({
               autoPlay
               playsInline
               muted
+              preload="auto"
               style={{
                 // CRITICAL: Conditional visibility based on isLocalVideoEnabled
                 position: 'relative',
@@ -1015,6 +1016,7 @@ const VideoCallComponent = memo(({
                 autoPlay
                 playsInline
                 muted={false}
+                preload="auto"
                 ref={(el) => {
                   if (el) {
                     const wasNew = !remoteVideoRefs.current[participantId];
@@ -1027,8 +1029,27 @@ const VideoCallComponent = memo(({
                     el.muted = false;
                     el.volume = 1.0;
                     
+                    // Optimize for smoother playback
+                    el.preload = 'auto';
+                    el.playsInline = true;
+                    el.autoplay = true;
+                    
+                    // Add buffering optimizations
+                    if (el.buffered && el.buffered.length > 0) {
+                      // Video is buffering - ensure smooth playback
+                      el.playbackRate = 1.0;
+                    }
+                    
                     if (el.srcObject !== stream) {
                       el.srcObject = stream;
+                      // Force play after setting srcObject for smoother start
+                      setTimeout(() => {
+                        if (el && el.paused && el.srcObject) {
+                          el.play().catch(err => {
+                            console.warn(`⚠️ Failed to play video for ${participantId}:`, err);
+                          });
+                        }
+                      }, 100);
                     }
                     
                     // CRITICAL: Check if video track is enabled AND check media state from socket

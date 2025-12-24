@@ -8,9 +8,6 @@ const useSimplePeer = (meetingId, userName) => {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [participants, setParticipants] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [pendingApprovals, setPendingApprovals] = useState([]);
-  const [showPendingApprovals, setShowPendingApprovals] = useState(false);
-  const [isWaitingForApproval, setIsWaitingForApproval] = useState(false);
   const [isHost, setIsHost] = useState(false);
 
   const socketRef = useRef(null);
@@ -49,20 +46,15 @@ const useSimplePeer = (meetingId, userName) => {
     };
   }, [meetingId, userName]);
 
-  // Auto-initialize media only for hosts or after approval
+  // Auto-initialize media
   useEffect(() => {
     const initMedia = async () => {
-      // Only initialize media if we're a host or if we're already approved
-      if (isHost || !isWaitingForApproval) {
-        console.log('🎥 SimplePeer: Auto-initializing media (host or approved)...');
-        await initializeMedia();
-      } else {
-        console.log('🎥 SimplePeer: Skipping media initialization - waiting for approval');
-      }
+      console.log('🎥 SimplePeer: Auto-initializing media...');
+      await initializeMedia();
     };
     
     initMedia();
-  }, [isHost, isWaitingForApproval]);
+  }, [isHost]);
 
   // Join meeting
   const joinMeeting = useCallback(() => {
@@ -81,24 +73,36 @@ const useSimplePeer = (meetingId, userName) => {
       const participantCount = participants.length + 1; // +1 for self
       
       // Adaptive quality based on participant count
-      // More participants = slightly lower quality to maintain stability
-      let videoWidth = 1280;
-      let videoHeight = 720;
-      let frameRate = 30;
-      let videoBitrate = 2500000; // 2.5 Mbps
+      // Start with lower quality for better stability with multiple participants
+      let videoWidth = 640;
+      let videoHeight = 480;
+      let frameRate = 24; // Lower frame rate for smoother playback
+      let videoBitrate = 1000000; // 1 Mbps - lower for stability
       
-      if (participantCount > 3) {
-        // For 4+ participants, reduce quality slightly
+      if (participantCount === 1) {
+        // Only host - can use higher quality
         videoWidth = 960;
         videoHeight = 540;
         frameRate = 25;
-        videoBitrate = 2000000; // 2 Mbps
-      } else if (participantCount > 5) {
-        // For 6+ participants, further reduce
+        videoBitrate = 1500000; // 1.5 Mbps
+      } else if (participantCount === 2) {
+        // 2 participants - moderate quality
         videoWidth = 640;
         videoHeight = 480;
+        frameRate = 24;
+        videoBitrate = 1000000; // 1 Mbps
+      } else if (participantCount <= 4) {
+        // 3-4 participants - lower quality
+        videoWidth = 480;
+        videoHeight = 360;
         frameRate = 20;
-        videoBitrate = 1500000; // 1.5 Mbps
+        videoBitrate = 800000; // 800 kbps
+      } else {
+        // 5+ participants - lowest quality
+        videoWidth = 320;
+        videoHeight = 240;
+        frameRate = 15;
+        videoBitrate = 500000; // 500 kbps
       }
       
       console.log('🎥 SimplePeer: Quality settings:', {
@@ -114,14 +118,17 @@ const useSimplePeer = (meetingId, userName) => {
           width: { ideal: videoWidth, max: videoWidth },
           height: { ideal: videoHeight, max: videoHeight },
           frameRate: { ideal: frameRate, max: frameRate },
-          facingMode: 'user'
+          facingMode: 'user',
+          // Add latency constraints for smoother playback
+          latency: 0.1
         },
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 48000,
-          channelCount: 1
+          sampleRate: 16000, // Lower sample rate for better performance
+          channelCount: 1,
+          latency: 0.1
         }
       });
       
@@ -135,17 +142,20 @@ const useSimplePeer = (meetingId, userName) => {
         if (videoTrack.applyConstraints) {
           try {
             await videoTrack.applyConstraints({
-              advanced: [
-                { width: videoWidth },
-                { height: videoHeight },
-                { frameRate: frameRate }
-              ]
+              width: videoWidth,
+              height: videoHeight,
+              frameRate: frameRate
             });
             console.log('✅ SimplePeer: Applied video constraints');
           } catch (constraintError) {
             console.warn('⚠️ SimplePeer: Could not apply all video constraints:', constraintError);
           }
         }
+      }
+      
+      // Store bitrate for later use in peer connections
+      if (videoTrack) {
+        videoTrack._targetBitrate = videoBitrate;
       }
       
       console.log('🎥 SimplePeer: Media stream obtained:', {
@@ -212,19 +222,45 @@ const useSimplePeer = (meetingId, userName) => {
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' }
+          { urls: 'stun:stun1.l.google.com:19302' }
         ],
-        iceCandidatePoolSize: 10 // Pre-gather ICE candidates for faster connection
+        iceCandidatePoolSize: 5 // Reduced for better performance
       }
     });
+    
+    // Apply bitrate constraints to RTCRtpSender after peer connection is established
+    if (peer._pc && localStream) {
+      peer._pc.addEventListener('track', (event) => {
+        if (event.track.kind === 'video') {
+          const sender = peer._pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (sender && sender.setParameters) {
+            try {
+              const params = sender.getParameters();
+              if (!params.encodings) {
+                params.encodings = [{}];
+              }
+              const videoTrack = localStream.getVideoTracks()[0];
+              const targetBitrate = videoTrack?._targetBitrate || 1000000; // Default 1 Mbps
+              params.encodings[0].maxBitrate = targetBitrate;
+              params.encodings[0].maxFramerate = 24;
+              sender.setParameters(params);
+              console.log(`✅ SimplePeer: Applied bitrate constraint (${targetBitrate / 1000} kbps) for ${participantId}`);
+            } catch (error) {
+              console.warn(`⚠️ SimplePeer: Could not set bitrate for ${participantId}:`, error);
+            }
+          }
+        }
+      });
+    }
     
     // Initialize connection monitoring
     connectionMonitoringRef.current[participantId] = {
       lastConnectionState: 'new',
       lastIceState: 'new',
       reconnectAttempts: 0,
-      monitoringInterval: null
+      monitoringInterval: null,
+      lastFailureTime: null,
+      lastDisconnectTime: null
     };
     reconnectionAttemptsRef.current[participantId] = 0;
 
@@ -253,15 +289,37 @@ const useSimplePeer = (meetingId, userName) => {
       // Check if stream has video tracks
       const videoTracks = stream.getVideoTracks();
       if (videoTracks.length > 0) {
+        const videoTrack = videoTracks[0];
         console.log(`🎥 SimplePeer: Video track details for ${participantId}:`, {
-          trackId: videoTracks[0].id,
-          trackKind: videoTracks[0].kind,
-          trackEnabled: videoTracks[0].enabled,
-          trackMuted: videoTracks[0].muted,
-          trackReadyState: videoTracks[0].readyState
+          trackId: videoTrack.id,
+          trackKind: videoTrack.kind,
+          trackEnabled: videoTrack.enabled,
+          trackMuted: videoTrack.muted,
+          trackReadyState: videoTrack.readyState
+        });
+        
+        // Add event listeners to monitor track state
+        videoTrack.addEventListener('ended', () => {
+          console.warn(`⚠️ SimplePeer: Video track ended for ${participantId}`);
+        });
+        
+        videoTrack.addEventListener('mute', () => {
+          console.log(`🔇 SimplePeer: Video track muted for ${participantId}`);
+        });
+        
+        videoTrack.addEventListener('unmute', () => {
+          console.log(`🔊 SimplePeer: Video track unmuted for ${participantId}`);
         });
       } else {
         console.warn(`⚠️ SimplePeer: No video tracks in stream from ${participantId}`);
+      }
+      
+      // Monitor audio tracks too
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length > 0) {
+        audioTracks[0].addEventListener('ended', () => {
+          console.warn(`⚠️ SimplePeer: Audio track ended for ${participantId}`);
+        });
       }
       
       setRemoteStreams(prev => {
@@ -347,30 +405,56 @@ const useSimplePeer = (meetingId, userName) => {
           monitoring.lastIceState = iceState;
         }
         
-        // Handle connection failures
+        // Handle connection failures - be less aggressive with reconnection
         if (connectionState === 'failed' || iceState === 'failed') {
-          console.warn(`⚠️ SimplePeer: Connection failed for ${pid}, attempting reconnection...`);
-          if (attemptReconnectionRef.current) {
-            attemptReconnectionRef.current(pid);
-          }
-        } else if (connectionState === 'disconnected' && iceState === 'disconnected') {
-          console.warn(`⚠️ SimplePeer: Connection disconnected for ${pid}, monitoring for recovery...`);
-          // Wait a bit before attempting reconnection
-          setTimeout(() => {
-            if (pc.connectionState === 'disconnected' && pc.iceConnectionState === 'disconnected') {
+          // Only reconnect if it's been failed for a while
+          const monitoring = connectionMonitoringRef.current[pid];
+          if (!monitoring.lastFailureTime) {
+            monitoring.lastFailureTime = Date.now();
+            console.warn(`⚠️ SimplePeer: Connection failed for ${pid}, waiting before reconnection...`);
+          } else {
+            const timeSinceFailure = Date.now() - monitoring.lastFailureTime;
+            // Wait at least 5 seconds before attempting reconnection
+            if (timeSinceFailure > 5000) {
+              console.warn(`⚠️ SimplePeer: Connection failed for ${pid} for ${timeSinceFailure}ms, attempting reconnection...`);
               if (attemptReconnectionRef.current) {
+                monitoring.lastFailureTime = null; // Reset
                 attemptReconnectionRef.current(pid);
               }
             }
-          }, 3000);
+          }
+        } else if (connectionState === 'disconnected' && iceState === 'disconnected') {
+          // Don't immediately reconnect on disconnect - wait longer
+          const monitoring = connectionMonitoringRef.current[pid];
+          if (!monitoring.lastDisconnectTime) {
+            monitoring.lastDisconnectTime = Date.now();
+            console.warn(`⚠️ SimplePeer: Connection disconnected for ${pid}, monitoring for recovery...`);
+          } else {
+            const timeSinceDisconnect = Date.now() - monitoring.lastDisconnectTime;
+            // Wait at least 10 seconds before attempting reconnection on disconnect
+            if (timeSinceDisconnect > 10000) {
+              if (pc.connectionState === 'disconnected' && pc.iceConnectionState === 'disconnected') {
+                console.warn(`⚠️ SimplePeer: Connection still disconnected for ${pid} after ${timeSinceDisconnect}ms, attempting reconnection...`);
+                if (attemptReconnectionRef.current) {
+                  monitoring.lastDisconnectTime = null; // Reset
+                  attemptReconnectionRef.current(pid);
+                }
+              }
+            }
+          }
         } else if (connectionState === 'connected' && iceState === 'connected') {
-          // Connection is healthy
+          // Connection is healthy - reset failure tracking
+          const monitoring = connectionMonitoringRef.current[pid];
+          if (monitoring) {
+            monitoring.lastFailureTime = null;
+            monitoring.lastDisconnectTime = null;
+          }
           reconnectionAttemptsRef.current[pid] = 0;
         }
       };
       
-      // Check connection state every 2 seconds
-      const interval = setInterval(checkConnection, 2000);
+      // Check connection state every 5 seconds (less frequent for better performance)
+      const interval = setInterval(checkConnection, 5000);
       connectionMonitoringRef.current[pid].monitoringInterval = interval;
       
       // Also listen to statechange events
@@ -426,7 +510,7 @@ const useSimplePeer = (meetingId, userName) => {
       // Attempt reconnection if socket is still connected
       if (socketRef.current?.connected && localStream) {
         const participant = participants.find(p => p.id === participantId);
-        if (participant && participant.isApproved) {
+        if (participant) {
           console.log(`🔄 SimplePeer: Attempting to reconnect to ${participantId} after close...`);
           setTimeout(() => {
             if (!peersRef.current[participantId] && attemptReconnectionRef.current) {
@@ -481,7 +565,7 @@ const useSimplePeer = (meetingId, userName) => {
       if (localStream && socketRef.current?.connected) {
         console.log(`🔄 SimplePeer: Recreating connection to ${pid}`);
         const participant = participants.find(p => p.id === pid);
-        if (participant && participant.isApproved && !peersRef.current[pid]) {
+        if (participant && !peersRef.current[pid]) {
           const newPeer = createPeer(pid, true);
           peersRef.current[pid] = newPeer;
         }
@@ -537,10 +621,10 @@ const useSimplePeer = (meetingId, userName) => {
     }
   }, [createPeer]);
 
-  // Handle participant joined (only for approved participants)
+  // Handle participant joined
   const handleParticipantJoined = useCallback((data) => {
     const { participant } = data;
-    console.log('👋 SimplePeer: New approved participant joined:', participant);
+    console.log('👋 SimplePeer: New participant joined:', participant);
     console.log('👋 SimplePeer: handleParticipantJoined called with data:', data);
     
     // Don't add the current user to the participants list
@@ -559,9 +643,9 @@ const useSimplePeer = (meetingId, userName) => {
       return [...prev, participant];
     });
 
-    // Only create peer connections for approved participants
-    if (localStream && participant.id !== socketRef.current.id && participant.isApproved) {
-      console.log('🔗 SimplePeer: Creating peer connection for approved participant:', participant.name);
+    // Create peer connections for all participants
+    if (localStream && participant.id !== socketRef.current.id) {
+      console.log('🔗 SimplePeer: Creating peer connection for participant:', participant.name);
       const peer = createPeer(participant.id, true);
       peersRef.current[participant.id] = peer;
     }
@@ -579,69 +663,6 @@ const useSimplePeer = (meetingId, userName) => {
     }
   }, []);
 
-  // Handle pending approval
-  const handlePendingApproval = useCallback((participant) => {
-    console.log('⏳ SimplePeer: Pending approval for:', participant);
-    
-    if (isHostRef.current) {
-      setPendingApprovals(prev => [...prev, participant]);
-      setShowPendingApprovals(true);
-    } else {
-      setIsWaitingForApproval(true);
-    }
-  }, []);
-
-  // Approve participant
-  const approveParticipant = useCallback((participantId, isApproved = true) => {
-    console.log('✅ SimplePeer: Approving participant:', participantId, 'approved:', isApproved);
-    
-    // Immediately remove from pending approvals to prevent duplicate approvals
-    setPendingApprovals(prev => {
-      const filtered = prev.filter(p => p.id !== participantId);
-      console.log('✅ SimplePeer: Removed participant from pending approvals:', {
-        participantId,
-        beforeCount: prev.length,
-        afterCount: filtered.length
-      });
-      
-      // If no more pending approvals, hide the dialog
-      if (filtered.length === 0) {
-        setShowPendingApprovals(false);
-        console.log('✅ SimplePeer: No more pending approvals, hiding dialog');
-      }
-      
-      return filtered;
-    });
-    
-    if (socketRef.current && socketRef.current.connected) {
-      if (isApproved) {
-        socketRef.current.emit('approve-participant', { 
-          meetingId, 
-          participantId, 
-          approved: true 
-        });
-      } else {
-        socketRef.current.emit('reject-participant', { 
-          meetingId, 
-          participantId 
-        });
-      }
-    }
-  }, [meetingId]);
-
-  // Reject participant
-  const rejectParticipant = useCallback((participantId) => {
-    console.log('❌ SimplePeer: Rejecting participant:', participantId);
-    
-    if (socketRef.current && socketRef.current.connected) {
-      socketRef.current.emit('reject-participant', { 
-        meetingId, 
-        participantId 
-      });
-    }
-    
-    setPendingApprovals(prev => prev.filter(p => p.id !== participantId));
-  }, [meetingId]);
 
   // Create connections to all existing participants
   const createConnectionsToAllParticipants = useCallback(() => {
@@ -668,7 +689,7 @@ const useSimplePeer = (meetingId, userName) => {
       });
       
       // Both host and participant should create connections to each other
-      if (participant.id !== socketRef.current.id && participant.isApproved && !peersRef.current[participant.id]) {
+      if (participant.id !== socketRef.current.id && !peersRef.current[participant.id]) {
         console.log('🔗 SimplePeer: Creating connection to participant:', participant.name, participant.id);
         const peer = createPeer(participant.id, true); // Both sides are initiators
         peersRef.current[participant.id] = peer;
@@ -679,91 +700,20 @@ const useSimplePeer = (meetingId, userName) => {
     console.log('🔗 SimplePeer: Created', connectionsCreated, 'new connections');
   }, [localStream, participants, createPeer, isHost]);
 
-  // Handle participant approved
-  const handleParticipantApproved = useCallback(async (data) => {
-    console.log('✅ SimplePeer: Participant approved:', data);
-    setIsWaitingForApproval(false);
-    
-    // Initialize media now that we're approved
-    if (!localStream) {
-      console.log('🎥 SimplePeer: Initializing media after approval...');
-      await initializeMedia();
-    }
-    
-    // Create connection to host specifically
-    if (data.hostId && data.hostId !== socketRef.current.id) {
-      console.log('🔗 SimplePeer: Creating connection to host:', data.hostName, data.hostId);
-      setTimeout(() => {
-        if (!peersRef.current[data.hostId]) {
-          console.log('🔗 SimplePeer: Creating peer connection to host:', data.hostId);
-          // Both sides should be initiators to ensure bidirectional connection
-          const peer = createPeer(data.hostId, true);
-          peersRef.current[data.hostId] = peer;
-        } else {
-          console.log('🔗 SimplePeer: Connection to host already exists:', data.hostId);
-        }
-      }, 1000);
-    } else {
-      console.log('🔗 SimplePeer: Not creating connection to host:', {
-        hasHostId: !!data.hostId,
-        isNotSelf: data.hostId !== socketRef.current.id,
-        currentSocketId: socketRef.current?.id
-      });
-    }
-    
-    // Create connections to all existing participants after approval
-    console.log('🔗 SimplePeer: Creating peer connections now that we are approved');
-    setTimeout(() => {
-      createConnectionsToAllParticipants();
-    }, 1500); // Increased delay to ensure media is fully initialized
-  }, [localStream, createConnectionsToAllParticipants, initializeMedia, createPeer]);
-
-  // Handle participant rejected
-  const handleParticipantRejected = useCallback(() => {
-    console.log('❌ SimplePeer: Participant rejected');
-    setIsWaitingForApproval(false);
-  }, []);
-
-  // Handle participant ready (when someone gets approved and is ready for WebRTC)
-  const handleParticipantReady = useCallback((data) => {
-    const { participantId, participantName } = data;
-    console.log('🎯 SimplePeer: Participant ready for WebRTC:', participantId, participantName);
-    console.log('🎯 SimplePeer: Conditions check:', {
-      hasLocalStream: !!localStream,
-      isNotSelf: participantId !== socketRef.current.id,
-      hasExistingConnection: !!peersRef.current[participantId],
-      currentSocketId: socketRef.current?.id,
-      isHost: isHost
-    });
-    
-    // Both host and participant should create connections to each other
-    if (localStream && participantId !== socketRef.current.id && !peersRef.current[participantId]) {
-      console.log('🔗 SimplePeer: Creating peer connection to approved participant:', participantName);
-      const peer = createPeer(participantId, true); // Both sides are initiators
-      peersRef.current[participantId] = peer;
-    } else {
-      console.log('🔗 SimplePeer: Not creating connection - conditions not met:', {
-        hasLocalStream: !!localStream,
-        isNotSelf: participantId !== socketRef.current.id,
-        hasExistingConnection: !!peersRef.current[participantId]
-      });
-    }
-  }, [localStream, createPeer, isHost]);
 
   // Auto-create connections when participants list changes
   useEffect(() => {
-    if (participants.length > 0 && localStream && !isWaitingForApproval) {
+    if (participants.length > 0 && localStream) {
       console.log('🔗 SimplePeer: Participants list changed, creating connections');
       console.log('🔗 SimplePeer: Local stream available for connections:', !!localStream);
       createConnectionsToAllParticipants();
     } else {
       console.log('🔗 SimplePeer: Not creating connections - conditions not met:', {
         participantsCount: participants.length,
-        hasLocalStream: !!localStream,
-        isWaitingForApproval
+        hasLocalStream: !!localStream
       });
     }
-  }, [participants, localStream, isWaitingForApproval, createConnectionsToAllParticipants]);
+  }, [participants, localStream, createConnectionsToAllParticipants]);
 
   // Set up socket event listeners
   useEffect(() => {
@@ -798,22 +748,14 @@ const useSimplePeer = (meetingId, userName) => {
     });
     socket.on('participant-left', handleParticipantLeft);
     socket.on('signal', handleSignal);
-    socket.on('pending-approval', handlePendingApproval);
-    socket.on('participant-approved', handleParticipantApproved);
-    socket.on('participant-rejected', handleParticipantRejected);
-    socket.on('participant-ready', handleParticipantReady);
 
     return () => {
       socket.off('meeting-joined');
       socket.off('participant-joined');
       socket.off('participant-left');
       socket.off('signal');
-      socket.off('pending-approval');
-      socket.off('participant-approved');
-      socket.off('participant-rejected');
-      socket.off('participant-ready');
     };
-  }, [handleParticipantJoined, handleParticipantLeft, handleSignal, handlePendingApproval, handleParticipantApproved, handleParticipantRejected, handleParticipantReady]);
+  }, [handleParticipantJoined, handleParticipantLeft, handleSignal]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -834,8 +776,6 @@ const useSimplePeer = (meetingId, userName) => {
   console.log('🔍 useSimplePeer Debug:', {
     socket: !!socketRef.current,
     socketConnected: socketRef.current?.connected,
-    pendingApprovals: pendingApprovals.length,
-    showPendingApprovals,
     isHost,
     participants: participants.length
   });
@@ -845,15 +785,9 @@ const useSimplePeer = (meetingId, userName) => {
     remoteStreams,
     participants,
     isConnected,
-    pendingApprovals,
-    showPendingApprovals,
-    setShowPendingApprovals,
-    isWaitingForApproval,
     localVideoRef,
     joinMeeting,
     initializeMedia,
-    approveParticipant,
-    rejectParticipant,
     isHost,
     socket: socketRef.current
   };
