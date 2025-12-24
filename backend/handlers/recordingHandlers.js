@@ -69,13 +69,32 @@ export default function registerRecordingHandlers(socket, io) {
     try {
       const { meetingId, audioChunk } = data;
       
+      if (!meetingId) {
+        console.error('❌ audio_chunk: Missing meetingId');
+        return;
+      }
+      
       if (!audioChunk || audioChunk.length === 0) {
         console.warn('⚠️ Received empty audio chunk for meeting:', meetingId);
         return;
       }
       
+      const isRecording = mediaRecorder.isRecording(meetingId);
+      
+      // Debug first few chunks
+      const session = mediaRecorder.getRecordingSession(meetingId);
+      const chunkCount = session ? session.audioChunks.length : 0;
+      if (chunkCount < 3 || chunkCount % 10 === 0) {
+        console.log('🎤 Received audio chunk:', {
+          meetingId,
+          chunkSize: audioChunk.length,
+          isRecording,
+          existingChunks: chunkCount
+        });
+      }
+      
       // Add to media recorder if recording is active
-      if (mediaRecorder.isRecording(meetingId)) {
+      if (isRecording) {
         await mediaRecorder.addAudioChunk(meetingId, Buffer.from(audioChunk));
       } else {
         console.warn('⚠️ Received audio chunk but recording is not active for meeting:', meetingId);
@@ -91,13 +110,32 @@ export default function registerRecordingHandlers(socket, io) {
     try {
       const { meetingId, videoFrame } = data;
       
+      if (!meetingId) {
+        console.error('❌ video_frame: Missing meetingId');
+        return;
+      }
+      
       if (!videoFrame || videoFrame.length === 0) {
         console.warn('⚠️ Received empty video frame for meeting:', meetingId);
         return;
       }
       
+      const isRecording = mediaRecorder.isRecording(meetingId);
+      
+      // Debug first few frames
+      const session = mediaRecorder.getRecordingSession(meetingId);
+      const frameCount = session ? session.videoChunks.length : 0;
+      if (frameCount < 3 || frameCount % 10 === 0) {
+        console.log('📹 Received video frame:', {
+          meetingId,
+          frameSize: videoFrame.length,
+          isRecording,
+          existingFrames: frameCount
+        });
+      }
+      
       // Add to media recorder if recording is active
-      if (mediaRecorder.isRecording(meetingId)) {
+      if (isRecording) {
         await mediaRecorder.addVideoFrame(meetingId, Buffer.from(videoFrame));
       } else {
         console.warn('⚠️ Received video frame but recording is not active for meeting:', meetingId);
