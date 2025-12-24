@@ -86,11 +86,11 @@ const useSimplePeer = (meetingId, userName) => {
         frameRate = 25;
         videoBitrate = 1500000; // 1.5 Mbps
       } else if (participantCount === 2) {
-        // 2 participants - moderate quality
-        videoWidth = 640;
-        videoHeight = 480;
-        frameRate = 24;
-        videoBitrate = 1000000; // 1 Mbps
+        // 2 participants - lower quality for stability
+        videoWidth = 480;
+        videoHeight = 360;
+        frameRate = 20;
+        videoBitrate = 600000; // 600 kbps - lower for stability
       } else if (participantCount <= 4) {
         // 3-4 participants - lower quality
         videoWidth = 480;
@@ -240,9 +240,9 @@ const useSimplePeer = (meetingId, userName) => {
                 params.encodings = [{}];
               }
               const videoTrack = localStream.getVideoTracks()[0];
-              const targetBitrate = videoTrack?._targetBitrate || 1000000; // Default 1 Mbps
+              const targetBitrate = videoTrack?._targetBitrate || 600000; // Default 600 kbps for stability
               params.encodings[0].maxBitrate = targetBitrate;
-              params.encodings[0].maxFramerate = 24;
+              params.encodings[0].maxFramerate = 20; // Lower framerate for stability
               sender.setParameters(params);
               console.log(`✅ SimplePeer: Applied bitrate constraint (${targetBitrate / 1000} kbps) for ${participantId}`);
             } catch (error) {
@@ -253,14 +253,13 @@ const useSimplePeer = (meetingId, userName) => {
       });
     }
     
-    // Initialize connection monitoring
+    // Initialize connection monitoring (minimal tracking)
     connectionMonitoringRef.current[participantId] = {
       lastConnectionState: 'new',
       lastIceState: 'new',
       reconnectAttempts: 0,
       monitoringInterval: null,
-      lastFailureTime: null,
-      lastDisconnectTime: null
+      hasAttemptedReconnect: false
     };
     reconnectionAttemptsRef.current[participantId] = 0;
 
@@ -366,10 +365,11 @@ const useSimplePeer = (meetingId, userName) => {
         console.log(`🔗 SimplePeer: No local stream available for ${participantId}`);
       }
       
-      // Start monitoring connection state
-      if (peer._pc) {
-        startConnectionMonitoring(participantId, peer);
-      }
+      // Disable aggressive connection monitoring - let WebRTC handle it naturally
+      // Only monitor for critical failures, not temporary disconnects
+      // if (peer._pc) {
+      //   startConnectionMonitoring(participantId, peer);
+      // }
     });
     
     // Monitor connection state changes
@@ -405,56 +405,36 @@ const useSimplePeer = (meetingId, userName) => {
           monitoring.lastIceState = iceState;
         }
         
-        // Handle connection failures - be less aggressive with reconnection
+        // Only handle actual failures, not temporary disconnects
+        // WebRTC will automatically recover from temporary disconnects
         if (connectionState === 'failed' || iceState === 'failed') {
-          // Only reconnect if it's been failed for a while
+          // Only reconnect on actual failure, and only once
           const monitoring = connectionMonitoringRef.current[pid];
-          if (!monitoring.lastFailureTime) {
-            monitoring.lastFailureTime = Date.now();
-            console.warn(`⚠️ SimplePeer: Connection failed for ${pid}, waiting before reconnection...`);
-          } else {
-            const timeSinceFailure = Date.now() - monitoring.lastFailureTime;
-            // Wait at least 5 seconds before attempting reconnection
-            if (timeSinceFailure > 5000) {
-              console.warn(`⚠️ SimplePeer: Connection failed for ${pid} for ${timeSinceFailure}ms, attempting reconnection...`);
-              if (attemptReconnectionRef.current) {
-                monitoring.lastFailureTime = null; // Reset
-                attemptReconnectionRef.current(pid);
-              }
-            }
-          }
-        } else if (connectionState === 'disconnected' && iceState === 'disconnected') {
-          // Don't immediately reconnect on disconnect - wait longer
-          const monitoring = connectionMonitoringRef.current[pid];
-          if (!monitoring.lastDisconnectTime) {
-            monitoring.lastDisconnectTime = Date.now();
-            console.warn(`⚠️ SimplePeer: Connection disconnected for ${pid}, monitoring for recovery...`);
-          } else {
-            const timeSinceDisconnect = Date.now() - monitoring.lastDisconnectTime;
-            // Wait at least 10 seconds before attempting reconnection on disconnect
-            if (timeSinceDisconnect > 10000) {
-              if (pc.connectionState === 'disconnected' && pc.iceConnectionState === 'disconnected') {
-                console.warn(`⚠️ SimplePeer: Connection still disconnected for ${pid} after ${timeSinceDisconnect}ms, attempting reconnection...`);
+          if (!monitoring.hasAttemptedReconnect) {
+            monitoring.hasAttemptedReconnect = true;
+            console.warn(`⚠️ SimplePeer: Connection failed for ${pid}, will attempt reconnection once...`);
+            // Wait 10 seconds before attempting reconnection
+            setTimeout(() => {
+              if (pc.connectionState === 'failed' || pc.iceConnectionState === 'failed') {
                 if (attemptReconnectionRef.current) {
-                  monitoring.lastDisconnectTime = null; // Reset
                   attemptReconnectionRef.current(pid);
                 }
               }
-            }
+            }, 10000);
           }
         } else if (connectionState === 'connected' && iceState === 'connected') {
           // Connection is healthy - reset failure tracking
           const monitoring = connectionMonitoringRef.current[pid];
           if (monitoring) {
-            monitoring.lastFailureTime = null;
-            monitoring.lastDisconnectTime = null;
+            monitoring.hasAttemptedReconnect = false;
           }
           reconnectionAttemptsRef.current[pid] = 0;
         }
+        // Don't reconnect on 'disconnected' - let WebRTC recover naturally
       };
       
-      // Check connection state every 5 seconds (less frequent for better performance)
-      const interval = setInterval(checkConnection, 5000);
+      // Check connection state every 15 seconds (much less frequent to avoid performance issues)
+      const interval = setInterval(checkConnection, 15000);
       connectionMonitoringRef.current[pid].monitoringInterval = interval;
       
       // Also listen to statechange events
@@ -507,18 +487,9 @@ const useSimplePeer = (meetingId, userName) => {
       const signalsToRemove = Array.from(processedSignalsRef.current).filter(key => key.startsWith(participantId));
       signalsToRemove.forEach(signal => processedSignalsRef.current.delete(signal));
       
-      // Attempt reconnection if socket is still connected
-      if (socketRef.current?.connected && localStream) {
-        const participant = participants.find(p => p.id === participantId);
-        if (participant) {
-          console.log(`🔄 SimplePeer: Attempting to reconnect to ${participantId} after close...`);
-          setTimeout(() => {
-            if (!peersRef.current[participantId] && attemptReconnectionRef.current) {
-              attemptReconnectionRef.current(participantId);
-            }
-          }, 2000);
-        }
-      }
+      // Don't automatically reconnect on close - let the natural flow handle it
+      // Automatic reconnection can cause connection loops and performance issues
+      console.log(`🔌 SimplePeer: Connection closed with ${participantId} - will reconnect naturally if needed`);
     });
 
     return peer;
