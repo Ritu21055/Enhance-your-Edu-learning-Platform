@@ -39,6 +39,19 @@ class MediaRecorder {
     try {
       console.log('🎬 Starting intelligent recording for meeting:', meetingId);
       
+      // Check if recording already exists and is active
+      const existingSession = this.recordings.get(meetingId);
+      if (existingSession && existingSession.isRecording) {
+        console.warn('⚠️ Recording already active for meeting:', meetingId, '- returning existing session:', existingSession.sessionId);
+        return existingSession.sessionId;
+      }
+      
+      // If existing session exists but is not recording, clean it up first
+      if (existingSession) {
+        console.log('🧹 Cleaning up previous recording session for meeting:', meetingId);
+        this.recordings.delete(meetingId);
+      }
+      
       const sessionId = `recording_${meetingId}_${Date.now()}`;
       const recordingPath = path.join(this.recordingDir, `${sessionId}.webm`);
       
@@ -481,6 +494,22 @@ class MediaRecorder {
     }
 
     try {
+      // Filter out very small chunks (likely initialization/empty chunks from MediaRecorder)
+      // MediaRecorder sometimes sends 1-byte chunks at the start which are not actual data
+      const MIN_CHUNK_SIZE = 100; // Minimum 100 bytes to be considered valid
+      
+      if (!audioChunk || audioChunk.length < MIN_CHUNK_SIZE) {
+        // Only log first few small chunks to avoid spam
+        if (recordingSession.audioChunks.length < 3) {
+          console.warn('⚠️ Ignoring small/empty audio chunk:', {
+            meetingId,
+            chunkSize: audioChunk?.length || 0,
+            minSize: MIN_CHUNK_SIZE
+          });
+        }
+        return;
+      }
+      
       // Store audio chunk for later processing
       recordingSession.audioChunks.push({
         data: audioChunk,
@@ -515,6 +544,22 @@ class MediaRecorder {
     }
 
     try {
+      // Filter out very small chunks (likely initialization/empty chunks from MediaRecorder)
+      // MediaRecorder sometimes sends 1-byte chunks at the start which are not actual data
+      const MIN_CHUNK_SIZE = 100; // Minimum 100 bytes to be considered valid
+      
+      if (!videoFrame || videoFrame.length < MIN_CHUNK_SIZE) {
+        // Only log first few small chunks to avoid spam
+        if (recordingSession.videoChunks.length < 3) {
+          console.warn('⚠️ Ignoring small/empty video frame:', {
+            meetingId,
+            frameSize: videoFrame?.length || 0,
+            minSize: MIN_CHUNK_SIZE
+          });
+        }
+        return;
+      }
+      
       // Store video chunk for later processing
       recordingSession.videoChunks.push({
         data: videoFrame,

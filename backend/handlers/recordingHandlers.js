@@ -78,6 +78,22 @@ export default function registerRecordingHandlers(socket, io) {
         return;
       }
       
+      // Filter out very small chunks (MediaRecorder initialization chunks)
+      const MIN_CHUNK_SIZE = 100;
+      if (audioChunk.length < MIN_CHUNK_SIZE) {
+        // Only log first few to avoid spam
+        const session = mediaRecorder.getRecordingSession(meetingId);
+        const chunkCount = session ? session.audioChunks.length : 0;
+        if (chunkCount < 3) {
+          console.warn('⚠️ Ignoring small audio chunk (likely initialization):', {
+            meetingId,
+            chunkSize: audioChunk.length,
+            minSize: MIN_CHUNK_SIZE
+          });
+        }
+        return;
+      }
+      
       const isRecording = mediaRecorder.isRecording(meetingId);
       
       // Debug first few chunks
@@ -122,6 +138,22 @@ export default function registerRecordingHandlers(socket, io) {
       
       if (!videoFrame || videoFrame.length === 0) {
         console.warn('⚠️ Received empty video frame for meeting:', meetingId);
+        return;
+      }
+      
+      // Filter out very small chunks (MediaRecorder initialization chunks)
+      const MIN_CHUNK_SIZE = 100;
+      if (videoFrame.length < MIN_CHUNK_SIZE) {
+        // Only log first few to avoid spam
+        const session = mediaRecorder.getRecordingSession(meetingId);
+        const frameCount = session ? session.videoChunks.length : 0;
+        if (frameCount < 3) {
+          console.warn('⚠️ Ignoring small video frame (likely initialization):', {
+            meetingId,
+            frameSize: videoFrame.length,
+            minSize: MIN_CHUNK_SIZE
+          });
+        }
         return;
       }
       
