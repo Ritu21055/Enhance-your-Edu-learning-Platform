@@ -99,19 +99,124 @@ class MediaRecorder {
       recordingSession.endTime = Date.now();
       recordingSession.duration = recordingSession.endTime - recordingSession.startTime;
 
-      // For now, create a placeholder MP4 file since we don't have real WebRTC recording yet
-      const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
-      
-      // Create a simple test video as placeholder
-      await this.createPlaceholderRecording(mp4Path, recordingSession.duration);
+      // Chunks are stored in memory, will be processed below
 
-      console.log('✅ Recording stopped and converted:', mp4Path);
-      return mp4Path;
+      // Check if we have actual recording data
+      const hasAudioChunks = recordingSession.audioChunks.length > 0;
+      const hasVideoChunks = recordingSession.videoChunks.length > 0;
+      
+      console.log('🎬 Recording summary:', {
+        audioChunks: recordingSession.audioChunks.length,
+        videoChunks: recordingSession.videoChunks.length,
+        duration: recordingSession.duration,
+        hasAudio: hasAudioChunks,
+        hasVideo: hasVideoChunks
+      });
+
+      // If we have actual chunks, use them; otherwise create placeholder
+      if (hasAudioChunks || hasVideoChunks) {
+        // Convert WebM to MP4 for better compatibility
+        const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
+        
+        // Check if the WebM file exists and has content
+        const fs = await import('fs');
+        try {
+          const stats = await fs.promises.stat(recordingSession.recordingPath);
+          if (stats.size > 0) {
+            // Convert the actual recording
+            await this.convertToMP4(recordingSession.recordingPath, mp4Path);
+            console.log('✅ Real recording converted to MP4:', mp4Path);
+            return mp4Path;
+          }
+        } catch (error) {
+          console.warn('⚠️ WebM file not found or empty, creating from chunks:', error.message);
+        }
+        
+        // If file doesn't exist, combine chunks and create recording
+        await this.combineChunksToRecording(recordingSession, mp4Path);
+        console.log('✅ Recording created from chunks:', mp4Path);
+        return mp4Path;
+      } else {
+        // Fallback: Create placeholder if no chunks collected
+        console.warn('⚠️ No chunks collected, creating placeholder recording');
+        const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
+        await this.createPlaceholderRecording(mp4Path, recordingSession.duration);
+        return mp4Path;
+      }
       
     } catch (error) {
       console.error('❌ Failed to stop recording:', error);
       throw error;
     }
+  }
+
+  /**
+   * Combine audio and video chunks into final recording file
+   * @param {Object} recordingSession - Recording session object
+   * @param {string} outputPath - Output file path
+   */
+  async combineChunksToRecording(recordingSession, outputPath) {
+    return new Promise(async (resolve, reject) => {
+      console.log('🎬 Combining chunks to create recording...');
+      
+      const fsModule = await import('fs');
+      const fsSync = fsModule.default || fsModule;
+      const fs = await import('fs/promises');
+      const tempWebMPath = path.join(this.recordingDir, `temp_recording_${Date.now()}.webm`);
+      
+      // Since MediaRecorder sends WebM chunks that contain both audio and video,
+      // we can combine all chunks into a single WebM file first
+      const webmStream = fsSync.createWriteStream(tempWebMPath);
+      
+      // Combine all chunks (audio chunks contain the full WebM stream with audio+video)
+      const allChunks = [...recordingSession.audioChunks, ...recordingSession.videoChunks]
+        .sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp
+      
+      // Remove duplicates (since audio_chunk and video_frame might contain same data)
+      const uniqueChunks = [];
+      const seenTimestamps = new Set();
+      allChunks.forEach(chunk => {
+        if (!seenTimestamps.has(chunk.timestamp)) {
+          seenTimestamps.add(chunk.timestamp);
+          uniqueChunks.push(chunk);
+        }
+      });
+      
+      // Write all chunks to temp WebM file
+      for (const chunk of uniqueChunks) {
+        webmStream.write(chunk.data);
+      }
+      webmStream.end();
+      
+      // Wait for stream to finish writing
+      await new Promise((resolve) => {
+        webmStream.on('finish', resolve);
+      });
+      
+      // Convert WebM to MP4 for better compatibility
+      try {
+        await this.convertToMP4(tempWebMPath, outputPath);
+        
+        // Clean up temp file
+        try {
+          await fs.unlink(tempWebMPath);
+        } catch (err) {
+          console.warn('⚠️ Failed to clean up temp file:', err);
+        }
+        
+        console.log('✅ Recording combined and converted successfully:', outputPath);
+        resolve(outputPath);
+      } catch (error) {
+        // If conversion fails, try to use WebM file directly
+        console.warn('⚠️ MP4 conversion failed, using WebM file:', error.message);
+        try {
+          await fs.rename(tempWebMPath, outputPath.replace('.mp4', '.webm'));
+          resolve(outputPath.replace('.mp4', '.webm'));
+        } catch (renameError) {
+          reject(new Error(`Failed to create recording: ${error.message}`));
+        }
+      }
+    });
   }
 
   /**
@@ -214,9 +319,16 @@ class MediaRecorder {
     }
 
     try {
-      // In a real implementation, this would append to the recording file
-      // For now, we'll simulate the process
-      console.log('🎤 Adding audio chunk to recording:', meetingId, audioChunk.length, 'bytes');
+      // Store audio chunk for later processing
+      recordingSession.audioChunks.push({
+        data: audioChunk,
+        timestamp: Date.now()
+      });
+      
+      // Store chunks in memory for later processing
+      // Real-time file writing will be handled during stopRecording
+      
+      console.log('🎤 Added audio chunk to recording:', meetingId, audioChunk.length, 'bytes');
     } catch (error) {
       console.error('❌ Failed to add audio chunk:', error);
     }
@@ -234,9 +346,16 @@ class MediaRecorder {
     }
 
     try {
-      // In a real implementation, this would append to the recording file
-      // For now, we'll simulate the process
-      console.log('📹 Adding video frame to recording:', meetingId, videoFrame.length, 'bytes');
+      // Store video chunk for later processing
+      recordingSession.videoChunks.push({
+        data: videoFrame,
+        timestamp: Date.now()
+      });
+      
+      // Store chunks in memory for later processing
+      // Real-time file writing will be handled during stopRecording
+      
+      console.log('📹 Added video frame to recording:', meetingId, videoFrame.length, 'bytes');
     } catch (error) {
       console.error('❌ Failed to add video frame:', error);
     }

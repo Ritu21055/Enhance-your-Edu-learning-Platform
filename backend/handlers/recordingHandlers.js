@@ -17,10 +17,12 @@ export default function registerRecordingHandlers(socket, io) {
       const sessionId = await mediaRecorder.startRecording(meetingId, options);
       
       // Notify all participants that recording has started
-      io.to(meetingId).emit('recording_started', {
+      // Exclude the host who started the recording
+      socket.to(meetingId).emit('recording_started', {
         meetingId,
         sessionId,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        message: 'Meeting is being recorded by the host'
       });
       
       console.log('✅ Recording started successfully:', sessionId);
@@ -43,10 +45,12 @@ export default function registerRecordingHandlers(socket, io) {
       const recordingPath = await mediaRecorder.stopRecording(meetingId);
       
       // Notify all participants that recording has stopped
-      io.to(meetingId).emit('recording_stopped', {
+      // Exclude the host who stopped the recording
+      socket.to(meetingId).emit('recording_stopped', {
         meetingId,
         recordingPath,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        message: 'Recording stopped by the host'
       });
       
       console.log('✅ Recording stopped successfully:', recordingPath);

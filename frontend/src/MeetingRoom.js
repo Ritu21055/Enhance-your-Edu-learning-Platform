@@ -35,6 +35,7 @@ import SentimentDashboard from './components/SentimentDashboard';
 import FatigueAlert from './components/FatigueAlert';
 import MediaRequestDialog from './components/MediaRequestDialog';
 import MediaRequestNotification from './components/MediaRequestNotification';
+import RecordingNotification from './components/RecordingNotification';
 import AudioTroubleshooter from './components/AudioTroubleshooter';
 import CompatibilityTestResults from './components/CompatibilityTestResults';
 import QuestionSuggestion from './components/QuestionSuggestion';
@@ -93,6 +94,12 @@ const MeetingRoom = () => {
   
   // Media Request Feature State
   const [showMediaRequestDialog, setShowMediaRequestDialog] = useState(false);
+  
+  // Recording Notification State (for participants)
+  const [recordingNotification, setRecordingNotification] = useState({
+    open: false,
+    isRecording: false
+  });
   
   // Refs (localVideoRef comes from useWebRTC hook)
 
@@ -562,6 +569,35 @@ const MeetingRoom = () => {
       meetingId
     });
   }, [isMediaRecording, recordingStatus, recordingError, localStream, socket, meetingId]);
+
+  // Listen for recording notifications (for participants)
+  useEffect(() => {
+    if (!socket || isHost) return; // Only for participants
+
+    const handleRecordingStarted = (data) => {
+      console.log('🎬 Recording started notification:', data);
+      setRecordingNotification({
+        open: true,
+        isRecording: true
+      });
+    };
+
+    const handleRecordingStopped = (data) => {
+      console.log('🛑 Recording stopped notification:', data);
+      setRecordingNotification({
+        open: true,
+        isRecording: false
+      });
+    };
+
+    socket.on('recording_started', handleRecordingStarted);
+    socket.on('recording_stopped', handleRecordingStopped);
+
+    return () => {
+      socket.off('recording_started', handleRecordingStarted);
+      socket.off('recording_stopped', handleRecordingStopped);
+    };
+  }, [socket, isHost]);
 
   // Meeting Media Protection - Start protection when meeting starts
   useEffect(() => {
@@ -1544,6 +1580,15 @@ const MeetingRoom = () => {
             onDeny={denyRequest}
           />
         </>
+      )}
+
+      {/* Recording Notification (for participants) */}
+      {!isHost && (
+        <RecordingNotification
+          open={recordingNotification.open}
+          isRecording={recordingNotification.isRecording}
+          onClose={() => setRecordingNotification(prev => ({ ...prev, open: false }))}
+        />
       )}
 
       {/* Enhanced Highlight System Components */}

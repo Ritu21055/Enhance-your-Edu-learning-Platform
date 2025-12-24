@@ -98,14 +98,29 @@ const useMediaRecorder = (socket, meetingId, localStream) => {
           if (event.data.size > 0) {
             recordedChunksRef.current.push(event.data);
             
-            // Send audio chunks to server for real-time processing
+            // Send audio/video chunks to server for real-time processing
+            // MediaRecorder captures both audio and video in the same chunk
             const reader = new FileReader();
             reader.onload = () => {
               const arrayBuffer = reader.result;
+              const chunkData = Array.from(new Uint8Array(arrayBuffer));
+              
+              // Send as audio_chunk (contains both audio and video in WebM format)
               socket.emit('audio_chunk', {
                 meetingId,
-                audioChunk: Array.from(new Uint8Array(arrayBuffer))
+                audioChunk: chunkData,
+                timestamp: Date.now()
               });
+              
+              // Also send as video_frame if video is enabled
+              const videoTracks = localStream.getVideoTracks();
+              if (videoTracks.length > 0 && videoTracks[0].enabled) {
+                socket.emit('video_frame', {
+                  meetingId,
+                  videoFrame: chunkData, // WebM contains both audio and video
+                  timestamp: Date.now()
+                });
+              }
             };
             reader.readAsArrayBuffer(event.data);
           }
