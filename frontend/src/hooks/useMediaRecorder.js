@@ -137,12 +137,11 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
             
             // Debug every 10 chunks (every 10 seconds)
             if (chunkCount % 10 === 0) {
-              console.log('🎬 MediaRecorder chunk:', {
-                chunkNumber: chunkCount,
-                size: event.data.size,
-                type: event.data.type,
-                totalChunks: recordedChunksRef.current.length
-              });
+              console.log('🎬 MediaRecorder chunk:');
+              console.log('  - Chunk Number:', chunkCount);
+              console.log('  - Size:', event.data.size, 'bytes');
+              console.log('  - Type:', event.data.type);
+              console.log('  - Total Chunks:', recordedChunksRef.current.length);
             }
             
             // Send audio/video chunks to server for real-time processing
@@ -469,13 +468,13 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
           ended: video.ended
         }));
         
-        console.log('🎬 Canvas drawing debug:', {
-          drawCount,
-          totalVideos,
-          localVideo: localInfo,
-          remoteVideos: remoteInfo,
-          drawnCount
-        });
+        // Expand object for better debugging
+        console.log('🎬 Canvas drawing debug:');
+        console.log('  - Draw Count:', drawCount);
+        console.log('  - Total Videos:', totalVideos);
+        console.log('  - Drawn Count:', drawnCount);
+        console.log('  - Local Video:', localInfo);
+        console.log('  - Remote Videos:', remoteInfo);
         
         // Warn if no videos are being drawn
         if (drawnCount === 0 && totalVideos > 0) {

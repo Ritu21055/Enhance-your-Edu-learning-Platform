@@ -352,12 +352,14 @@ class MediaRecorder {
       // Store chunks in memory for later processing
       // Real-time file writing will be handled during stopRecording
       
-      console.log('🎤 Added audio chunk to recording:', {
-        meetingId,
-        chunkSize: audioChunk.length,
-        totalChunks: recordingSession.audioChunks.length,
-        isRecording: recordingSession.isRecording
-      });
+      // Debug every 10 chunks to avoid spam
+      if (recordingSession.audioChunks.length % 10 === 0 || recordingSession.audioChunks.length <= 3) {
+        console.log('🎤 Added audio chunk to recording:');
+        console.log('  - Meeting ID:', meetingId);
+        console.log('  - Chunk Size:', audioChunk.length, 'bytes');
+        console.log('  - Total Chunks:', recordingSession.audioChunks.length);
+        console.log('  - Is Recording:', recordingSession.isRecording);
+      }
     } catch (error) {
       console.error('❌ Failed to add audio chunk:', error);
     }
@@ -384,12 +386,14 @@ class MediaRecorder {
       // Store chunks in memory for later processing
       // Real-time file writing will be handled during stopRecording
       
-      console.log('📹 Added video frame to recording:', {
-        meetingId,
-        frameSize: videoFrame.length,
-        totalFrames: recordingSession.videoChunks.length,
-        isRecording: recordingSession.isRecording
-      });
+      // Debug every 10 frames to avoid spam
+      if (recordingSession.videoChunks.length % 10 === 0 || recordingSession.videoChunks.length <= 3) {
+        console.log('📹 Added video frame to recording:');
+        console.log('  - Meeting ID:', meetingId);
+        console.log('  - Frame Size:', videoFrame.length, 'bytes');
+        console.log('  - Total Frames:', recordingSession.videoChunks.length);
+        console.log('  - Is Recording:', recordingSession.isRecording);
+      }
     } catch (error) {
       console.error('❌ Failed to add video frame:', error);
     }
