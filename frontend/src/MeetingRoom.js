@@ -334,11 +334,14 @@ const MeetingRoom = () => {
       socket.emit('start_question_generation', { meetingId });
       setIsQuestionGenerationActive(true);
       
-      // Also start audio transcription for the host
-      if (isHost) {
-        console.log('🤖 Starting audio transcription for host...');
-        startTranscriptionRecording();
-      }
+      // Start audio transcription for BOTH host AND participants
+      // This ensures conversation-specific questions work regardless of video state:
+      // - Host with audio only ✅
+      // - Host with audio + video ✅
+      // - Participant with audio only ✅
+      // - Participant with audio + video ✅
+      console.log('🤖 Starting audio transcription for conversation-specific question generation...');
+      startTranscriptionRecording();
     } else {
       console.error('🤖 Cannot start AI question generation:', {
         hasSocket: !!socket,
