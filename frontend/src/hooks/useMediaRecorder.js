@@ -129,9 +129,21 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
         mediaRecorderRef.current = mediaRecorder;
         recordedChunksRef.current = [];
 
+        let chunkCount = 0;
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
+            chunkCount++;
             recordedChunksRef.current.push(event.data);
+            
+            // Debug every 10 chunks (every 10 seconds)
+            if (chunkCount % 10 === 0) {
+              console.log('🎬 MediaRecorder chunk:', {
+                chunkNumber: chunkCount,
+                size: event.data.size,
+                type: event.data.type,
+                totalChunks: recordedChunksRef.current.length
+              });
+            }
             
             // Send audio/video chunks to server for real-time processing
             // MediaRecorder captures both audio and video in the same chunk
@@ -157,7 +169,12 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
                 });
               }
             };
+            reader.onerror = (error) => {
+              console.error('❌ FileReader error:', error);
+            };
             reader.readAsArrayBuffer(event.data);
+          } else {
+            console.warn('⚠️ MediaRecorder: Empty chunk received');
           }
         };
 
@@ -370,21 +387,41 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       
       // Debug every 30 frames (1 second at 30fps)
       if (drawCount % 30 === 0) {
+        const localVideo = localVideoRef?.current;
+        const localInfo = localVideo ? {
+          videoWidth: localVideo.videoWidth,
+          videoHeight: localVideo.videoHeight,
+          readyState: localVideo.readyState,
+          srcObject: !!localVideo.srcObject,
+          paused: localVideo.paused,
+          ended: localVideo.ended
+        } : null;
+        
+        const remoteInfo = Array.from(remoteVideoElements.entries()).map(([id, video]) => ({
+          id,
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          readyState: video.readyState,
+          srcObject: !!video.srcObject,
+          paused: video.paused,
+          ended: video.ended
+        }));
+        
         console.log('🎬 Canvas drawing debug:', {
+          drawCount,
           totalVideos,
-          localVideo: localVideoRef?.current ? {
-            videoWidth: localVideoRef.current.videoWidth,
-            videoHeight: localVideoRef.current.videoHeight,
-            readyState: localVideoRef.current.readyState,
-            srcObject: !!localVideoRef.current.srcObject
-          } : null,
-          remoteVideos: Array.from(remoteVideoElements.entries()).map(([id, video]) => ({
-            id,
-            videoWidth: video.videoWidth,
-            videoHeight: video.videoHeight,
-            readyState: video.readyState
-          }))
+          localVideo: localInfo,
+          remoteVideos: remoteInfo,
+          drawnCount: drawnCount || 0
         });
+        
+        // Warn if no videos are being drawn
+        if (drawnCount === 0 && totalVideos > 0) {
+          console.warn('⚠️ Canvas: Videos exist but none are being drawn!', {
+            localReady: localVideo && localVideo.videoWidth > 0 && localVideo.readyState >= 2,
+            remoteReady: remoteInfo.some(v => v.videoWidth > 0 && v.readyState >= 2)
+          });
+        }
       }
       
       if (totalVideos === 0) {

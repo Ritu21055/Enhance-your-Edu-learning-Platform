@@ -69,9 +69,16 @@ export default function registerRecordingHandlers(socket, io) {
     try {
       const { meetingId, audioChunk } = data;
       
+      if (!audioChunk || audioChunk.length === 0) {
+        console.warn('⚠️ Received empty audio chunk for meeting:', meetingId);
+        return;
+      }
+      
       // Add to media recorder if recording is active
       if (mediaRecorder.isRecording(meetingId)) {
         await mediaRecorder.addAudioChunk(meetingId, Buffer.from(audioChunk));
+      } else {
+        console.warn('⚠️ Received audio chunk but recording is not active for meeting:', meetingId);
       }
       
     } catch (error) {
@@ -84,9 +91,16 @@ export default function registerRecordingHandlers(socket, io) {
     try {
       const { meetingId, videoFrame } = data;
       
+      if (!videoFrame || videoFrame.length === 0) {
+        console.warn('⚠️ Received empty video frame for meeting:', meetingId);
+        return;
+      }
+      
       // Add to media recorder if recording is active
       if (mediaRecorder.isRecording(meetingId)) {
         await mediaRecorder.addVideoFrame(meetingId, Buffer.from(videoFrame));
+      } else {
+        console.warn('⚠️ Received video frame but recording is not active for meeting:', meetingId);
       }
       
     } catch (error) {
