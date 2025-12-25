@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import SimplePeer from 'simple-peer';
 import { getBackendUrl } from '../config/network';
+import PeerOptimizer from '../utils/peerOptimizer';
 
 /**
  * Clean Video Call Hook
@@ -871,24 +872,46 @@ const useVideoCall = (meetingId, userName) => {
       }
       
       console.log('🎥 Requesting user media...');
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
+      
+      // Get participant count for adaptive quality
+      const participantCount = participantsRef.current.length + 1;
+      
+      // Use PeerOptimizer for adaptive quality based on participant count
+      const videoConstraints = PeerOptimizer.getVideoConstraints(participantCount);
+      const audioConstraints = PeerOptimizer.getAudioConstraints();
+      const quality = PeerOptimizer.getQualitySettings(participantCount);
+      
+      console.log('🎥 PeerOptimizer: Quality settings:', {
+        participantCount,
+        videoWidth: quality.videoWidth,
+        videoHeight: quality.videoHeight,
+        frameRate: quality.frameRate,
+        videoBitrate: `${quality.videoBitrate / 1000} kbps`
       });
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
+        audio: audioConstraints
+      });
+
+      // Store bitrate for later use in peer connections
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack._targetBitrate = quality.videoBitrate;
+        videoTrack._targetFrameRate = quality.frameRate;
+      }
+
+      // Ensure audio is enabled
+      PeerOptimizer.ensureAudioEnabled(stream, 'local');
 
       console.log('✅ User media obtained:', {
         streamId: stream.id,
         active: stream.active,
         videoTracks: stream.getVideoTracks().length,
-        audioTracks: stream.getAudioTracks().length
+        audioTracks: stream.getAudioTracks().length,
+        videoWidth: videoTrack?.getSettings()?.width,
+        videoHeight: videoTrack?.getSettings()?.height,
+        frameRate: videoTrack?.getSettings()?.frameRate
       });
 
       streamRef.current = stream;
@@ -965,16 +988,15 @@ const useVideoCall = (meetingId, userName) => {
     
     // CRITICAL: Wait a tiny bit to ensure stream is fully ready
     // SimplePeer needs the stream to be in a stable state
+    
+    // Ensure audio is enabled before creating peer
+    PeerOptimizer.ensureAudioEnabled(streamRef.current, participantId);
+    
     const peer = new SimplePeer({
       initiator,
       trickle: true, // Changed to true for immediate signals (offer/answer), ICE candidates trickle in
       stream: streamRef.current, // CRITICAL: Stream must be active and ready
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-      }
+      config: PeerOptimizer.getPeerConfig() // Use optimized config
     });
     
     // CRITICAL: Verify stream was added to peer
@@ -1030,6 +1052,14 @@ const useVideoCall = (meetingId, userName) => {
             console.error(`❌ Failed to add video track:`, error);
           }
         }
+        
+        // CRITICAL: Apply bitrate constraints to video sender for optimal performance
+        if (videoSender && videoSender.setParameters) {
+          PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId);
+        }
+        
+        // CRITICAL: Verify audio in peer connection
+        PeerOptimizer.verifyAudioInPeerConnection(peer, participantId);
       }
     }
 
@@ -1868,6 +1898,29 @@ const useVideoCall = (meetingId, userName) => {
       // Keep ref available
     };
   }, []);
+
+  // CRITICAL: Periodically ensure audio tracks are enabled in all peer connections (for host)
+  useEffect(() => {
+    if (!localStream || !isHost) return;
+    
+    const ensureAudioEnabled = () => {
+      // Ensure audio tracks in local stream are enabled
+      PeerOptimizer.ensureAudioEnabled(localStream, 'local');
+      
+      // Ensure audio tracks in all peer connections are enabled
+      Object.entries(peersRef.current).forEach(([participantId, peer]) => {
+        if (peer && peer._pc) {
+          PeerOptimizer.verifyAudioInPeerConnection(peer, participantId);
+        }
+      });
+    };
+    
+    // Check immediately and then every 5 seconds
+    ensureAudioEnabled();
+    const interval = setInterval(ensureAudioEnabled, 5000);
+    
+    return () => clearInterval(interval);
+  }, [localStream, isHost]);
 
   return {
     // Streams

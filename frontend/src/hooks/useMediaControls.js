@@ -233,14 +233,14 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
       return;
     }
 
-    const audioTrack = localStream.getAudioTracks()[0];
+      const audioTrack = localStream.getAudioTracks()[0];
     if (!audioTrack) {
       console.warn('🔇 useMediaControls: No audio track found');
       return;
     }
 
     // CRITICAL: Capture video state BEFORE any operations
-    const videoTrack = localStream.getVideoTracks()[0];
+      const videoTrack = localStream.getVideoTracks()[0];
     const videoWasEnabled = isVideoEnabledRef.current; // Use ref for current value
     const videoTrackWasEnabled = videoTrack?.enabled ?? false;
     const videoStateFromState = isVideoEnabled; // Also check state
@@ -465,7 +465,7 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
     
     if (!localStream) return;
 
-    const videoTrack = localStream.getVideoTracks()[0];
+      const videoTrack = localStream.getVideoTracks()[0];
     if (!videoTrack) return;
 
     // CRITICAL: Toggle based on CURRENT STATE only
@@ -483,7 +483,7 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
     // CRITICAL: Set BOTH state and track immediately and synchronously
     // Don't use protected setter - just set directly
     setIsVideoEnabled(newState);
-    videoTrack.enabled = newState;
+        videoTrack.enabled = newState;
     
     console.log('🎥 Video Toggle: Completed', { 
       state: newState,
@@ -527,11 +527,11 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
         setScreenStream(null);
       }
       setIsScreenSharing(false);
-
+      
       if (onScreenShareChange) {
         onScreenShareChange(null, false);
       }
-
+      
       if (socket && meetingId && participantId) {
         socket.emit('screen-share-change', {
           meetingId,
@@ -675,18 +675,18 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
           console.trace('🖥️🖥️ Where did video state get changed?');
           setIsVideoEnabled(true);
         }
-
+        
         setScreenStream(stream);
         setIsScreenSharing(true);
-
+        
         if (screenVideoRef.current) {
           screenVideoRef.current.srcObject = stream;
         }
-
+        
         if (onScreenShareChange) {
           onScreenShareChange(stream, true);
         }
-
+        
         if (socket && meetingId && participantId) {
           socket.emit('screen-share-change', {
             meetingId,
@@ -787,7 +787,7 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
           if (onScreenShareChange) {
             onScreenShareChange(null, false);
           }
-
+          
           if (socket && meetingId && participantId) {
             socket.emit('screen-share-change', {
               meetingId,

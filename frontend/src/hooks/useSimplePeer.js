@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import SimplePeer from 'simple-peer';
 import { getBackendUrl } from '../config/network';
+import PeerOptimizer from '../utils/peerOptimizer';
 
 const useSimplePeer = (meetingId, userName) => {
   const [localStream, setLocalStream] = useState(null);
@@ -92,11 +93,11 @@ const useSimplePeer = (meetingId, userName) => {
         frameRate = 20;
         videoBitrate = 600000; // 600 kbps - lower for stability
       } else if (participantCount <= 4) {
-        // 3-4 participants - lower quality
+        // 3-4 participants - lower quality (OPTIMIZED)
         videoWidth = 480;
         videoHeight = 360;
-        frameRate = 20;
-        videoBitrate = 800000; // 800 kbps
+        frameRate = 18; // Changed from 20 to 18 for better stability
+        videoBitrate = 500000; // Changed from 800000 to 500000 - better stability
       } else {
         // 5+ participants - lowest quality
         videoWidth = 320;
@@ -241,7 +242,9 @@ const useSimplePeer = (meetingId, userName) => {
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' }
         ],
-        iceCandidatePoolSize: 5 // Reduced for better performance
+        iceCandidatePoolSize: 3, // Reduced from 5 to 3 for better performance
+        bundlePolicy: 'max-bundle', // Optimize for multiple streams
+        rtcpMuxPolicy: 'require' // Reduce connections
       }
     });
     
@@ -258,9 +261,9 @@ const useSimplePeer = (meetingId, userName) => {
                 params.encodings = [{}];
               }
               const videoTrack = localStream.getVideoTracks()[0];
-              const targetBitrate = videoTrack?._targetBitrate || 600000; // Default 600 kbps for stability
+              const targetBitrate = videoTrack?._targetBitrate || 500000; // Default 500 kbps for stability
               params.encodings[0].maxBitrate = targetBitrate;
-              params.encodings[0].maxFramerate = 20; // Lower framerate for stability
+              params.encodings[0].maxFramerate = 18; // Lower framerate for stability (changed from 20 to 18)
               sender.setParameters(params);
               console.log(`✅ SimplePeer: Applied bitrate constraint (${targetBitrate / 1000} kbps) for ${participantId}`);
             } catch (error) {
@@ -588,7 +591,7 @@ const useSimplePeer = (meetingId, userName) => {
 
   // Define attemptReconnection after createPeer to avoid circular dependency
   const attemptReconnection = useCallback((pid) => {
-    const maxAttempts = 3;
+    const maxAttempts = 1; // Changed from 3 to 1 - better stability
     const attempts = reconnectionAttemptsRef.current[pid] || 0;
     
     if (attempts >= maxAttempts) {
