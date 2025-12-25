@@ -72,38 +72,72 @@ const useSimplePeer = (meetingId, userName) => {
       
       // Get participant count to adjust quality
       const participantCount = participants.length + 1; // +1 for self
+      const isHostUser = isHost; // Check if current user is host
       
-      // Adaptive quality based on participant count
-      // Start with lower quality for better stability with multiple participants
+      // Adaptive quality based on participant count and host status
+      // Host gets better quality to prevent lag
       let videoWidth = 640;
       let videoHeight = 480;
-      let frameRate = 24; // Lower frame rate for smoother playback
-      let videoBitrate = 1000000; // 1 Mbps - lower for stability
+      let frameRate = 24;
+      let videoBitrate = 1000000; // 1 Mbps
       
-      if (participantCount === 1) {
-        // Only host - can use higher quality
-        videoWidth = 960;
-        videoHeight = 540;
-        frameRate = 25;
-        videoBitrate = 1500000; // 1.5 Mbps
-      } else if (participantCount === 2) {
-        // 2 participants - lower quality for stability
-        videoWidth = 480;
-        videoHeight = 360;
-        frameRate = 20;
-        videoBitrate = 600000; // 600 kbps - lower for stability
-      } else if (participantCount <= 4) {
-        // 3-4 participants - lower quality (OPTIMIZED)
-        videoWidth = 480;
-        videoHeight = 360;
-        frameRate = 18; // Changed from 20 to 18 for better stability
-        videoBitrate = 500000; // Changed from 800000 to 500000 - better stability
+      if (isHostUser) {
+        // Host gets better quality to prevent lag
+        if (participantCount === 1) {
+          videoWidth = 960;
+          videoHeight = 540;
+          frameRate = 30;
+          videoBitrate = 2000000; // 2 Mbps - higher for host
+        } else if (participantCount === 2) {
+          videoWidth = 640;
+          videoHeight = 480;
+          frameRate = 25;
+          videoBitrate = 1200000; // 1.2 Mbps - higher for host
+        } else if (participantCount <= 4) {
+          videoWidth = 640;
+          videoHeight = 480;
+          frameRate = 24;
+          videoBitrate = 1000000; // 1 Mbps - higher for host to prevent lag
+        } else if (participantCount <= 6) {
+          videoWidth = 480;
+          videoHeight = 360;
+          frameRate = 20;
+          videoBitrate = 800000; // 800 kbps
+        } else {
+          videoWidth = 480;
+          videoHeight: 360;
+          frameRate = 18;
+          videoBitrate = 600000; // 600 kbps
+        }
       } else {
-        // 5+ participants - lowest quality
-        videoWidth = 320;
-        videoHeight = 240;
-        frameRate = 15;
-        videoBitrate = 500000; // 500 kbps
+        // Participants get standard quality
+        if (participantCount === 1) {
+          videoWidth = 960;
+          videoHeight = 540;
+          frameRate = 25;
+          videoBitrate = 1500000; // 1.5 Mbps
+        } else if (participantCount === 2) {
+          videoWidth = 640;
+          videoHeight = 480;
+          frameRate = 24;
+          videoBitrate = 800000; // 800 kbps - increased from 600
+        } else if (participantCount <= 4) {
+          // 3-4 participants - increased quality to prevent lag
+          videoWidth = 640;
+          videoHeight = 480;
+          frameRate = 22;
+          videoBitrate = 700000; // 700 kbps - increased from 500 to prevent lag
+        } else if (participantCount <= 6) {
+          videoWidth = 480;
+          videoHeight = 360;
+          frameRate = 20;
+          videoBitrate = 600000; // 600 kbps - increased from 400
+        } else {
+          videoWidth = 360;
+          videoHeight = 270;
+          frameRate = 18;
+          videoBitrate = 500000; // 500 kbps - increased from 300
+        }
       }
       
       console.log('🎥 SimplePeer: Quality settings:', {

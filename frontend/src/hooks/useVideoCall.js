@@ -875,14 +875,17 @@ const useVideoCall = (meetingId, userName) => {
       
       // Get participant count for adaptive quality
       const participantCount = participantsRef.current.length + 1;
+      const isHost = isHostRef.current;
       
-      // Use PeerOptimizer for adaptive quality based on participant count
-      const videoConstraints = PeerOptimizer.getVideoConstraints(participantCount);
+      // Use PeerOptimizer for adaptive quality based on participant count and host status
+      // Host gets better quality to prevent lag
+      const videoConstraints = PeerOptimizer.getVideoConstraints(participantCount, isHost);
       const audioConstraints = PeerOptimizer.getAudioConstraints();
-      const quality = PeerOptimizer.getQualitySettings(participantCount);
+      const quality = PeerOptimizer.getQualitySettings(participantCount, isHost);
       
       console.log('🎥 PeerOptimizer: Quality settings:', {
         participantCount,
+        isHost,
         videoWidth: quality.videoWidth,
         videoHeight: quality.videoHeight,
         frameRate: quality.frameRate,

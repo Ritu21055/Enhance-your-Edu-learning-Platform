@@ -10,7 +10,48 @@ export class PeerOptimizer {
   /**
    * Get optimized quality settings based on participant count
    */
-  static getQualitySettings(participantCount) {
+  static getQualitySettings(participantCount, isHost = false) {
+    // Host gets better quality to prevent lag
+    if (isHost) {
+      if (participantCount === 1) {
+        return {
+          videoWidth: 960,
+          videoHeight: 540,
+          frameRate: 30,
+          videoBitrate: 2000000 // 2 Mbps - higher for host
+        };
+      } else if (participantCount === 2) {
+        return {
+          videoWidth: 640,
+          videoHeight: 480,
+          frameRate: 25,
+          videoBitrate: 1200000 // 1.2 Mbps - higher for host
+        };
+      } else if (participantCount <= 4) {
+        return {
+          videoWidth: 640,
+          videoHeight: 480,
+          frameRate: 24,
+          videoBitrate: 1000000 // 1 Mbps - higher for host to prevent lag
+        };
+      } else if (participantCount <= 6) {
+        return {
+          videoWidth: 480,
+          videoHeight: 360,
+          frameRate: 20,
+          videoBitrate: 800000 // 800 kbps
+        };
+      } else {
+        return {
+          videoWidth: 480,
+          videoHeight: 360,
+          frameRate: 18,
+          videoBitrate: 600000 // 600 kbps
+        };
+      }
+    }
+    
+    // Participants get standard quality
     if (participantCount === 1) {
       return {
         videoWidth: 960,
@@ -20,33 +61,33 @@ export class PeerOptimizer {
       };
     } else if (participantCount === 2) {
       return {
-        videoWidth: 480,
-        videoHeight: 360,
-        frameRate: 20,
-        videoBitrate: 600000 // 600 kbps
+        videoWidth: 640,
+        videoHeight: 480,
+        frameRate: 24,
+        videoBitrate: 800000 // 800 kbps - increased from 600
       };
     } else if (participantCount <= 4) {
-      // 3-4 participants - optimized for stability
+      // 3-4 participants - increased quality to prevent lag
       return {
-        videoWidth: 480,
-        videoHeight: 360,
-        frameRate: 18,
-        videoBitrate: 500000 // 500 kbps - lower for better stability
+        videoWidth: 640,
+        videoHeight: 480,
+        frameRate: 22,
+        videoBitrate: 700000 // 700 kbps - increased from 500 to prevent lag
       };
     } else if (participantCount <= 6) {
       return {
-        videoWidth: 360,
-        videoHeight: 270,
-        frameRate: 15,
-        videoBitrate: 400000 // 400 kbps
+        videoWidth: 480,
+        videoHeight: 360,
+        frameRate: 20,
+        videoBitrate: 600000 // 600 kbps - increased from 400
       };
     } else {
       // 7+ participants - lowest quality
       return {
-        videoWidth: 320,
-        videoHeight: 240,
-        frameRate: 12,
-        videoBitrate: 300000 // 300 kbps
+        videoWidth: 360,
+        videoHeight: 270,
+        frameRate: 18,
+        videoBitrate: 500000 // 500 kbps - increased from 300
       };
     }
   }
@@ -54,8 +95,8 @@ export class PeerOptimizer {
   /**
    * Get optimized video constraints
    */
-  static getVideoConstraints(participantCount) {
-    const quality = this.getQualitySettings(participantCount);
+  static getVideoConstraints(participantCount, isHost = false) {
+    const quality = this.getQualitySettings(participantCount, isHost);
     return {
       width: { ideal: quality.videoWidth, max: quality.videoWidth },
       height: { ideal: quality.videoHeight, max: quality.videoHeight },
