@@ -1817,10 +1817,17 @@ const useVideoCall = (meetingId, userName) => {
               }
             }
           } else {
-            // No sender, add track
-            console.log(`➕ Adding video track to peer connection for ${participantId}`);
-            pc.addTrack(videoTrack, streamToUse);
-            triggerRenegotiation(pc, participantId);
+            // No sender, add track - but only if connection is stable to avoid disconnect
+            const isStable = pc.signalingState === 'stable' && 
+                            (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+            
+            if (isStable) {
+              console.log(`➕ Adding video track to peer connection for ${participantId}`);
+              pc.addTrack(videoTrack, streamToUse);
+              triggerRenegotiation(pc, participantId);
+            } else {
+              console.log(`⏸️ Skipping video track addition for ${participantId} - connection not stable (${pc.iceConnectionState})`);
+            }
           }
         }
         
@@ -1867,18 +1874,33 @@ const useVideoCall = (meetingId, userName) => {
               }
             }
           } else {
-            // No sender, add track
-            console.log(`➕ Adding audio track to peer connection for ${participantId}`);
-            pc.addTrack(audioTrack, streamToUse);
-            triggerRenegotiation(pc, participantId);
+            // No sender, add track - but only if connection is stable to avoid disconnect
+            const isStable = pc.signalingState === 'stable' && 
+                            (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+            
+            if (isStable) {
+              console.log(`➕ Adding audio track to peer connection for ${participantId}`);
+              pc.addTrack(audioTrack, streamToUse);
+              triggerRenegotiation(pc, participantId);
+            } else {
+              console.log(`⏸️ Skipping audio track addition for ${participantId} - connection not stable (${pc.iceConnectionState})`);
+            }
           }
         }
         
-        // Add both tracks if neither exists
+        // Add both tracks if neither exists - but only if connection is stable
         if (trackType === 'both' && !videoSender && !audioSender && videoTrack && audioTrack) {
-          pc.addTrack(videoTrack, streamToUse);
-          pc.addTrack(audioTrack, streamToUse);
-          triggerRenegotiation(pc, participantId);
+          const isStable = pc.signalingState === 'stable' && 
+                          (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+          
+          if (isStable) {
+            console.log(`➕ Adding both tracks to peer connection for ${participantId}`);
+            pc.addTrack(videoTrack, streamToUse);
+            pc.addTrack(audioTrack, streamToUse);
+            triggerRenegotiation(pc, participantId);
+          } else {
+            console.log(`⏸️ Skipping track addition for ${participantId} - connection not stable (${pc.iceConnectionState})`);
+          }
         }
       } catch (error) {
         console.error(`Failed to update peer ${participantId}:`, error);

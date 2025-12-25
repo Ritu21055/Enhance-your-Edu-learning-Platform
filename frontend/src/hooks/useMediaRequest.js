@@ -290,6 +290,7 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
         const participantId = socket.id;
         socket.emit('media-state-change', {
           meetingId,
+          
           participantId,
           audioEnabled: true,
           videoEnabled: true,
@@ -299,11 +300,67 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
       }
 
       // CRITICAL: Update all peer connections to ensure audio track is added
+      // BUT: Don't trigger aggressive renegotiation that might cause disconnect
+      // Only enable existing tracks, don't add new tracks if connection is established
       if (window.updateAllPeerConnections && localStream) {
-        console.log('🔄 Calling updateAllPeerConnections to add audio track to peer connections');
+        console.log('🔄 Calling updateAllPeerConnections to enable tracks (without aggressive renegotiation)');
         setTimeout(() => {
-          window.updateAllPeerConnections(localStream, 'both');
-          console.log('✅ updateAllPeerConnections called for audio and video');
+          // Use a safer approach - only enable tracks, don't add new ones if connection exists
+          if (window.peersRef && window.peersRef.current) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            const audioTrack = localStream.getAudioTracks()[0];
+            
+            Object.entries(window.peersRef.current).forEach(([participantId, peer]) => {
+              if (!peer || !peer._pc) return;
+              
+              try {
+                const pc = peer._pc;
+                const senders = pc.getSenders();
+                const videoSender = senders.find(s => s.track?.kind === 'video');
+                const audioSender = senders.find(s => s.track?.kind === 'audio');
+                
+                // Only enable existing tracks, don't add new ones to avoid renegotiation
+                if (videoSender?.track && videoTrack && videoSender.track.id === videoTrack.id) {
+                  if (!videoSender.track.enabled) {
+                    videoSender.track.enabled = true;
+                    console.log(`✅ Enabled existing video track for ${participantId}`);
+                  }
+                }
+                
+                if (audioSender?.track && audioTrack && audioSender.track.id === audioTrack.id) {
+                  if (!audioSender.track.enabled) {
+                    audioSender.track.enabled = true;
+                    console.log(`✅ Enabled existing audio track for ${participantId}`);
+                  }
+                }
+                
+                // Only add tracks if connection is stable and tracks are missing
+                const isStable = pc.signalingState === 'stable' && 
+                                (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+                
+                if (isStable) {
+                  // Add missing tracks only if connection is stable
+                  if (!videoSender && videoTrack) {
+                    console.log(`➕ Adding video track to stable connection for ${participantId}`);
+                    pc.addTrack(videoTrack, localStream);
+                  }
+                  
+                  if (!audioSender && audioTrack) {
+                    console.log(`➕ Adding audio track to stable connection for ${participantId}`);
+                    pc.addTrack(audioTrack, localStream);
+                  }
+                } else {
+                  console.log(`⏸️ Skipping track addition for ${participantId} - connection not stable (${pc.iceConnectionState})`);
+                }
+              } catch (err) {
+                console.error(`❌ Error updating peer ${participantId}:`, err);
+              }
+            });
+          } else {
+            // Fallback to updateAllPeerConnections if peersRef not available
+            window.updateAllPeerConnections(localStream, 'both');
+            console.log('✅ updateAllPeerConnections called for audio and video (fallback)');
+          }
         }, 500); // Delay to ensure tracks are ready
       }
     }, 200); // Increased delay to ensure tracks are ready
