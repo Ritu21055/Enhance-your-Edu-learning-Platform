@@ -1559,6 +1559,29 @@ const useVideoCall = (meetingId, userName) => {
           console.log(`    Sender ${idx}: ${sender.track?.kind || 'none'}, enabled=${sender.track?.enabled || false}`);
         });
         
+        // CRITICAL: Apply high bitrate for host video immediately after connection to prevent lag
+        if (isHostRef.current && streamRef.current) {
+          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+          const videoTrack = streamRef.current.getVideoTracks()[0];
+          
+          if (videoSender && videoTrack) {
+            // Get quality settings for host
+            const participantCount = participantsRef.current.length + 1;
+            const quality = PeerOptimizer.getQualitySettings(participantCount, true); // true = isHost
+            
+            // Ensure target bitrate is set
+            videoTrack._targetBitrate = quality.videoBitrate;
+            videoTrack._targetFrameRate = quality.frameRate;
+            
+            // Apply bitrate immediately
+            PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId).then(() => {
+              console.log(`✅ Applied host video bitrate ${quality.videoBitrate / 1000} kbps @ ${quality.frameRate} fps for ${participantName}`);
+            }).catch(err => {
+              console.warn(`⚠️ Could not apply bitrate for ${participantName}:`, err);
+            });
+          }
+        }
+        
         // CRITICAL: Check receiving tracks
         const receivers = peer._pc.getReceivers();
         console.log(`  - Receiving tracks: ${receivers.length}`);
@@ -1924,25 +1947,51 @@ const useVideoCall = (meetingId, userName) => {
     };
   }, []);
 
-  // CRITICAL: Periodically ensure audio tracks are enabled in all peer connections (for host)
+  // CRITICAL: Periodically ensure audio tracks are enabled and bitrate is maintained (for host)
   useEffect(() => {
     if (!localStream || !isHost) return;
     
-    const ensureAudioEnabled = () => {
+    const maintainQuality = () => {
       // Ensure audio tracks in local stream are enabled
       PeerOptimizer.ensureAudioEnabled(localStream, 'local');
       
+      // Get current participant count and host status for quality settings
+      const participantCount = participantsRef.current.length + 1;
+      const quality = PeerOptimizer.getQualitySettings(participantCount, true); // true = isHost
+      
       // Ensure audio tracks in all peer connections are enabled
+      // AND maintain high bitrate for host video to prevent lag
       Object.entries(peersRef.current).forEach(([participantId, peer]) => {
         if (peer && peer._pc) {
           PeerOptimizer.verifyAudioInPeerConnection(peer, participantId);
+          
+          // CRITICAL: Maintain high bitrate for host video to prevent lag after timer ends
+          const senders = peer._pc.getSenders();
+          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+          
+          if (videoSender && localStream) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+              // Ensure target bitrate is set (in case it was lost)
+              if (!videoTrack._targetBitrate || videoTrack._targetBitrate < quality.videoBitrate) {
+                videoTrack._targetBitrate = quality.videoBitrate;
+                videoTrack._targetFrameRate = quality.frameRate;
+                console.log(`🔧 Maintaining host video quality: ${quality.videoBitrate / 1000} kbps @ ${quality.frameRate} fps`);
+              }
+              
+              // Re-apply bitrate to ensure it's maintained
+              PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId).catch(err => {
+                console.warn(`⚠️ Could not maintain bitrate for ${participantId}:`, err);
+              });
+            }
+          }
         }
       });
     };
     
-    // Check immediately and then every 5 seconds
-    ensureAudioEnabled();
-    const interval = setInterval(ensureAudioEnabled, 5000);
+    // Check immediately and then every 5 seconds to maintain quality
+    maintainQuality();
+    const interval = setInterval(maintainQuality, 5000);
     
     return () => clearInterval(interval);
   }, [localStream, isHost]);
