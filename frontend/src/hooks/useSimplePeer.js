@@ -215,6 +215,23 @@ const useSimplePeer = (meetingId, userName) => {
     
     console.log(`🔗 SimplePeer: Creating peer connection for ${participantId}, initiator: ${initiator}`);
     
+    // CRITICAL: Ensure audio track is enabled in local stream before creating peer
+    if (localStream) {
+      const audioTracks = localStream.getAudioTracks();
+      audioTracks.forEach((track, index) => {
+        if (!track.enabled) {
+          track.enabled = true;
+          console.log(`🔊 SimplePeer: Pre-enabled audio track ${index} before creating peer for ${participantId}`);
+        }
+        console.log(`🔊 SimplePeer: Audio track ${index} state before peer creation:`, {
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+          label: track.label
+        });
+      });
+    }
+    
     const peer = new SimplePeer({
       initiator,
       trickle: true, // Enable trickle ICE for faster connection
@@ -229,6 +246,7 @@ const useSimplePeer = (meetingId, userName) => {
     });
     
     // Apply bitrate constraints to RTCRtpSender after peer connection is established
+    // Also ensure audio tracks are enabled
     if (peer._pc && localStream) {
       peer._pc.addEventListener('track', (event) => {
         if (event.track.kind === 'video') {
@@ -251,6 +269,23 @@ const useSimplePeer = (meetingId, userName) => {
           }
         }
       });
+      
+      // CRITICAL: Monitor and ensure audio tracks are enabled in senders
+      const checkAudioSenders = () => {
+        if (!peer._pc) return;
+        const senders = peer._pc.getSenders();
+        const audioSenders = senders.filter(s => s.track && s.track.kind === 'audio');
+        audioSenders.forEach((sender, index) => {
+          if (sender.track && !sender.track.enabled) {
+            sender.track.enabled = true;
+            console.log(`🔊 SimplePeer: Force enabled audio track in sender ${index} for ${participantId}`);
+          }
+        });
+      };
+      
+      // Check immediately and after a short delay
+      setTimeout(checkAudioSenders, 100);
+      setTimeout(checkAudioSenders, 1000);
     }
     
     // Initialize connection monitoring (minimal tracking)
@@ -355,11 +390,67 @@ const useSimplePeer = (meetingId, userName) => {
       // Ensure local stream is added to the peer connection
       if (localStream) {
         console.log(`🔗 SimplePeer: Ensuring local stream is added to peer for ${participantId}`);
+        
+        // CRITICAL: Ensure audio track is enabled before adding stream
+        const audioTracks = localStream.getAudioTracks();
+        audioTracks.forEach((track, index) => {
+          if (!track.enabled) {
+            track.enabled = true;
+            console.log(`🔊 SimplePeer: Force enabled audio track ${index} for ${participantId}`);
+          }
+          console.log(`🔊 SimplePeer: Audio track ${index} state for ${participantId}:`, {
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState,
+            label: track.label
+          });
+        });
+        
         try {
           peer.addStream(localStream);
           console.log(`🔗 SimplePeer: Successfully added local stream to peer for ${participantId}`);
+          
+          // CRITICAL: Verify audio track is in peer connection and enabled
+          if (peer._pc) {
+            const senders = peer._pc.getSenders();
+            const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+            if (audioSender && audioSender.track) {
+              if (!audioSender.track.enabled) {
+                audioSender.track.enabled = true;
+                console.log(`🔊 SimplePeer: Force enabled audio track in sender for ${participantId}`);
+              }
+              console.log(`🔊 SimplePeer: Audio sender verified for ${participantId}:`, {
+                trackId: audioSender.track.id,
+                enabled: audioSender.track.enabled,
+                muted: audioSender.track.muted,
+                readyState: audioSender.track.readyState
+              });
+            } else {
+              console.warn(`⚠️ SimplePeer: No audio sender found for ${participantId}, attempting to add audio track...`);
+              // Try to add audio track directly if missing
+              const audioTrack = localStream.getAudioTracks()[0];
+              if (audioTrack) {
+                try {
+                  peer._pc.addTrack(audioTrack, localStream);
+                  console.log(`✅ SimplePeer: Added audio track directly to peer connection for ${participantId}`);
+                } catch (err) {
+                  console.error(`❌ SimplePeer: Failed to add audio track for ${participantId}:`, err);
+                }
+              }
+            }
+          }
         } catch (error) {
           console.log(`🔗 SimplePeer: Stream already added to peer for ${participantId}:`, error.message);
+          
+          // Even if stream is already added, ensure audio track is enabled
+          if (peer._pc) {
+            const senders = peer._pc.getSenders();
+            const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+            if (audioSender && audioSender.track && !audioSender.track.enabled) {
+              audioSender.track.enabled = true;
+              console.log(`🔊 SimplePeer: Force enabled existing audio track in sender for ${participantId}`);
+            }
+          }
         }
       } else {
         console.log(`🔗 SimplePeer: No local stream available for ${participantId}`);
@@ -685,6 +776,42 @@ const useSimplePeer = (meetingId, userName) => {
       });
     }
   }, [participants, localStream, createConnectionsToAllParticipants]);
+
+  // CRITICAL: Periodically ensure audio tracks are enabled in all peer connections
+  useEffect(() => {
+    if (!localStream || !isHost) return; // Only for host
+    
+    const ensureAudioEnabled = () => {
+      // Ensure audio tracks in local stream are enabled
+      const audioTracks = localStream.getAudioTracks();
+      audioTracks.forEach((track, index) => {
+        if (!track.enabled) {
+          track.enabled = true;
+          console.log(`🔊 SimplePeer: Periodic check - enabled audio track ${index} in local stream`);
+        }
+      });
+      
+      // Ensure audio tracks in all peer connections are enabled
+      Object.entries(peersRef.current).forEach(([participantId, peer]) => {
+        if (peer && peer._pc) {
+          const senders = peer._pc.getSenders();
+          const audioSenders = senders.filter(s => s.track && s.track.kind === 'audio');
+          audioSenders.forEach((sender, index) => {
+            if (sender.track && !sender.track.enabled) {
+              sender.track.enabled = true;
+              console.log(`🔊 SimplePeer: Periodic check - enabled audio track in sender ${index} for ${participantId}`);
+            }
+          });
+        }
+      });
+    };
+    
+    // Check immediately and then every 5 seconds
+    ensureAudioEnabled();
+    const interval = setInterval(ensureAudioEnabled, 5000);
+    
+    return () => clearInterval(interval);
+  }, [localStream, isHost]);
 
   // Set up socket event listeners
   useEffect(() => {
