@@ -20,14 +20,16 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
     if (!socket) return;
 
     const handleRecordingStarted = (data) => {
-      console.log('🎬 Recording started:', data);
+      console.log('🎬 Recording started (server confirmation):', data);
+      // Confirm the state (already set optimistically)
       setIsRecording(true);
       setRecordingStatus('recording');
       setRecordingError(null);
     };
 
     const handleRecordingStopped = (data) => {
-      console.log('🛑 Recording stopped:', data);
+      console.log('🛑 Recording stopped (server confirmation):', data);
+      // Confirm the state (already set optimistically)
       setIsRecording(false);
       setRecordingStatus('idle');
     };
@@ -36,7 +38,7 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
       console.error('❌ Recording error:', data);
       setRecordingError(data.error);
       setRecordingStatus('error');
-      setIsRecording(false);
+      setIsRecording(false); // Revert on error
     };
 
     socket.on('recording_started', handleRecordingStarted);
@@ -66,6 +68,8 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
     }
 
     try {
+      // CRITICAL: Update state immediately (optimistically) for instant UI feedback
+      setIsRecording(true);
       setRecordingStatus('starting');
       setRecordingError(null);
       console.log('🎬 Starting recording process...');
@@ -184,10 +188,20 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
         console.log('🎬 Starting MediaRecorder...');
         mediaRecorder.start(1000); // Record in 1-second chunks
         console.log('🎬 MediaRecorder started successfully');
+        
+        // Update status to recording after MediaRecorder starts
+        setRecordingStatus('recording');
+      } else {
+        // If no stream, revert the optimistic state
+        console.warn('⚠️ No stream available for recording, reverting state');
+        setIsRecording(false);
+        setRecordingStatus('idle');
       }
 
     } catch (error) {
       console.error('❌ Failed to start recording:', error);
+      // Revert optimistic state on error
+      setIsRecording(false);
       setRecordingError(error.message);
       setRecordingStatus('error');
     }
@@ -203,6 +217,8 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
     }
 
     try {
+      // CRITICAL: Update state immediately (optimistically) for instant UI feedback
+      setIsRecording(false);
       setRecordingStatus('stopping');
 
       // Stop canvas animation if running
