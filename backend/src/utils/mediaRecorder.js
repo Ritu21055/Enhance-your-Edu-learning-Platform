@@ -122,7 +122,11 @@ class MediaRecorder {
         }
         // Return the path if it was set during the stop
         if (recordingSession.finalPath) {
-          return recordingSession.finalPath;
+          // Ensure it's always .mp4
+          const finalPath = recordingSession.finalPath.endsWith('.mp4') 
+            ? recordingSession.finalPath 
+            : recordingSession.finalPath.replace(/\.webm$/, '.mp4');
+          return finalPath;
         }
         throw new Error('Recording stop was cancelled or failed');
       }
@@ -131,7 +135,11 @@ class MediaRecorder {
         console.warn('⚠️ Recording already stopped for meeting:', meetingId);
         // Return existing path if available
         if (recordingSession.finalPath) {
-          return recordingSession.finalPath;
+          // Ensure it's always .mp4
+          const finalPath = recordingSession.finalPath.endsWith('.mp4') 
+            ? recordingSession.finalPath 
+            : recordingSession.finalPath.replace(/\.webm$/, '.mp4');
+          return finalPath;
         }
         throw new Error(`Recording for meeting ${meetingId} is not active`);
       }
@@ -141,6 +149,12 @@ class MediaRecorder {
       recordingSession.isRecording = false;
       recordingSession.endTime = Date.now();
       recordingSession.duration = recordingSession.endTime - recordingSession.startTime;
+      
+      // CRITICAL: Ensure recordingPath is always .mp4 (Windows Media Player compatibility)
+      if (!recordingSession.recordingPath.endsWith('.mp4')) {
+        console.warn('⚠️ Recording path is not .mp4, fixing:', recordingSession.recordingPath);
+        recordingSession.recordingPath = recordingSession.recordingPath.replace(/\.webm$/, '.mp4');
+      }
 
       // Chunks are stored in memory, will be processed below
 
@@ -189,6 +203,10 @@ class MediaRecorder {
           console.log('✅ Zoom-like recording created:', mp4Path);
           recordingSession.finalPath = mp4Path;
           recordingSession.isStopping = false;
+          // Double-check: ensure path is .mp4
+          if (!mp4Path.endsWith('.mp4')) {
+            throw new Error('Recording path is not .mp4 after combination');
+          }
           return mp4Path;
         } catch (error) {
           console.error('❌ Failed to combine participant streams:', error);
@@ -200,6 +218,10 @@ class MediaRecorder {
       if (hasActualData) {
         // Create MP4 directly (no need to convert from WebM)
         const mp4Path = recordingSession.recordingPath; // Already .mp4
+        // Safety check: ensure it's .mp4
+        if (!mp4Path.endsWith('.mp4')) {
+          throw new Error('Recording path must be .mp4 for Windows Media Player compatibility');
+        }
         
         // Check if a temporary WebM file exists (from old approach)
         const tempWebMPath = recordingSession.recordingPath.replace('.mp4', '.webm');
@@ -240,10 +262,17 @@ class MediaRecorder {
       // Fallback: Create placeholder if no chunks collected or combination failed
       console.warn('⚠️ No valid chunks collected or combination failed, creating placeholder recording');
       const mp4Path = recordingSession.recordingPath; // Already .mp4
+      // Safety check: ensure it's .mp4
+      if (!mp4Path.endsWith('.mp4')) {
+        throw new Error('Recording path must be .mp4 for Windows Media Player compatibility');
+      }
       await this.createPlaceholderRecording(mp4Path, recordingSession.duration);
       recordingSession.finalPath = mp4Path;
       recordingSession.isStopping = false;
-      return mp4Path;
+      // Final safety check before returning
+      const finalPath = mp4Path.endsWith('.mp4') ? mp4Path : mp4Path.replace(/\.webm$/, '.mp4');
+      console.log('✅ Recording completed. Final path:', finalPath);
+      return finalPath;
       
     } catch (error) {
       console.error('❌ Failed to stop recording:', error);
