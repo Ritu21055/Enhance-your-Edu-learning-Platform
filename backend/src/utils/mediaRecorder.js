@@ -79,6 +79,8 @@ class MediaRecorder {
         // Store audio/video chunks for real recording
         audioChunks: [],
         videoChunks: [],
+        // ZOOM-LIKE: Store chunks per participant (participantId -> chunks[])
+        participantChunks: new Map(), // participantId -> { chunks: [], userName: string, videoEnabled: boolean, audioEnabled: boolean }
         // Recording buffer
         recordingBuffer: []
       };
@@ -141,7 +143,11 @@ class MediaRecorder {
 
       // Chunks are stored in memory, will be processed below
 
-      // Check if we have actual recording data
+      // ZOOM-LIKE: Check if we have participant chunks (new approach)
+      const hasParticipantChunks = recordingSession.participantChunks.size > 0;
+      const participantCount = recordingSession.participantChunks.size;
+      
+      // Check if we have actual recording data (legacy approach)
       const hasAudioChunks = recordingSession.audioChunks.length > 0;
       const hasVideoChunks = recordingSession.videoChunks.length > 0;
       
@@ -150,7 +156,19 @@ class MediaRecorder {
       const videoChunksWithData = recordingSession.videoChunks.filter(c => c.data && c.data.length > 0);
       const hasActualData = audioChunksWithData.length > 0 || videoChunksWithData.length > 0;
       
+      // Check participant chunks have data
+      let participantChunksWithData = 0;
+      recordingSession.participantChunks.forEach((participantData) => {
+        const validChunks = participantData.chunks.filter(c => c.data && c.data.length > 0);
+        if (validChunks.length > 0) {
+          participantChunksWithData++;
+        }
+      });
+      
       console.log('🎬 Recording summary:', {
+        participantCount,
+        participantChunksWithData,
+        hasParticipantChunks,
         audioChunks: recordingSession.audioChunks.length,
         videoChunks: recordingSession.videoChunks.length,
         audioChunksWithData: audioChunksWithData.length,
@@ -161,7 +179,23 @@ class MediaRecorder {
         hasActualData: hasActualData
       });
 
-      // If we have actual chunks with data, use them; otherwise create placeholder
+      // ZOOM-LIKE: If we have participant chunks, combine them using FFmpeg
+      if (hasParticipantChunks && participantChunksWithData > 0) {
+        console.log('🎬 Using Zoom-like recording: Combining participant streams with FFmpeg');
+        const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
+        try {
+          await this.combineParticipantStreams(recordingSession, mp4Path);
+          console.log('✅ Zoom-like recording created:', mp4Path);
+          recordingSession.finalPath = mp4Path;
+          recordingSession.isStopping = false;
+          return mp4Path;
+        } catch (error) {
+          console.error('❌ Failed to combine participant streams:', error);
+          // Fall through to legacy approach
+        }
+      }
+
+      // Legacy: If we have actual chunks with data, use them; otherwise create placeholder
       if (hasActualData) {
         // Convert WebM to MP4 for better compatibility
         const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
@@ -484,6 +518,244 @@ class MediaRecorder {
   }
 
   /**
+   * ZOOM-LIKE: Combine all participant streams into a single recording using FFmpeg
+   * Creates a grid layout with all participants' videos and mixes all audio tracks
+   * @param {Object} recordingSession - Recording session object
+   * @param {string} outputPath - Output MP4 file path
+   */
+  async combineParticipantStreams(recordingSession, outputPath) {
+    return new Promise(async (resolve, reject) => {
+      console.log('🎬 Combining participant streams (Zoom-like approach)...');
+      
+      const fsModule = await import('fs');
+      const fsSync = fsModule.default || fsModule;
+      const fs = await import('fs/promises');
+      
+      const participantFiles = [];
+      const participantAudioFiles = [];
+      const tempDir = path.join(this.recordingDir, `temp_${recordingSession.sessionId}`);
+      
+      try {
+        // Create temp directory
+        await fs.mkdir(tempDir, { recursive: true });
+        
+        // Step 1: Save each participant's chunks to a temporary WebM file
+        const participants = Array.from(recordingSession.participantChunks.values());
+        console.log(`🎬 Processing ${participants.length} participants...`);
+        
+        for (const participantData of participants) {
+          const validChunks = participantData.chunks
+            .filter(c => c.data && c.data.length > 0)
+            .sort((a, b) => a.timestamp - b.timestamp);
+          
+          if (validChunks.length === 0) {
+            console.warn(`⚠️ No valid chunks for participant ${participantData.userName}`);
+            continue;
+          }
+          
+          const participantWebM = path.join(tempDir, `participant_${participantData.participantId}.webm`);
+          const webmStream = fsSync.createWriteStream(participantWebM);
+          
+          let bytesWritten = 0;
+          for (const chunk of validChunks) {
+            const buffer = Buffer.isBuffer(chunk.data) ? chunk.data : Buffer.from(chunk.data);
+            if (buffer.length > 0) {
+              webmStream.write(buffer);
+              bytesWritten += buffer.length;
+            }
+          }
+          webmStream.end();
+          
+          // Wait for file to be written
+          await new Promise((resolve, reject) => {
+            webmStream.on('finish', resolve);
+            webmStream.on('error', reject);
+            setTimeout(() => reject(new Error('Write timeout')), 30000);
+          });
+          
+          // Verify file exists and has content
+          const stats = await fs.stat(participantWebM);
+          if (stats.size > 0) {
+            participantFiles.push({
+              path: participantWebM,
+              participantId: participantData.participantId,
+              userName: participantData.userName,
+              videoEnabled: participantData.videoEnabled,
+              audioEnabled: participantData.audioEnabled
+            });
+            console.log(`✅ Created participant file: ${participantData.userName} (${stats.size} bytes)`);
+          } else {
+            console.warn(`⚠️ Participant file is empty: ${participantData.userName}`);
+          }
+        }
+        
+        if (participantFiles.length === 0) {
+          throw new Error('No valid participant files to combine');
+        }
+        
+        console.log(`🎬 Combining ${participantFiles.length} participant streams...`);
+        
+        // Step 2: Calculate grid layout (like Zoom)
+        const participantCount = participantFiles.length;
+        let cols, rows;
+        if (participantCount === 1) {
+          cols = 1; rows = 1;
+        } else if (participantCount === 2) {
+          cols = 2; rows = 1;
+        } else if (participantCount <= 4) {
+          cols = 2; rows = 2;
+        } else if (participantCount <= 6) {
+          cols = 3; rows = 2;
+        } else if (participantCount <= 9) {
+          cols = 3; rows = 3;
+        } else if (participantCount <= 12) {
+          cols = 4; rows = 3;
+        } else {
+          cols = 4; rows = 4;
+        }
+        
+        const cellWidth = 640;
+        const cellHeight = 360;
+        const outputWidth = cols * cellWidth;
+        const outputHeight = rows * cellHeight;
+        
+        // Step 3: Build FFmpeg command to combine videos in grid and mix audio
+        const ffmpegArgs = [];
+        
+        // Input files
+        participantFiles.forEach((file, index) => {
+          ffmpegArgs.push('-i', file.path);
+        });
+        
+        // Build complex filter for video grid and audio mixing
+        const videoFilters = [];
+        const audioFilters = [];
+        
+        participantFiles.forEach((file, index) => {
+          // Scale and position video
+          if (file.videoEnabled) {
+            videoFilters.push(`[${index}:v]scale=${cellWidth}:${cellHeight}:force_original_aspect_ratio=decrease,pad=${cellWidth}:${cellHeight}:(ow-iw)/2:(oh-ih)/2,setpts=PTS-STARTPTS[v${index}]`);
+          } else {
+            // Black screen for participants without video
+            videoFilters.push(`color=c=black:size=${cellWidth}x${cellHeight}:duration=1[black${index}]`);
+            videoFilters.push(`[black${index}]setpts=PTS-STARTPTS[v${index}]`);
+          }
+          
+          // Extract audio if enabled
+          if (file.audioEnabled) {
+            audioFilters.push(`[${index}:a]asetpts=PTS-STARTPTS[a${index}]`);
+          }
+        });
+        
+        // Build layout string for xstack
+        const positions = [];
+        for (let i = 0; i < participantCount; i++) {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          positions.push(`${col * cellWidth}_${row * cellHeight}`);
+        }
+        
+        // Build xstack input string
+        const xstackInputs = participantFiles.map((_, index) => `[v${index}]`).join('');
+        
+        // Combine all videos in grid using xstack filter
+        let gridFilter = videoFilters.join(';');
+        gridFilter += `;${xstackInputs}xstack=inputs=${participantCount}:layout=${positions.join('|')}[grid]`;
+        
+        // Mix all audio tracks
+        let audioMixFilter = '';
+        const audioInputs = participantFiles
+          .map((file, index) => file.audioEnabled ? `[a${index}]` : null)
+          .filter(Boolean);
+        
+        if (audioInputs.length > 0) {
+          if (audioInputs.length === 1) {
+            audioMixFilter = audioInputs[0];
+          } else {
+            audioMixFilter = `${audioInputs.join('')}amix=inputs=${audioInputs.length}:duration=longest:dropout_transition=2[amix]`;
+          }
+        }
+        
+        // Combine video and audio filters
+        const complexFilterParts = [gridFilter];
+        if (audioMixFilter) {
+          complexFilterParts.push(audioMixFilter);
+        }
+        const complexFilter = complexFilterParts.join(';');
+        
+        ffmpegArgs.push(
+          '-filter_complex', complexFilter,
+          '-map', '[grid]', // Use grid output
+          ...(audioMixFilter ? ['-map', `[${audioInputs.length > 1 ? 'amix' : 'a0'}]`] : []),
+          '-c:v', 'libx264',
+          '-preset', 'fast',
+          '-crf', '23',
+          '-c:a', 'aac',
+          '-b:a', '192k',
+          '-r', '30',
+          '-pix_fmt', 'yuv420p',
+          '-movflags', '+faststart',
+          '-y',
+          outputPath
+        );
+        
+        console.log('🎬 Running FFmpeg to combine streams...');
+        console.log('🎬 FFmpeg args:', ffmpegArgs.join(' '));
+        
+        const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+        
+        let errorOutput = '';
+        
+        ffmpeg.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        
+        ffmpeg.on('close', async (code) => {
+          try {
+            // Clean up temp files
+            for (const file of participantFiles) {
+              try {
+                await fs.unlink(file.path);
+              } catch (err) {
+                console.warn(`⚠️ Failed to delete temp file ${file.path}:`, err);
+              }
+            }
+            try {
+              await fs.rmdir(tempDir);
+            } catch (err) {
+              console.warn(`⚠️ Failed to delete temp directory:`, err);
+            }
+            
+            if (code === 0) {
+              console.log('✅ Successfully combined participant streams:', outputPath);
+              resolve(outputPath);
+            } else {
+              console.error('❌ FFmpeg failed with code:', code);
+              console.error('❌ Error output:', errorOutput);
+              reject(new Error(`FFmpeg failed with code ${code}: ${errorOutput.substring(0, 500)}`));
+            }
+          } catch (cleanupError) {
+            console.error('❌ Cleanup error:', cleanupError);
+            if (code === 0) {
+              resolve(outputPath);
+            } else {
+              reject(cleanupError);
+            }
+          }
+        });
+        
+        ffmpeg.on('error', (error) => {
+          reject(new Error(`FFmpeg spawn error: ${error.message}`));
+        });
+        
+      } catch (error) {
+        console.error('❌ Error combining participant streams:', error);
+        reject(error);
+      }
+    });
+  }
+
+  /**
    * Add audio chunk to recording
    * @param {string} meetingId - Meeting identifier
    * @param {Buffer} audioChunk - Audio data chunk
@@ -539,6 +811,129 @@ class MediaRecorder {
    * @param {Buffer} videoFrame - Video frame data
    */
   async addVideoFrame(meetingId, videoFrame) {
+    const recordingSession = this.recordings.get(meetingId);
+    if (!recordingSession || !recordingSession.isRecording) {
+      return;
+    }
+
+    try {
+      // Filter out very small chunks (likely initialization/empty chunks from MediaRecorder)
+      // MediaRecorder sometimes sends 1-byte chunks at the start which are not actual data
+      const MIN_CHUNK_SIZE = 100; // Minimum 100 bytes to be considered valid
+      
+      if (!videoFrame || videoFrame.length < MIN_CHUNK_SIZE) {
+        // Only log first few small chunks to avoid spam
+        if (recordingSession.videoChunks.length < 3) {
+          console.warn('⚠️ Ignoring small/empty video frame:', {
+            meetingId,
+            frameSize: videoFrame?.length || 0,
+            minSize: MIN_CHUNK_SIZE
+          });
+        }
+        return;
+      }
+      
+      // Store video chunk for later processing
+      recordingSession.videoChunks.push({
+        data: videoFrame,
+        timestamp: Date.now()
+      });
+      
+      // Debug every 10 chunks to avoid spam
+      if (recordingSession.videoChunks.length % 10 === 0 || recordingSession.videoChunks.length <= 3) {
+        console.log('📹 Added video frame to recording:');
+        console.log('  - Meeting ID:', meetingId);
+        console.log('  - Frame Size:', videoFrame.length, 'bytes');
+        console.log('  - Total Frames:', recordingSession.videoChunks.length);
+        console.log('  - Is Recording:', recordingSession.isRecording);
+      }
+    } catch (error) {
+      console.error('❌ Failed to add video frame:', error);
+    }
+  }
+
+  /**
+   * ZOOM-LIKE: Add participant recording chunk (individual stream from each participant)
+   * @param {string} meetingId - Meeting identifier
+   * @param {string} participantId - Participant socket ID
+   * @param {string} userName - Participant name
+   * @param {Buffer} chunk - WebM chunk containing audio+video
+   * @param {Object} metadata - Chunk metadata (timestamp, videoEnabled, audioEnabled)
+   */
+  async addParticipantChunk(meetingId, participantId, userName, chunk, metadata = {}) {
+    const recordingSession = this.recordings.get(meetingId);
+    if (!recordingSession || !recordingSession.isRecording) {
+      return;
+    }
+
+    try {
+      // Filter out very small chunks
+      const MIN_CHUNK_SIZE = 100;
+      if (!chunk || chunk.length < MIN_CHUNK_SIZE) {
+        const participantData = recordingSession.participantChunks.get(participantId);
+        const chunkCount = participantData?.chunks?.length || 0;
+        if (chunkCount < 3) {
+          console.warn('⚠️ Ignoring small participant chunk:', {
+            meetingId,
+            participantId,
+            userName,
+            chunkSize: chunk?.length || 0
+          });
+        }
+        return;
+      }
+      
+      // Initialize participant data if not exists
+      if (!recordingSession.participantChunks.has(participantId)) {
+        recordingSession.participantChunks.set(participantId, {
+          participantId,
+          userName: userName || `Participant_${participantId.substring(0, 8)}`,
+          chunks: [],
+          videoEnabled: metadata.videoEnabled !== false,
+          audioEnabled: metadata.audioEnabled !== false,
+          firstChunkTime: metadata.timestamp || Date.now()
+        });
+      }
+      
+      const participantData = recordingSession.participantChunks.get(participantId);
+      
+      // Update metadata
+      if (metadata.videoEnabled !== undefined) {
+        participantData.videoEnabled = metadata.videoEnabled;
+      }
+      if (metadata.audioEnabled !== undefined) {
+        participantData.audioEnabled = metadata.audioEnabled;
+      }
+      
+      // Store chunk
+      participantData.chunks.push({
+        data: chunk,
+        timestamp: metadata.timestamp || Date.now()
+      });
+      
+      // Debug every 10 chunks
+      if (participantData.chunks.length % 10 === 0 || participantData.chunks.length <= 3) {
+        console.log('🎬 Added participant chunk:', {
+          meetingId,
+          participantId,
+          userName: participantData.userName,
+          chunkSize: chunk.length,
+          totalChunks: participantData.chunks.length,
+          videoEnabled: participantData.videoEnabled,
+          audioEnabled: participantData.audioEnabled
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to add participant chunk:', error);
+    }
+  }
+
+  /**
+   * Add video frame to recording (legacy method - kept for compatibility)
+   * @param {string} meetingId - Meeting identifier
+   * @param {Buffer} videoFrame - Video frame data
+   */
+  async addVideoFrameLegacy(meetingId, videoFrame) {
     const recordingSession = this.recordings.get(meetingId);
     if (!recordingSession || !recordingSession.isRecording) {
       return;

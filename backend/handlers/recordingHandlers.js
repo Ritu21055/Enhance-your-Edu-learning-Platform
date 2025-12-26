@@ -188,5 +188,77 @@ export default function registerRecordingHandlers(socket, io) {
       console.error('❌ Failed to process video frame:', error);
     }
   });
+
+  // ZOOM-LIKE RECORDING: Receive individual participant stream chunks
+  socket.on('participant_recording_chunk', async (data) => {
+    try {
+      const { meetingId, participantId, userName, audioChunk, videoChunk, timestamp, videoEnabled, audioEnabled } = data;
+      
+      if (!meetingId || !participantId) {
+        console.error('❌ participant_recording_chunk: Missing meetingId or participantId');
+        return;
+      }
+      
+      if (!audioChunk || audioChunk.length === 0) {
+        console.warn('⚠️ Received empty participant chunk for meeting:', meetingId, 'participant:', participantId);
+        return;
+      }
+      
+      // Filter out very small chunks (MediaRecorder initialization chunks)
+      const MIN_CHUNK_SIZE = 100;
+      if (audioChunk.length < MIN_CHUNK_SIZE) {
+        const session = mediaRecorder.getRecordingSession(meetingId);
+        const chunkCount = session?.participantChunks?.get(participantId)?.length || 0;
+        if (chunkCount < 3) {
+          console.warn('⚠️ Ignoring small participant chunk (likely initialization):', {
+            meetingId,
+            participantId,
+            userName,
+            chunkSize: audioChunk.length
+          });
+        }
+        return;
+      }
+      
+      const isRecording = mediaRecorder.isRecording(meetingId);
+      
+      if (!isRecording) {
+        console.warn('⚠️ Received participant chunk but recording is not active for meeting:', meetingId);
+        return;
+      }
+      
+      // Convert array to Buffer
+      const buffer = Buffer.isBuffer(audioChunk) ? audioChunk : Buffer.from(audioChunk);
+      if (buffer.length === 0) {
+        console.warn('⚠️ Received participant chunk but buffer is empty');
+        return;
+      }
+      
+      // Add participant chunk to media recorder (Zoom-like approach)
+      await mediaRecorder.addParticipantChunk(meetingId, participantId, userName, buffer, {
+        timestamp: timestamp || Date.now(),
+        videoEnabled: videoEnabled !== false,
+        audioEnabled: audioEnabled !== false
+      });
+      
+      // Debug every 10 chunks
+      const session = mediaRecorder.getRecordingSession(meetingId);
+      const chunkCount = session?.participantChunks?.get(participantId)?.length || 0;
+      if (chunkCount % 10 === 0) {
+        console.log('🎬 Received participant chunk:', {
+          meetingId,
+          participantId,
+          userName,
+          chunkSize: buffer.length,
+          chunkCount,
+          videoEnabled,
+          audioEnabled
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to process participant recording chunk:', error);
+    }
+  });
 }
 

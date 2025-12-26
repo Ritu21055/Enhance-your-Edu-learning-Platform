@@ -557,7 +557,7 @@ const MeetingRoom = () => {
     stopRecording: stopMediaRecording,
     toggleRecording,
     getRecordingInfo
-  } = useMediaRecorder(socket, meetingId, localStream, remoteStreams, localVideoRef);
+  } = useMediaRecorder(socket, meetingId, localStream, remoteStreams, localVideoRef, finalUserName);
 
   // Debug recording status
   useEffect(() => {
