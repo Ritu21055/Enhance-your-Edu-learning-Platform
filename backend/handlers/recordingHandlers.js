@@ -41,18 +41,45 @@ export default function registerRecordingHandlers(socket, io) {
       const { meetingId } = data;
       console.log('🛑 Stopping recording for meeting:', meetingId);
       
-      const recordingPath = await mediaRecorder.stopRecording(meetingId);
-      
-      // Notify all participants that recording has stopped
-      // Exclude the host who stopped the recording
+      // IMMEDIATELY notify all participants that recording has stopped
+      // Don't wait for file processing - send notification right away
       socket.to(meetingId).emit('recording_stopped', {
         meetingId,
-        recordingPath,
         timestamp: Date.now(),
-        message: 'Recording stopped by the host'
+        message: 'Recording stopped by the host',
+        processing: true // Indicate that file is being processed
       });
       
-      console.log('✅ Recording stopped successfully:', recordingPath);
+      // Also notify the host immediately
+      socket.emit('recording_stopped', {
+        meetingId,
+        timestamp: Date.now(),
+        message: 'Recording stopped',
+        processing: true
+      });
+      
+      // Now process the recording in the background (FFmpeg combining, etc.)
+      // This can take time, but participants are already notified
+      mediaRecorder.stopRecording(meetingId)
+        .then((recordingPath) => {
+          console.log('✅ Recording processed successfully:', recordingPath);
+          
+          // Send final notification with file path (optional - for download link)
+          io.to(meetingId).emit('recording_completed', {
+            meetingId,
+            recordingPath,
+            timestamp: Date.now(),
+            message: 'Recording file is ready'
+          });
+        })
+        .catch((error) => {
+          console.error('❌ Failed to process recording:', error);
+          io.to(meetingId).emit('recording_error', {
+            meetingId,
+            error: error.message,
+            message: 'Failed to process recording file'
+          });
+        });
       
     } catch (error) {
       console.error('❌ Failed to stop recording:', error);

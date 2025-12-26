@@ -19,19 +19,69 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
   useEffect(() => {
     if (!socket) return;
 
-    const handleRecordingStarted = (data) => {
+    const handleRecordingStarted = async (data) => {
       console.log('🎬 Recording started (server confirmation):', data);
-      // Confirm the state (already set optimistically)
-      setIsRecording(true);
-      setRecordingStatus('recording');
-      setRecordingError(null);
+      
+      // If recording is not already started locally, start it now
+      // This handles the case where a participant receives the notification
+      if (!isRecording && localStream) {
+        console.log('🎬 Participant: Starting local recording after server notification');
+        try {
+          // Start recording for this participant
+          await startRecording();
+        } catch (error) {
+          console.error('❌ Failed to start participant recording:', error);
+        }
+      } else {
+        // Confirm the state (already set optimistically by host)
+        setIsRecording(true);
+        setRecordingStatus('recording');
+        setRecordingError(null);
+      }
     };
 
-    const handleRecordingStopped = (data) => {
+    const handleRecordingStopped = async (data) => {
       console.log('🛑 Recording stopped (server confirmation):', data);
-      // Confirm the state (already set optimistically)
-      setIsRecording(false);
-      setRecordingStatus('idle');
+      
+      // IMMEDIATELY stop local recording when notification is received
+      // Don't wait - stop right away for instant feedback
+      if (isRecording || mediaRecorderRef.current) {
+        console.log('🛑 Participant: Stopping local recording immediately');
+        try {
+          // Stop MediaRecorder immediately
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+          }
+          
+          // Update state immediately
+          setIsRecording(false);
+          setRecordingStatus('idle');
+          
+          // Clean up resources
+          if (combinedStreamRef.current) {
+            combinedStreamRef.current.getTracks().forEach(track => track.stop());
+            combinedStreamRef.current = null;
+          }
+          
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          
+          if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+          }
+        } catch (error) {
+          console.error('❌ Error stopping participant recording:', error);
+          setIsRecording(false);
+          setRecordingStatus('idle');
+        }
+      } else {
+        // Confirm the state (already set optimistically)
+        setIsRecording(false);
+        setRecordingStatus('idle');
+      }
     };
 
     const handleRecordingError = (data) => {
@@ -50,7 +100,7 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
       socket.off('recording_stopped', handleRecordingStopped);
       socket.off('recording_error', handleRecordingError);
     };
-  }, [socket]);
+  }, [socket, isRecording, localStream, startRecording, stopRecording]);
 
   /**
    * Start recording the meeting
