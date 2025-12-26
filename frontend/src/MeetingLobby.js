@@ -71,30 +71,30 @@ const MeetingLobby = () => {
         reconnectionDelay: 1000,
         reconnectionAttempts: 5
       });
-      setSocket(newSocket);
+    setSocket(newSocket);
 
-      newSocket.on('connect', () => {
+    newSocket.on('connect', () => {
         if (!isMounted) return;
         console.log('✅ Lobby: Connected to server');
-        setIsConnected(true);
+      setIsConnected(true);
         setError('');
         if (connectionTimeout) {
           clearTimeout(connectionTimeout);
           connectionTimeout = null;
         }
-      });
+    });
 
-      newSocket.on('connect_error', (error) => {
+    newSocket.on('connect_error', (error) => {
         if (!isMounted) return;
         console.error('❌ Lobby: Connection error:', error.message);
         setIsConnected(false);
         setError(`Failed to connect to server at ${url}. Please ensure the server is running and accessible.`);
-      });
+    });
 
-      newSocket.on('disconnect', (reason) => {
+    newSocket.on('disconnect', (reason) => {
         if (!isMounted) return;
-        console.log('⚠️ Lobby: Disconnected from server:', reason);
-        setIsConnected(false);
+      console.log('⚠️ Lobby: Disconnected from server:', reason);
+      setIsConnected(false);
         if (reason === 'io server disconnect') {
           // Server disconnected, try to reconnect
           setError('Disconnected from server. Attempting to reconnect...');
@@ -110,12 +110,12 @@ const MeetingLobby = () => {
       }, 10000);
 
       // Socket event handlers
-      newSocket.on('meeting-joined', (data) => {
+    newSocket.on('meeting-joined', (data) => {
         // CRITICAL: Verify host status by checking if socket ID matches hostId
         const actualHostId = data.meeting?.hostId;
         const isActuallyHost = actualHostId === newSocket.id;
         
-        setMeetingInfo(data);
+      setMeetingInfo(data);
         
         const currentUsername = usernameRef.current || username;
         
@@ -138,13 +138,13 @@ const MeetingLobby = () => {
         // Host navigates directly, participants join directly (password already verified if required)
         if (isActuallyHost) {
           setIsHost(true);
-          navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true&host=true`);
-        } else {
-          setIsHost(false);
+        navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true&host=true`);
+      } else {
+        setIsHost(false);
           // Participant navigates to meeting room (password was already verified if meeting had one)
           navigate(`/meeting/${meetingId}?user=${finalUsername}&approved=true`);
-        }
-      });
+      }
+    });
 
       // Handle password required
       newSocket.on('meeting-password-required', (data) => {
@@ -169,22 +169,22 @@ const MeetingLobby = () => {
       newSocket.on('meeting-password-error', (data) => {
         console.log('❌ Password error:', data);
         setError(data.error || 'Password verification failed');
-      });
+    });
 
-      newSocket.on('meeting-not-found', () => {
-        console.log('Meeting not found');
-        setError('Meeting not found. Please check the meeting ID.');
-      });
+    newSocket.on('meeting-not-found', () => {
+      console.log('Meeting not found');
+      setError('Meeting not found. Please check the meeting ID.');
+    });
 
-      newSocket.on('meeting-full', () => {
-        console.log('Meeting is full');
-        setError('Meeting is full. Cannot join at this time.');
-      });
+    newSocket.on('meeting-full', () => {
+      console.log('Meeting is full');
+      setError('Meeting is full. Cannot join at this time.');
+    });
 
-      newSocket.on('error', (error) => {
-        console.error('Socket error:', error);
-        setError(`Connection error: ${error.message}`);
-      });
+    newSocket.on('error', (error) => {
+      console.error('Socket error:', error);
+      setError(`Connection error: ${error.message}`);
+    });
     };
 
     // Initialize connection

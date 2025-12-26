@@ -113,19 +113,29 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
           throw new Error('MediaRecorder API not supported in this browser');
         }
         
-        // Try different mime types for better compatibility
+        // Try different mime types for better compatibility and audio quality
+        // Prefer Opus codec for better audio quality (supports full frequency range)
         let mimeType = 'video/webm;codecs=vp9,opus';
         if (!MediaRecorder.isTypeSupported(mimeType)) {
           mimeType = 'video/webm;codecs=vp8,opus';
           if (!MediaRecorder.isTypeSupported(mimeType)) {
-            mimeType = 'video/webm';
+            // Try with explicit audio codec
+            mimeType = 'video/webm;codecs=vp9,opus;audioBitsPerSecond=192000';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+              mimeType = 'video/webm;codecs=vp8,opus;audioBitsPerSecond=192000';
+              if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/webm';
+              }
+            }
           }
         }
+        
+        console.log('🎬 Using mimeType:', mimeType);
         
         const mediaRecorder = new MediaRecorder(streamToRecord, {
           mimeType: mimeType,
           videoBitsPerSecond: 2500000, // 2.5 Mbps for good quality
-          audioBitsPerSecond: 128000 // 128 kbps for audio
+          audioBitsPerSecond: 192000 // 192 kbps for better audio quality (increased from 128)
         });
         
         console.log('🎬 MediaRecorder created successfully with mimeType:', mimeType);
@@ -309,30 +319,49 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
     const ctx = canvas.getContext('2d');
     canvasRef.current = canvas;
     
-    // Create audio context for mixing
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    // Create audio context for mixing with higher sample rate for better quality
+    // Use 48000 Hz sample rate (CD quality) instead of default 44100 Hz
+    const audioContextOptions = {
+      sampleRate: 48000, // Higher sample rate for better audio quality
+      numberOfChannels: 2, // Stereo for better audio
+      latencyHint: 'interactive' // Low latency for real-time recording
+    };
+    
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)(audioContextOptions);
     const destination = audioContext.createMediaStreamDestination();
     audioContextRef.current = audioContext;
     
-    // Add local audio track
+    console.log('🎬 AudioContext created with sample rate:', audioContext.sampleRate);
+    
+    // Add local audio track with proper gain control
     if (localStream) {
       const localAudioTracks = localStream.getAudioTracks();
       localAudioTracks.forEach(track => {
         if (track.enabled) {
           const source = audioContext.createMediaStreamSource(new MediaStream([track]));
-          source.connect(destination);
+          // Add gain node to control volume and prevent distortion
+          const gainNode = audioContext.createGain();
+          gainNode.gain.value = 1.0; // Full volume
+          source.connect(gainNode);
+          gainNode.connect(destination);
+          console.log('🎬 Added local audio track to mix');
         }
       });
     }
     
-    // Add remote audio tracks
-    Object.values(remoteStreams).forEach(remoteStream => {
+    // Add remote audio tracks with proper gain control
+    Object.values(remoteStreams).forEach((remoteStream, index) => {
       if (remoteStream && remoteStream.getAudioTracks) {
         const remoteAudioTracks = remoteStream.getAudioTracks();
         remoteAudioTracks.forEach(track => {
           if (track.enabled) {
             const source = audioContext.createMediaStreamSource(new MediaStream([track]));
-            source.connect(destination);
+            // Add gain node to control volume and prevent distortion
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = 1.0; // Full volume
+            source.connect(gainNode);
+            gainNode.connect(destination);
+            console.log(`🎬 Added remote audio track ${index} to mix`);
           }
         });
       }
@@ -342,11 +371,58 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
     const videoStream = canvas.captureStream(30); // 30 fps
     const videoTrack = videoStream.getVideoTracks()[0];
     
+    // Verify audio destination has tracks
+    const audioTracks = destination.stream.getAudioTracks();
+    console.log('🎬 Audio tracks in destination:', audioTracks.length);
+    
     // Combine video and audio
     const combinedStream = new MediaStream();
     combinedStream.addTrack(videoTrack);
-    destination.stream.getAudioTracks().forEach(track => {
-      combinedStream.addTrack(track);
+    
+    // Add all audio tracks from destination (mixed audio)
+    if (audioTracks.length > 0) {
+      audioTracks.forEach(track => {
+        if (track.enabled) {
+          combinedStream.addTrack(track);
+          console.log('🎬 Added mixed audio track to combined stream:', {
+            id: track.id,
+            enabled: track.enabled,
+            readyState: track.readyState,
+            kind: track.kind
+          });
+        }
+      });
+    } else {
+      console.warn('⚠️ No audio tracks in destination stream! Audio mixing may have failed.');
+      // Fallback: Use local stream audio directly if mixing failed
+      if (localStream) {
+        const localAudioTracks = localStream.getAudioTracks();
+        localAudioTracks.forEach(track => {
+          if (track.enabled) {
+            combinedStream.addTrack(track);
+            console.log('🎬 Using local audio track as fallback (mixing failed)');
+          }
+        });
+      }
+      
+      // Also add remote audio tracks directly as fallback
+      Object.values(remoteStreams).forEach(remoteStream => {
+        if (remoteStream && remoteStream.getAudioTracks) {
+          const remoteAudioTracks = remoteStream.getAudioTracks();
+          remoteAudioTracks.forEach(track => {
+            if (track.enabled) {
+              combinedStream.addTrack(track);
+              console.log('🎬 Using remote audio track as fallback (mixing failed)');
+            }
+          });
+        }
+      });
+    }
+    
+    console.log('🎬 Combined stream created:', {
+      videoTracks: combinedStream.getVideoTracks().length,
+      audioTracks: combinedStream.getAudioTracks().length,
+      totalTracks: combinedStream.getTracks().length
     });
     
     // Create temporary video elements for remote streams
