@@ -14,6 +14,8 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
   const audioContextRef = useRef(null);
   const combinedStreamRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const startRecordingRef = useRef(null);
+  const stopRecordingRef = useRef(null);
 
   // Handle recording status updates from server
   useEffect(() => {
@@ -24,11 +26,11 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
       
       // If recording is not already started locally, start it now
       // This handles the case where a participant receives the notification
-      if (!isRecording && localStream) {
+      if (!isRecording && localStream && startRecordingRef.current) {
         console.log('🎬 Participant: Starting local recording after server notification');
         try {
-          // Start recording for this participant
-          await startRecording();
+          // Start recording for this participant using ref
+          await startRecordingRef.current();
         } catch (error) {
           console.error('❌ Failed to start participant recording:', error);
         }
@@ -100,7 +102,7 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
       socket.off('recording_stopped', handleRecordingStopped);
       socket.off('recording_error', handleRecordingError);
     };
-  }, [socket, isRecording, localStream, startRecording, stopRecording]);
+  }, [socket, isRecording, localStream]); // Removed startRecording and stopRecording from deps to avoid hoisting issue
 
   /**
    * Start recording the meeting
@@ -339,6 +341,12 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
       setRecordingStatus('error');
     }
   }, [socket, meetingId]);
+
+  // Update refs when functions are created (to avoid hoisting issues in useEffect)
+  useEffect(() => {
+    startRecordingRef.current = startRecording;
+    stopRecordingRef.current = stopRecording;
+  }, [startRecording, stopRecording]);
 
   /**
    * Toggle recording state
