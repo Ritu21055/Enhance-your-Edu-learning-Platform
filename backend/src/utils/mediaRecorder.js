@@ -53,7 +53,8 @@ class MediaRecorder {
       }
       
       const sessionId = `recording_${meetingId}_${Date.now()}`;
-      const recordingPath = path.join(this.recordingDir, `${sessionId}.webm`);
+      // Always use .mp4 extension for final output (Windows Media Player compatible)
+      const recordingPath = path.join(this.recordingDir, `${sessionId}.mp4`);
       
       const recordingSession = {
         meetingId,
@@ -182,7 +183,7 @@ class MediaRecorder {
       // ZOOM-LIKE: If we have participant chunks, combine them using FFmpeg
       if (hasParticipantChunks && participantChunksWithData > 0) {
         console.log('🎬 Using Zoom-like recording: Combining participant streams with FFmpeg');
-        const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
+        const mp4Path = recordingSession.recordingPath; // Already .mp4
         try {
           await this.combineParticipantStreams(recordingSession, mp4Path);
           console.log('✅ Zoom-like recording created:', mp4Path);
@@ -197,26 +198,33 @@ class MediaRecorder {
 
       // Legacy: If we have actual chunks with data, use them; otherwise create placeholder
       if (hasActualData) {
-        // Convert WebM to MP4 for better compatibility
-        const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
+        // Create MP4 directly (no need to convert from WebM)
+        const mp4Path = recordingSession.recordingPath; // Already .mp4
         
-        // Check if the WebM file exists and has content
+        // Check if a temporary WebM file exists (from old approach)
+        const tempWebMPath = recordingSession.recordingPath.replace('.mp4', '.webm');
         const fs = await import('fs');
         try {
-          const stats = await fs.promises.stat(recordingSession.recordingPath);
+          const stats = await fs.promises.stat(tempWebMPath);
           if (stats.size > 0) {
-            // Convert the actual recording
-            await this.convertToMP4(recordingSession.recordingPath, mp4Path);
+            // Convert the temporary WebM to MP4
+            await this.convertToMP4(tempWebMPath, mp4Path);
             console.log('✅ Real recording converted to MP4:', mp4Path);
+            // Clean up temp WebM file
+            try {
+              await fs.promises.unlink(tempWebMPath);
+            } catch (err) {
+              console.warn('⚠️ Failed to delete temp WebM file:', err);
+            }
             recordingSession.finalPath = mp4Path;
             recordingSession.isStopping = false;
             return mp4Path;
           }
         } catch (error) {
-          console.warn('⚠️ WebM file not found or empty, creating from chunks:', error.message);
+          console.warn('⚠️ No temp WebM file found, creating from chunks:', error.message);
         }
         
-        // If file doesn't exist, combine chunks and create recording
+        // If file doesn't exist, combine chunks and create recording directly as MP4
         try {
           await this.combineChunksToRecording(recordingSession, mp4Path);
           console.log('✅ Recording created from chunks:', mp4Path);
@@ -231,7 +239,7 @@ class MediaRecorder {
       
       // Fallback: Create placeholder if no chunks collected or combination failed
       console.warn('⚠️ No valid chunks collected or combination failed, creating placeholder recording');
-      const mp4Path = recordingSession.recordingPath.replace('.webm', '.mp4');
+      const mp4Path = recordingSession.recordingPath; // Already .mp4
       await this.createPlaceholderRecording(mp4Path, recordingSession.duration);
       recordingSession.finalPath = mp4Path;
       recordingSession.isStopping = false;
@@ -403,7 +411,7 @@ class MediaRecorder {
         throw new Error(`Temp WebM file verification failed: ${err.message}`);
       }
       
-      // Convert WebM to MP4 for better compatibility
+      // Convert WebM to MP4 for better compatibility (Windows Media Player support)
       try {
         await this.convertToMP4(tempWebMPath, outputPath);
         
@@ -414,17 +422,18 @@ class MediaRecorder {
           console.warn('⚠️ Failed to clean up temp file:', err);
         }
         
-        console.log('✅ Recording combined and converted successfully:', outputPath);
+        console.log('✅ Recording combined and converted to MP4 successfully:', outputPath);
         resolve(outputPath);
       } catch (error) {
-        // If conversion fails, try to use WebM file directly
-        console.warn('⚠️ MP4 conversion failed, using WebM file:', error.message);
+        // If conversion fails, don't fall back to WebM - always return MP4 path
+        // Clean up temp file
         try {
-          await fs.rename(tempWebMPath, outputPath.replace('.mp4', '.webm'));
-          resolve(outputPath.replace('.mp4', '.webm'));
-        } catch (renameError) {
-          reject(new Error(`Failed to create recording: ${error.message}`));
+          await fs.unlink(tempWebMPath);
+        } catch (err) {
+          console.warn('⚠️ Failed to clean up temp file:', err);
         }
+        console.error('❌ MP4 conversion failed:', error.message);
+        reject(new Error(`Failed to convert recording to MP4: ${error.message}. Please ensure FFmpeg is installed and WebM file is valid.`));
       }
     });
   }
