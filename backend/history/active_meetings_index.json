@@ -1,0 +1,22 @@
+{
+  "123": {
+    "title": "Meeting 123",
+    "createdAt": "2025-12-26T06:24:38.665Z",
+    "endedAt": "2025-12-26T06:24:33.442Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-12-26T06:24:33.445Z"
+  },
+  "1234": {
+    "title": "Meeting 1234",
+    "createdAt": "2025-12-26T06:27:50.567Z",
+    "endedAt": "2025-12-26T06:27:45.346Z",
+    "duration": 0,
+    "highlights": 0,
+    "hasRecording": false,
+    "hasTranscript": false,
+    "lastUpdated": "2025-12-26T06:27:45.360Z"
+  }
+}

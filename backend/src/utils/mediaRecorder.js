@@ -353,7 +353,8 @@ class MediaRecorder {
       
       // Verify file was created and has content
       try {
-        const stats = await fs.promises.stat(tempWebMPath);
+        // fs is already imported from 'fs/promises', so use fs.stat() directly
+        const stats = await fs.stat(tempWebMPath);
         console.log('✅ Temp WebM file created:', {
           path: tempWebMPath,
           size: stats.size,

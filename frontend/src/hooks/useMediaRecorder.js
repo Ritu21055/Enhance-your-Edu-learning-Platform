@@ -106,7 +106,21 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
       
       // Start recording with the combined stream
       if (streamToRecord) {
-        console.log('🎬 Creating MediaRecorder with stream:', streamToRecord);
+        // Verify stream has tracks before recording
+        const videoTracks = streamToRecord.getVideoTracks();
+        const audioTracks = streamToRecord.getAudioTracks();
+        
+        console.log('🎬 Creating MediaRecorder with stream:', {
+          streamId: streamToRecord.id,
+          videoTracks: videoTracks.length,
+          audioTracks: audioTracks.length,
+          videoEnabled: videoTracks.length > 0 ? videoTracks[0].enabled : false,
+          audioEnabled: audioTracks.length > 0 ? audioTracks[0].enabled : false
+        });
+        
+        if (videoTracks.length === 0 && audioTracks.length === 0) {
+          throw new Error('Stream has no video or audio tracks to record');
+        }
         
         // Check MediaRecorder support
         if (!window.MediaRecorder) {
@@ -143,6 +157,9 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
         mediaRecorderRef.current = mediaRecorder;
         recordedChunksRef.current = [];
 
+        // Store the stream being recorded for use in callbacks
+        const recordingStream = streamToRecord;
+
         let chunkCount = 0;
         mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
@@ -156,6 +173,10 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
               console.log('  - Size:', event.data.size, 'bytes');
               console.log('  - Type:', event.data.type);
               console.log('  - Total Chunks:', recordedChunksRef.current.length);
+              console.log('  - Stream tracks:', {
+                video: recordingStream?.getVideoTracks().length || 0,
+                audio: recordingStream?.getAudioTracks().length || 0
+              });
             }
             
             // Send audio/video chunks to server for real-time processing
@@ -173,7 +194,8 @@ const useMediaRecorder = (socket, meetingId, localStream, remoteStreams = {}, lo
               });
               
               // Also send as video_frame if video is enabled
-              const videoTracks = localStream.getVideoTracks();
+              // Check the stream being recorded
+              const videoTracks = recordingStream?.getVideoTracks() || [];
               if (videoTracks.length > 0 && videoTracks[0].enabled) {
                 socket.emit('video_frame', {
                   meetingId,
@@ -416,7 +438,7 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
             }
           });
         }
-      });
+      }); 
     }
     
     console.log('🎬 Combined stream created:', {
@@ -425,8 +447,41 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       totalTracks: combinedStream.getTracks().length
     });
     
+    // Create temporary video elements for ALL streams (local + remote) for canvas drawing
+    const videoElements = new Map();
+    
+    // Add local video element if available
+    if (localVideoRef && localVideoRef.current) {
+      const localVideo = localVideoRef.current;
+      if (localVideo.srcObject || localStream) {
+        // Use existing video element if it has srcObject, otherwise create new one
+        if (localVideo.srcObject) {
+          videoElements.set('local', localVideo);
+          console.log('🎬 Using existing local video element');
+        } else {
+          const video = document.createElement('video');
+          video.srcObject = localStream;
+          video.autoplay = true;
+          video.playsInline = true;
+          video.muted = true;
+          video.play().catch(err => console.warn('⚠️ Failed to play local video:', err));
+          videoElements.set('local', video);
+          console.log('🎬 Created new local video element');
+        }
+      }
+    } else if (localStream && localStream.getVideoTracks().length > 0) {
+      // Create video element for local stream if no ref provided
+      const video = document.createElement('video');
+      video.srcObject = localStream;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.muted = true;
+      video.play().catch(err => console.warn('⚠️ Failed to play local video:', err));
+      videoElements.set('local', video);
+      console.log('🎬 Created local video element from stream');
+    }
+    
     // Create temporary video elements for remote streams
-    const remoteVideoElements = new Map();
     Object.entries(remoteStreams).forEach(([participantId, stream]) => {
       if (stream && stream.getVideoTracks().length > 0) {
         const video = document.createElement('video');
@@ -435,7 +490,7 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
         video.playsInline = true;
         video.muted = true; // Mute to prevent feedback
         
-        // Wait for video to be ready before adding to map
+        // Wait for video to be ready
         video.addEventListener('loadedmetadata', () => {
           console.log(`🎬 Remote video ${participantId} loaded:`, {
             videoWidth: video.videoWidth,
@@ -452,13 +507,13 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
           console.warn(`⚠️ Failed to play remote video ${participantId}:`, err);
         });
         
-        remoteVideoElements.set(participantId, video);
+        videoElements.set(participantId, video);
       }
     });
     
-    console.log('🎬 Created remote video elements:', {
-      count: remoteVideoElements.size,
-      participants: Array.from(remoteVideoElements.keys())
+    console.log('🎬 Created video elements for recording:', {
+      count: videoElements.size,
+      participants: Array.from(videoElements.keys())
     });
     
     // Draw video frames to canvas
@@ -474,7 +529,7 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Calculate grid layout
-      const totalVideos = (localVideoRef?.current ? 1 : 0) + remoteVideoElements.size;
+      const totalVideos = videoElements.size;
       
       if (totalVideos === 0) {
         // No videos, just show background
@@ -492,35 +547,13 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       let index = 0;
       let drawnCount = 0;
       
-      // Debug every 30 frames (1 second at 30fps) - after drawnCount is declared
+      // Debug every 30 frames (1 second at 30fps)
       const shouldDebug = drawCount % 30 === 0;
       
-      // Draw local video
-      if (localVideoRef && localVideoRef.current) {
-        const localVideo = localVideoRef.current;
+      // Draw all videos from videoElements map
+      videoElements.forEach((video, participantId) => {
         // Check if video is ready and has actual content
-        if (localVideo.videoWidth > 0 && localVideo.videoHeight > 0 && 
-            localVideo.readyState >= 2 && localVideo.srcObject) {
-          try {
-            const col = index % cols;
-            const row = Math.floor(index / cols);
-            const x = col * cellWidth;
-            const y = row * cellHeight;
-            ctx.drawImage(localVideo, x, y, cellWidth, cellHeight);
-            index++;
-            drawnCount++;
-          } catch (err) {
-            if (drawCount % 30 === 0) {
-              console.warn('🎬 Failed to draw local video:', err);
-            }
-          }
-        }
-      }
-      
-      // Draw remote videos
-      remoteVideoElements.forEach((video, participantId) => {
-        // Check if video is ready and has actual content
-        if (video.videoWidth > 0 && video.videoHeight > 0 && 
+        if (video && video.videoWidth > 0 && video.videoHeight > 0 && 
             video.readyState >= 2 && video.srcObject) {
           try {
             const col = index % cols;
@@ -532,7 +565,7 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
             drawnCount++;
           } catch (err) {
             if (drawCount % 30 === 0) {
-              console.warn(`🎬 Failed to draw remote video for ${participantId}:`, err);
+              console.warn(`🎬 Failed to draw video for ${participantId}:`, err);
             }
           }
         }
@@ -540,17 +573,7 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       
       // Debug logging after drawing is complete
       if (shouldDebug) {
-        const localVideo = localVideoRef?.current;
-        const localInfo = localVideo ? {
-          videoWidth: localVideo.videoWidth,
-          videoHeight: localVideo.videoHeight,
-          readyState: localVideo.readyState,
-          srcObject: !!localVideo.srcObject,
-          paused: localVideo.paused,
-          ended: localVideo.ended
-        } : null;
-        
-        const remoteInfo = Array.from(remoteVideoElements.entries()).map(([id, video]) => ({
+        const videoInfo = Array.from(videoElements.entries()).map(([id, video]) => ({
           id,
           videoWidth: video.videoWidth,
           videoHeight: video.videoHeight,
@@ -565,14 +588,12 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
         console.log('  - Draw Count:', drawCount);
         console.log('  - Total Videos:', totalVideos);
         console.log('  - Drawn Count:', drawnCount);
-        console.log('  - Local Video:', localInfo);
-        console.log('  - Remote Videos:', remoteInfo);
+        console.log('  - All Videos:', videoInfo);
         
         // Warn if no videos are being drawn
         if (drawnCount === 0 && totalVideos > 0) {
           console.warn('⚠️ Canvas: Videos exist but none are being drawn!', {
-            localReady: localVideo && localVideo.videoWidth > 0 && localVideo.readyState >= 2,
-            remoteReady: remoteInfo.some(v => v.videoWidth > 0 && v.readyState >= 2)
+            videosReady: videoInfo.some(v => v.videoWidth > 0 && v.readyState >= 2)
           });
         }
       }
@@ -583,38 +604,33 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
       }
     };
     
-    // Wait for videos to be ready before starting canvas stream
-    const waitForVideos = async () => {
-      let attempts = 0;
-      const maxAttempts = 20; // 2 seconds max wait
-      
-      while (attempts < maxAttempts) {
-        const localReady = localVideoRef?.current && 
-          localVideoRef.current.videoWidth > 0 && 
-          localVideoRef.current.readyState >= 2;
+      // Wait for videos to be ready before starting canvas stream
+      const waitForVideos = async () => {
+        let attempts = 0;
+        const maxAttempts = 20; // 2 seconds max wait
         
-        const remoteReady = Array.from(remoteVideoElements.values()).some(video => 
-          video.videoWidth > 0 && video.readyState >= 2
-        );
-        
-        if (localReady || remoteReady || remoteVideoElements.size === 0) {
-          console.log('🎬 Videos are ready, starting canvas drawing:', {
-            localReady,
-            remoteReady,
-            remoteCount: remoteVideoElements.size
-          });
-          drawVideoFrames();
-          return;
+        while (attempts < maxAttempts) {
+          const videosReady = Array.from(videoElements.values()).some(video => 
+            video.videoWidth > 0 && video.readyState >= 2
+          );
+          
+          if (videosReady || videoElements.size === 0) {
+            console.log('🎬 Videos are ready, starting canvas drawing:', {
+              videosReady,
+              videoCount: videoElements.size
+            });
+            drawVideoFrames();
+            return;
+          }
+          
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
         }
         
-        attempts++;
-        await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
-      }
-      
-      // Start anyway after max attempts
-      console.warn('⚠️ Videos not fully ready after 2 seconds, starting canvas drawing anyway');
-      drawVideoFrames();
-    };
+        // Start anyway after max attempts
+        console.warn('⚠️ Videos not fully ready after 2 seconds, starting canvas drawing anyway');
+        drawVideoFrames();
+      };
     
     waitForVideos();
     
@@ -625,14 +641,17 @@ async function createCombinedRecordingStream(localStream, remoteStreams, localVi
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
-      // Clean up remote video elements
-      remoteVideoElements.forEach((video) => {
-        if (video.srcObject) {
-          video.srcObject.getTracks().forEach(track => track.stop());
+      // Clean up all video elements (except the original localVideoRef if it exists)
+      videoElements.forEach((video, participantId) => {
+        // Don't clean up the original localVideoRef element
+        if (participantId !== 'local' || video !== localVideoRef?.current) {
+          if (video.srcObject) {
+            video.srcObject.getTracks().forEach(track => track.stop());
+          }
+          video.srcObject = null;
         }
-        video.srcObject = null;
       });
-      remoteVideoElements.clear();
+      videoElements.clear();
     };
     
     // Attach cleanup to stream
