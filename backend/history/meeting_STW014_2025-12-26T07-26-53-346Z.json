@@ -1,0 +1,40 @@
+{
+  "meeting": {
+    "id": "STW014",
+    "title": "testing",
+    "participants": 1,
+    "createdAt": "2025-12-26T07:26:53.170Z",
+    "endedAt": "2025-12-26T07:26:53.347Z",
+    "duration": 0,
+    "status": "completed"
+  },
+  "highlights": {
+    "total": 0,
+    "data": [],
+    "summary": {
+      "totalHighlights": 0,
+      "byType": {},
+      "byPriority": {},
+      "byParticipant": {},
+      "timeline": []
+    }
+  },
+  "recording": null,
+  "highlightReel": null,
+  "transcript": {
+    "totalEntries": 0,
+    "data": [],
+    "fullTranscript": ""
+  },
+  "sentiment": null,
+  "metadata": {
+    "savedAt": "2025-12-26T07:26:53.347Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": true,
+      "questionGeneration": true,
+      "sentimentAnalysis": false,
+      "transcription": false
+    }
+  }
+}

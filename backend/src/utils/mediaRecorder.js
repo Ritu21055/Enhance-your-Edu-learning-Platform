@@ -591,8 +591,9 @@ class MediaRecorder {
             continue;
           }
           
-          const participantWebM = path.join(tempDir, `participant_${participantData.participantId}.webm`);
-          const webmStream = fsSync.createWriteStream(participantWebM);
+          // Write chunks to temp file first
+          const tempChunksFile = path.join(tempDir, `temp_chunks_${participantData.participantId}.webm`);
+          const webmStream = fsSync.createWriteStream(tempChunksFile);
           
           let bytesWritten = 0;
           for (const chunk of validChunks) {
@@ -611,19 +612,104 @@ class MediaRecorder {
             setTimeout(() => reject(new Error('Write timeout')), 30000);
           });
           
-          // Verify file exists and has content
-          const stats = await fs.stat(participantWebM);
-          if (stats.size > 0) {
-            participantFiles.push({
-              path: participantWebM,
-              participantId: participantData.participantId,
-              userName: participantData.userName,
-              videoEnabled: participantData.videoEnabled,
-              audioEnabled: participantData.audioEnabled
+          // Verify temp file exists and has content
+          const tempStats = await fs.stat(tempChunksFile);
+          if (tempStats.size === 0) {
+            console.warn(`⚠️ Participant temp file is empty: ${participantData.userName}`);
+            continue;
+          }
+          
+          // Use FFmpeg to fix/validate the WebM file (ensures proper headers and structure)
+          const participantWebM = path.join(tempDir, `participant_${participantData.participantId}.webm`);
+          
+          try {
+            await new Promise((resolve, reject) => {
+              const ffmpeg = spawn('ffmpeg', [
+                '-i', tempChunksFile,
+                '-c', 'copy', // Copy streams without re-encoding (fast)
+                '-y', // Overwrite output file
+                participantWebM
+              ]);
+              
+              let errorOutput = '';
+              ffmpeg.stderr.on('data', (data) => {
+                errorOutput += data.toString();
+              });
+              
+              ffmpeg.on('close', (code) => {
+                if (code === 0) {
+                  resolve();
+                } else {
+                  // If FFmpeg fails, try to use the original file anyway
+                  console.warn(`⚠️ FFmpeg validation failed for ${participantData.userName}, using original file:`, errorOutput.substring(0, 200));
+                  resolve(); // Continue anyway
+                }
+              });
+              
+              ffmpeg.on('error', (error) => {
+                console.warn(`⚠️ FFmpeg spawn error for ${participantData.userName}, using original file:`, error.message);
+                resolve(); // Continue anyway
+              });
+              
+              // Timeout after 30 seconds
+              setTimeout(() => {
+                if (!ffmpeg.killed) {
+                  ffmpeg.kill();
+                  console.warn(`⚠️ FFmpeg timeout for ${participantData.userName}, using original file`);
+                  resolve(); // Continue anyway
+                }
+              }, 30000);
             });
-            console.log(`✅ Created participant file: ${participantData.userName} (${stats.size} bytes)`);
-          } else {
-            console.warn(`⚠️ Participant file is empty: ${participantData.userName}`);
+            
+            // Verify final file exists
+            const stats = await fs.stat(participantWebM);
+            if (stats.size > 0) {
+              participantFiles.push({
+                path: participantWebM,
+                participantId: participantData.participantId,
+                userName: participantData.userName,
+                videoEnabled: participantData.videoEnabled,
+                audioEnabled: participantData.audioEnabled
+              });
+              console.log(`✅ Created participant file: ${participantData.userName} (${stats.size} bytes)`);
+              
+              // Clean up temp chunks file
+              try {
+                await fs.unlink(tempChunksFile);
+              } catch (err) {
+                // Ignore cleanup errors
+              }
+            } else {
+              // Fallback: use temp file if FFmpeg output is empty
+              console.warn(`⚠️ FFmpeg output is empty for ${participantData.userName}, using temp file`);
+              await fs.rename(tempChunksFile, participantWebM);
+              const stats = await fs.stat(participantWebM);
+              participantFiles.push({
+                path: participantWebM,
+                participantId: participantData.participantId,
+                userName: participantData.userName,
+                videoEnabled: participantData.videoEnabled,
+                audioEnabled: participantData.audioEnabled
+              });
+            }
+          } catch (error) {
+            // Fallback: use temp file if FFmpeg fails
+            console.warn(`⚠️ FFmpeg processing failed for ${participantData.userName}, using temp file:`, error.message);
+            try {
+              await fs.rename(tempChunksFile, participantWebM);
+              const stats = await fs.stat(participantWebM);
+              if (stats.size > 0) {
+                participantFiles.push({
+                  path: participantWebM,
+                  participantId: participantData.participantId,
+                  userName: participantData.userName,
+                  videoEnabled: participantData.videoEnabled,
+                  audioEnabled: participantData.audioEnabled
+                });
+              }
+            } catch (renameError) {
+              console.error(`❌ Failed to create participant file for ${participantData.userName}:`, renameError);
+            }
           }
         }
         
@@ -671,17 +757,13 @@ class MediaRecorder {
         
         participantFiles.forEach((file, index) => {
           // Scale and position video
-          if (file.videoEnabled) {
-            videoFilters.push(`[${index}:v]scale=${cellWidth}:${cellHeight}:force_original_aspect_ratio=decrease,pad=${cellWidth}:${cellHeight}:(ow-iw)/2:(oh-ih)/2,setpts=PTS-STARTPTS[v${index}]`);
-          } else {
-            // Black screen for participants without video
-            videoFilters.push(`color=c=black:size=${cellWidth}x${cellHeight}:duration=1[black${index}]`);
-            videoFilters.push(`[black${index}]setpts=PTS-STARTPTS[v${index}]`);
-          }
+          // Use select filter to handle cases where video might not exist
+          videoFilters.push(`[${index}:v]scale=${cellWidth}:${cellHeight}:force_original_aspect_ratio=decrease,pad=${cellWidth}:${cellHeight}:(ow-iw)/2:(oh-ih)/2,setpts=PTS-STARTPTS[v${index}]`);
           
           // Extract audio if enabled
           if (file.audioEnabled) {
-            audioFilters.push(`[${index}:a]asetpts=PTS-STARTPTS[a${index}]`);
+            // Use anull to pass audio through unchanged
+            audioFilters.push(`[${index}:a]anull[a${index}]`);
           }
         });
         
@@ -697,20 +779,30 @@ class MediaRecorder {
         const xstackInputs = participantFiles.map((_, index) => `[v${index}]`).join('');
         
         // Combine all videos in grid using xstack filter
+        // NOTE: xstack requires minimum 2 inputs, so for single participant, use video directly (already scaled)
         let gridFilter = videoFilters.join(';');
-        gridFilter += `;${xstackInputs}xstack=inputs=${participantCount}:layout=${positions.join('|')}[grid]`;
+        if (participantCount === 1) {
+          // Single participant: video is already scaled in videoFilters, just rename it
+          gridFilter += `;[v0]copy[grid]`;
+        } else {
+          // Multiple participants: use xstack to combine in grid
+          gridFilter += `;${xstackInputs}xstack=inputs=${participantCount}:layout=${positions.join('|')}[grid]`;
+        }
         
         // Mix all audio tracks
         let audioMixFilter = '';
         const audioInputs = participantFiles
-          .map((file, index) => file.audioEnabled ? `[a${index}]` : null)
-          .filter(Boolean);
+          .map((file, index) => file.audioEnabled ? index : null)
+          .filter(index => index !== null);
         
         if (audioInputs.length > 0) {
           if (audioInputs.length === 1) {
-            audioMixFilter = audioInputs[0];
+            // Single audio: use the filtered output from audioFilters
+            audioMixFilter = `[a${audioInputs[0]}]anull[audio_out]`;
           } else {
-            audioMixFilter = `${audioInputs.join('')}amix=inputs=${audioInputs.length}:duration=longest:dropout_transition=2[amix]`;
+            // Multiple audio: mix them using amix
+            const audioRefs = audioInputs.map(idx => `[a${idx}]`).join('');
+            audioMixFilter = `${audioRefs}amix=inputs=${audioInputs.length}:duration=longest:dropout_transition=2[audio_out]`;
           }
         }
         
@@ -721,10 +813,15 @@ class MediaRecorder {
         }
         const complexFilter = complexFilterParts.join(';');
         
+        // Build map arguments
+        const mapArgs = ['-map', '[grid]'];
+        if (audioInputs.length > 0) {
+          mapArgs.push('-map', '[audio_out]');
+        }
+        
         ffmpegArgs.push(
           '-filter_complex', complexFilter,
-          '-map', '[grid]', // Use grid output
-          ...(audioMixFilter ? ['-map', `[${audioInputs.length > 1 ? 'amix' : 'a0'}]`] : []),
+          ...mapArgs,
           '-c:v', 'libx264',
           '-preset', 'fast',
           '-crf', '23',

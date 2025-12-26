@@ -31,22 +31,22 @@
   },
   "HRK345": {
     "title": "Meeting HRK345",
-    "createdAt": "2025-12-26T07:12:13.854Z",
-    "endedAt": "2025-12-26T07:12:08.633Z",
+    "createdAt": "2025-12-26T07:37:20.051Z",
+    "endedAt": "2025-12-26T07:37:15.320Z",
     "duration": 0,
     "highlights": 0,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2025-12-26T07:12:08.636Z"
+    "lastUpdated": "2025-12-26T07:37:15.626Z"
   },
   "STW014": {
-    "title": "Meeting STW014",
-    "createdAt": "2025-12-26T07:19:49.259Z",
-    "endedAt": "2025-12-26T07:19:44.086Z",
+    "title": "testing",
+    "createdAt": "2025-12-26T07:42:35.370Z",
+    "endedAt": "2025-12-26T07:42:35.596Z",
     "duration": 0,
     "highlights": 0,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2025-12-26T07:19:44.169Z"
+    "lastUpdated": "2025-12-26T07:42:35.610Z"
   }
 }
