@@ -1,18 +1,21 @@
 // AI-related socket event handlers (sentiment, fatigue, highlights, AI questions, performance)
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
-import { activeMeetings, sentimentData, fatigueData, highlightData, transcriptData, recordingSessions } from '../config/stores.js';
+import { activeMeetings, sentimentData, fatigueData, transcriptData, recordingSessions } from '../config/stores.js';
+// REMOVED: highlightData - Highlight detection feature removed
 import { performanceData, updatePerformanceData } from '../utils/performanceUtils.js';
 import { calculateFatiguePercentage, checkFatigue, HISTORY_DURATION } from '../utils/fatigueUtils.js';
-import { detectImportantMoments } from '../utils/meetingUtils.js';
+// REMOVED: detectImportantMoments - Highlight detection feature removed
+// import { detectImportantMoments } from '../utils/meetingUtils.js';
 import llmService from '../src/utils/llmService.js';
-import mediaProcessor from '../src/utils/mediaProcessor.js';
-import mediaRecorder from '../src/utils/mediaRecorder.js';
-import AIHighlightDetector from '../src/utils/aiHighlightDetector.js';
+// REMOVED: Highlight reel feature
+// import mediaProcessor from '../src/utils/mediaProcessor.js';
+// import mediaRecorder from '../src/utils/mediaRecorder.js';
+// REMOVED: Highlight detection feature
+// import AIHighlightDetector from '../src/utils/aiHighlightDetector.js';
 import meetingHistoryManager from '../src/utils/meetingHistory.js';
 
-// Initialize AI Highlight Detector
-const aiHighlightDetector = new AIHighlightDetector();
+// REMOVED: AI Highlight Detector initialization
 
 /**
  * Register AI-related socket event handlers
@@ -377,21 +380,34 @@ export default function registerAIHandlers(socket, io) {
     }
   });
 
-  // Free AI-Powered Automatic Highlight Detection - Transcript Update Event
+  // Transcript Update Event - Store with participant name for meeting notes
   socket.on('transcript_update', (data) => {
     try {
-      const { meetingId, participantId, transcript, timestamp, language, confidence } = data;
-      console.log('📝 Transcript update received:', { meetingId, participantId, transcript: transcript.substring(0, 50) + '...', confidence });
+      const { meetingId, participantId, transcript, timestamp, language, confidence, participantName } = data;
+      console.log('📝 Transcript update received:', { meetingId, participantId, participantName, transcript: transcript.substring(0, 50) + '...', confidence });
+      
+      // Get meeting to find participant name if not provided
+      let finalParticipantName = participantName;
+      if (!finalParticipantName) {
+        const meeting = activeMeetings.get(meetingId);
+        if (meeting) {
+          const participant = meeting.participants.find(p => p.id === participantId);
+          if (participant) {
+            finalParticipantName = participant.name.replace(' (Host)', '').trim();
+          }
+        }
+      }
       
       // Initialize transcript data for meeting if not exists
       if (!transcriptData.has(meetingId)) {
         transcriptData.set(meetingId, []);
       }
       
-      // Store transcript entry
+      // Store transcript entry WITH participant name
       const transcriptEntry = {
         timestamp,
         participantId,
+        participantName: finalParticipantName || `Participant ${participantId.slice(0, 8)}`,
         transcript,
         language,
         confidence,
@@ -403,72 +419,18 @@ export default function registerAIHandlers(socket, io) {
       // Also add to LLM service for AI question generation
       llmService.addToTranscriptHistory(meetingId, transcript);
       
-      // Analyze transcript for automatic highlight detection
-      console.log('🤖 AI Highlight: Analyzing transcript for highlights:', {
-        meetingId,
-        transcript: transcript.substring(0, 100) + '...',
-        timestamp
-      });
-      
-      const highlight = aiHighlightDetector.analyzeAudioChunk(
-        null, // No audio data for now, just text analysis
-        timestamp,
-        transcript
-      );
-      
-      console.log('🤖 AI Highlight: Analysis result:', {
-        hasHighlight: !!highlight,
-        highlight: highlight
-      });
-      
-      if (highlight) {
-        console.log('🤖 AI detected highlight:', highlight);
-        
-        // Initialize highlight data for meeting if not exists
-        if (!highlightData.has(meetingId)) {
-          highlightData.set(meetingId, []);
-        }
-        
-        // Add AI-detected highlight
-        const highlightEntry = {
-          timestamp: highlight.timestamp,
-          participantId,
-          date: new Date().toISOString(),
-          id: uuidv4(),
-          type: highlight.type,
-          description: highlight.description,
-          priority: 'medium', // AI-detected highlights are medium priority
-          source: 'ai', // Mark as AI-generated
-          confidence: highlight.importanceScore,
-          context: highlight.context
-        };
-        
-        highlightData.get(meetingId).push(highlightEntry);
-        
-        // Emit AI highlight to all participants
-        io.to(meetingId).emit('ai_highlight_detected', {
-          meetingId,
-          participantId,
-          timestamp: highlight.timestamp,
-          type: highlight.type,
-          description: highlight.description,
-          confidence: highlight.importanceScore,
-          totalHighlights: highlightData.get(meetingId).length
-        });
-        
-        console.log(`🤖 AI highlight added for meeting ${meetingId}. Total highlights:`, highlightData.get(meetingId).length);
-      }
+      // REMOVED: Highlight detection feature - no longer analyzing for highlights
       
     } catch (error) {
       console.error('❌ Error processing transcript update:', error);
     }
   });
 
-  // AI-Generated Meeting Highlights - End Meeting Event
+  // Meeting End Event - Save to History (Highlight Reel Feature Removed)
   socket.on('end_meeting', async (data) => {
     try {
       const { meetingId } = data;
-      console.log('🏁 Meeting ended, generating highlight reel and saving to history for:', meetingId);
+      console.log('🏁 Meeting ended, saving to history for:', meetingId);
       
       // Get meeting data
       const meeting = activeMeetings.get(meetingId);
@@ -477,8 +439,7 @@ export default function registerAIHandlers(socket, io) {
         return;
       }
       
-      // Get highlight timestamps for this meeting
-      let highlights = highlightData.get(meetingId) || [];
+      // REMOVED: Highlight detection feature - no longer getting highlights
       const existingRecordingSession = recordingSessions.get(meetingId);
       
       // Get transcript history
@@ -486,14 +447,6 @@ export default function registerAIHandlers(socket, io) {
       
       // Get sentiment data
       const meetingSentimentData = sentimentData.get(meetingId);
-      
-      // Auto-detect additional important moments if few highlights were marked
-      if (highlights.length < 3) {
-        console.log('🔍 Auto-detecting additional important moments...');
-        const autoHighlights = await detectImportantMoments(meetingId, highlights);
-        highlights = [...highlights, ...autoHighlights];
-        console.log(`🎯 Auto-detected ${autoHighlights.length} additional highlights`);
-      }
       
       // Calculate meeting duration
       const meetingDuration = existingRecordingSession ? 
@@ -505,202 +458,35 @@ export default function registerAIHandlers(socket, io) {
       meeting.endedAt = new Date().toISOString();
       meeting.status = 'completed';
       
-      if (highlights.length === 0) {
-        console.log('📝 No highlights found for meeting:', meetingId);
-        io.to(meetingId).emit('highlight_reel_status', {
-          meetingId,
-          status: 'no_highlights',
-          message: 'No highlights were marked during this meeting'
-        });
-        
-        // Save meeting to history without highlight reel
-        try {
-          const historyPath = await meetingHistoryManager.saveMeetingToHistory(
-            meeting,
-            highlights,
-            existingRecordingSession,
-            transcriptHistory,
-            meetingSentimentData,
-            null // No highlight reel path
-          );
-          console.log('💾 Meeting saved to history:', historyPath);
-          
-          // Emit history saved event
-          io.to(meetingId).emit('meeting_saved_to_history', {
-            meetingId,
-            historyPath,
-            highlights: highlights.length,
-            transcriptEntries: transcriptHistory.length,
-            hasRecording: !!existingRecordingSession,
-            highlightReelPath: null
-          });
-        } catch (historyError) {
-          console.error('❌ Failed to save meeting to history:', historyError);
-        }
-        return;
-      }
-      
-      // Check if FFmpeg is available
-      const ffmpegAvailable = await mediaProcessor.isFFmpegAvailable();
-      
-      if (!ffmpegAvailable) {
-        console.error('❌ FFmpeg is not available. Cannot generate highlight reel.');
-        io.to(meetingId).emit('highlight_reel_error', {
-          meetingId,
-          status: 'error',
-          error: 'FFmpeg is not installed. Please install FFmpeg to generate highlight reels.',
-          message: 'Highlight reel generation requires FFmpeg. Install FFmpeg and try again.'
-        });
-        return;
-      }
-      
-      // Get real meeting recording - required for highlight reel
-      let recordingSession = existingRecordingSession || mediaRecorder.getRecordingSession(meetingId);
-      let recordingPath;
-      
-      if (!recordingSession) {
-        console.log('📹 No recording session found for meeting:', meetingId);
-        io.to(meetingId).emit('highlight_reel_error', {
-          meetingId,
-          status: 'error',
-          error: 'No meeting recording available. Cannot generate highlight reel without a recording.',
-          message: 'Highlight reel generation requires a meeting recording. Ensure the meeting was recorded.'
-        });
-        return;
-      }
-      
-      if (recordingSession && recordingSession.recordingPath) {
-        // Use real meeting recording
-        recordingPath = recordingSession.recordingPath;
-        console.log('🎬 Using real meeting recording:', recordingPath);
-      } else {
-        // Try to create real meeting recording from collected data
-        try {
-          console.log('🎬 Creating real meeting recording from collected data');
-          recordingPath = await mediaRecorder.createRealMeetingRecording(meetingId);
-          console.log('🎬 Real meeting recording created:', recordingPath);
-        } catch (recordingError) {
-          console.error('❌ Error creating meeting recording:', recordingError);
-          io.to(meetingId).emit('highlight_reel_error', {
-            meetingId,
-            status: 'error',
-            error: 'No meeting recording available. Cannot generate highlight reel without a recording.',
-            message: 'Highlight reel generation requires a meeting recording. Ensure the meeting was recorded.'
-          });
-          return;
-        }
-      }
-      
-      // Check if recording file exists
+      // Save meeting to history (without highlights)
       try {
-        await fs.access(recordingPath);
-      } catch (accessError) {
-        console.error('❌ Meeting recording file not found:', recordingPath);
-        io.to(meetingId).emit('highlight_reel_error', {
-          meetingId,
-          status: 'error',
-          error: `Recording file not found: ${recordingPath}`,
-          message: 'Meeting recording file is missing. Cannot generate highlight reel.'
-        });
-        return;
-      }
-      
-      // Generate actual highlight reel from real meeting recording
-      const outputPath = `./output/highlight_reel_${meetingId}_${Date.now()}.mp4`;
-      
-      try {
-        // Prepare meeting information for intelligent highlight reel
-        const meetingInfo = {
-          title: meeting.title || `Meeting ${meetingId}`,
-          participants: meeting.participants?.length || 0,
-          duration: meetingDuration,
-          highlightCount: highlights.length,
-          date: meeting.createdAt
-        };
-        
-        const highlightReelPath = await mediaProcessor.generateHighlightReel(
-          recordingPath,
-          highlights,
-          outputPath,
-          meetingInfo
+        const historyPath = await meetingHistoryManager.saveMeetingToHistory(
+          meeting,
+          [], // No highlights - feature removed
+          existingRecordingSession,
+          transcriptHistory,
+          meetingSentimentData
         );
+        console.log('💾 Meeting saved to history:', historyPath);
         
-        console.log('✅ Highlight reel generated successfully from real meeting recording:', highlightReelPath);
-        
-        // Save meeting to history with highlight reel path
-        try {
-          const historyPath = await meetingHistoryManager.saveMeetingToHistory(
-            meeting,
-            highlights,
-            recordingSession,
-            transcriptHistory,
-            meetingSentimentData,
-            highlightReelPath // Include highlight reel path
-          );
-          console.log('💾 Meeting saved to history with highlight reel:', historyPath);
-          
-          // Emit history saved event
-          io.to(meetingId).emit('meeting_saved_to_history', {
-            meetingId,
-            historyPath,
-            highlights: highlights.length,
-            transcriptEntries: transcriptHistory.length,
-            hasRecording: !!recordingSession,
-            highlightReelPath: highlightReelPath
-          });
-        } catch (historyError) {
-          console.error('❌ Failed to save meeting to history:', historyError);
-        }
-        
-        io.to(meetingId).emit('highlight_reel_generated', {
+        // Emit history saved event
+        io.to(meetingId).emit('meeting_saved_to_history', {
           meetingId,
-          status: 'success',
-          highlightReelPath,
-          highlightCount: highlights.length,
-          message: 'Highlight reel generated successfully from meeting recording'
+          historyPath,
+          transcriptEntries: transcriptHistory.length,
+          hasRecording: !!existingRecordingSession
         });
-        
-      } catch (error) {
-        console.error('❌ Error generating highlight reel from meeting recording:', error);
-        
-        // Save meeting to history without highlight reel (due to error)
-        try {
-          const historyPath = await meetingHistoryManager.saveMeetingToHistory(
-            meeting,
-            highlights,
-            recordingSession,
-            transcriptHistory,
-            meetingSentimentData,
-            null // No highlight reel path due to error
-          );
-          console.log('💾 Meeting saved to history (without highlight reel):', historyPath);
-          
-          // Emit history saved event
-          io.to(meetingId).emit('meeting_saved_to_history', {
-            meetingId,
-            historyPath,
-            highlights: highlights.length,
-            transcriptEntries: transcriptHistory.length,
-            hasRecording: !!recordingSession,
-            highlightReelPath: null
-          });
-        } catch (historyError) {
-          console.error('❌ Failed to save meeting to history:', historyError);
-        }
-        
-        io.to(meetingId).emit('highlight_reel_error', {
+      } catch (historyError) {
+        console.error('❌ Failed to save meeting to history:', historyError);
+        socket.emit('meeting_save_error', {
           meetingId,
-          status: 'error',
-          error: error.message,
-          message: 'Failed to generate highlight reel from meeting recording. Check FFmpeg configuration and recording file.'
+          error: historyError.message
         });
       }
-      
-      console.log('🎬 Highlight reel processing completed for meeting:', meetingId);
       
     } catch (error) {
       console.error('❌ Error processing meeting end:', error);
-      socket.emit('highlight_reel_error', {
+      socket.emit('meeting_save_error', {
         meetingId: data.meetingId,
         error: error.message
       });

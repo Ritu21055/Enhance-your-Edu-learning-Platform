@@ -1,6 +1,7 @@
 // Media-related socket event handlers (WebRTC, screen share, camera/mic)
 import { activeMeetings } from '../config/stores.js';
-import mediaRecorder from '../src/utils/mediaRecorder.js';
+// REMOVED: Recording feature
+// import mediaRecorder from '../src/utils/mediaRecorder.js';
 
 /**
  * Register media-related socket event handlers
@@ -94,31 +95,7 @@ export default function registerMediaHandlers(socket, io) {
       }
     });
     
-    // Update intelligent recording with media state
-    const mediaState = {
-      videoEnabled: data.videoEnabled,
-      audioEnabled: data.audioEnabled,
-      hasVideo: data.hasVideo || false,
-      hasAudio: data.hasAudio || false
-    };
-    
-    mediaRecorder.updateParticipantMediaState(data.meetingId, data.participantId, mediaState);
-    
-    // Get intelligent recording configuration
-    const recordingConfig = mediaRecorder.getIntelligentRecordingConfig(data.meetingId);
-    if (recordingConfig) {
-      console.log(`🎬 Recording strategy updated for meeting ${data.meetingId}:`, recordingConfig.strategy);
-      
-      // Emit recording strategy update to host
-      io.to(meeting.hostId).emit('recording_strategy_updated', {
-        meetingId: data.meetingId,
-        strategy: recordingConfig.strategy,
-        hasVideo: recordingConfig.hasVideo,
-        hasAudio: recordingConfig.hasAudio,
-        videoStreamCount: recordingConfig.videoStreamCount,
-        audioStreamCount: recordingConfig.audioStreamCount
-      });
-    }
+    // REMOVED: Recording feature - no longer updating recording with media state
     
     // Broadcast media state change to all participants (including the host)
     console.log(`📡 Broadcasting media state change to meeting ${data.meetingId}:`, {

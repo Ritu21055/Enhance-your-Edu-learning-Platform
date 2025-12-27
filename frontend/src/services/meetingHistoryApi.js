@@ -46,6 +46,25 @@ export const getMeetingHistory = async (meetingId) => {
   }
 };
 
+// Get meeting notes
+export const getMeetingNotes = async (meetingId) => {
+  try {
+    const API_BASE_URL = getApiBaseUrl();
+    const response = await fetch(`${API_BASE_URL}/api/meetings/${meetingId}/notes`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null; // Notes not found
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.notes;
+  } catch (error) {
+    console.error('Error fetching meeting notes:', error);
+    return null;
+  }
+};
+
 // Get meeting statistics
 export const getMeetingStatistics = async () => {
   try {

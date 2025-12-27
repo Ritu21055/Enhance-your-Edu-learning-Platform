@@ -879,15 +879,6 @@ Generate ONLY the question, no explanations or additional text.`;
     }
     
     return null;
-    questions.push(
-      "What are the next steps we should take?",
-      "Is there anything else we should consider?",
-      "How can we ensure this stays on track?",
-      "What support do you need to move forward?",
-      "Are there any risks we should be aware of?"
-    );
-
-    return questions;
   }
 
   // Add transcript to history
@@ -1177,6 +1168,308 @@ Return ONLY valid JSON, no additional text.`;
       actionItems: actionItems.slice(0, 5),
       decisions: decisions.slice(0, 5)
     };
+  }
+
+  // Generate comprehensive meeting notes from transcripts
+  async generateMeetingNotes(transcripts, meetingId) {
+    try {
+      console.log(`📝 Generating meeting notes for meeting ${meetingId}...`, { transcriptCount: transcripts.length });
+      
+      if (!transcripts || transcripts.length === 0) {
+        console.log('⚠️ No transcripts available for meeting notes');
+        return this.generateRuleBasedNotes([]);
+      }
+      
+      // Format transcripts with participant names (who said what)
+      const conversationTranscript = this.createConversationTranscript(transcripts);
+      
+      // Combine all transcripts into a single context
+      const fullTranscript = transcripts
+        .map(t => `${t.participantName || 'Unknown'}: ${t.transcript}`)
+        .join('\n');
+      
+      // Try Gemini first, fallback to rule-based
+      if (this.llmType === 'gemini' && this.geminiClient && this.geminiApiKey) {
+        try {
+          return await this.generateComprehensiveNotesWithGemini(fullTranscript, conversationTranscript, transcripts);
+        } catch (error) {
+          console.log('⚠️ Gemini notes generation failed, using rule-based fallback:', error.message);
+          return this.generateRuleBasedNotes(transcripts);
+        }
+      } else {
+        return this.generateRuleBasedNotes(transcripts);
+      }
+    } catch (error) {
+      console.error('❌ Error generating meeting notes:', error);
+      return this.generateRuleBasedNotes(transcripts || []);
+    }
+  }
+
+  // Generate comprehensive notes using Gemini
+  async generateComprehensiveNotesWithGemini(fullTranscript, conversationTranscript, transcripts) {
+    const prompt = `You are an AI assistant that generates comprehensive meeting notes. Analyze the following meeting transcript and create structured notes.
+
+MEETING TRANSCRIPT:
+${fullTranscript}
+
+CONVERSATION TRANSCRIPT (Who Said What):
+${conversationTranscript}
+
+Please generate comprehensive meeting notes in the following JSON format:
+{
+  "summary": "A brief 2-3 sentence summary of the entire meeting",
+  "keyPoints": ["Point 1", "Point 2", "Point 3", ...],
+  "actionItems": [
+    {
+      "task": "Task description",
+      "assignedTo": "Person name or 'TBD'",
+      "deadline": "Deadline if mentioned or 'TBD'"
+    }
+  ],
+  "decisions": ["Decision 1", "Decision 2", ...],
+  "studyGuide": {
+    "definitions": ["Term: Definition", ...],
+    "examples": ["Example 1", "Example 2", ...],
+    "formulas": ["Formula 1", ...]
+  },
+  "participantContributions": {
+    "Person Name": ["Contribution 1", "Contribution 2", ...]
+  },
+  "conversationTranscript": [
+    {
+      "speaker": "Person Name",
+      "timestamp": "HH:MM:SS",
+      "text": "What they said"
+    }
+  ]
+}
+
+IMPORTANT REQUIREMENTS:
+1. Extract ALL action items with who is responsible (if mentioned) and deadlines (if mentioned)
+2. List ALL decisions made during the meeting
+3. Identify key definitions, examples, and formulas if this is an educational meeting
+4. For participantContributions, group what each person said/contributed
+5. For conversationTranscript, format it clearly showing who said what with timestamps
+6. Be comprehensive - don't miss important details
+7. Use the exact participant names from the transcript
+8. Format timestamps as HH:MM:SS based on the transcript timestamps
+
+Return ONLY valid JSON, no additional text.`;
+
+    try {
+      const model = this.geminiClient.getGenerativeModel({ model: this.geminiModel });
+      
+      const result = await Promise.race([
+        model.generateContent(prompt),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 60000))
+      ]);
+      
+      const responseText = result.response.text();
+      
+      // Extract JSON from response (handle markdown code blocks)
+      let jsonText = responseText.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/```\n?/g, '').trim();
+      }
+      
+      const notes = JSON.parse(jsonText);
+      
+      // Ensure conversationTranscript is included
+      if (!notes.conversationTranscript && conversationTranscript) {
+        notes.conversationTranscript = this.formatConversationTranscriptForNotes(transcripts);
+      }
+      
+      return notes;
+    } catch (error) {
+      console.error('❌ Error in Gemini notes generation:', error);
+      throw error;
+    }
+  }
+
+  // Generate rule-based notes (fallback)
+  generateRuleBasedNotes(transcripts) {
+    if (!transcripts || transcripts.length === 0) {
+      return {
+        summary: 'No transcript data available for this meeting.',
+        keyPoints: [],
+        actionItems: [],
+        decisions: [],
+        studyGuide: { definitions: [], examples: [], formulas: [] },
+        participantContributions: {},
+        conversationTranscript: []
+      };
+    }
+    
+    const fullText = transcripts.map(t => t.transcript).join(' ').toLowerCase();
+    const sentences = transcripts.flatMap(t => 
+      t.transcript.split(/[.!?]+/).filter(s => s.trim().length > 10).map(s => ({
+        text: s.trim(),
+        speaker: t.participantName || 'Unknown',
+        timestamp: t.timestamp
+      }))
+    );
+    
+    // Extract key points
+    const keyPoints = sentences
+      .filter(s => {
+        const lower = s.text.toLowerCase();
+        return lower.includes('important') || lower.includes('key') || 
+               lower.includes('main') || lower.includes('critical');
+      })
+      .map(s => s.text)
+      .slice(0, 10);
+    
+    // Extract action items
+    const actionItems = sentences
+      .filter(s => {
+        const lower = s.text.toLowerCase();
+        return lower.includes('need to') || lower.includes('should') || 
+               lower.includes('must') || lower.includes('will do') ||
+               lower.includes('action') || lower.includes('task');
+      })
+      .map(s => ({
+        task: s.text,
+        assignedTo: this.extractPersonName(s.text, transcripts),
+        deadline: this.extractDeadline(s.text)
+      }))
+      .slice(0, 10);
+    
+    // Extract decisions
+    const decisions = sentences
+      .filter(s => {
+        const lower = s.text.toLowerCase();
+        return lower.includes('decided') || lower.includes('agreed') || 
+               lower.includes('concluded') || lower.includes('chosen');
+      })
+      .map(s => s.text)
+      .slice(0, 10);
+    
+    // Extract study guide content
+    const definitions = this.extractDefinitions(sentences);
+    const examples = this.extractExamples(sentences);
+    const formulas = this.extractFormulas(sentences);
+    
+    // Group participant contributions
+    const participantContributions = {};
+    transcripts.forEach(t => {
+      const name = t.participantName || 'Unknown';
+      if (!participantContributions[name]) {
+        participantContributions[name] = [];
+      }
+      const contributions = t.transcript.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      participantContributions[name].push(...contributions.slice(0, 5));
+    });
+    
+    // Create conversation transcript
+    const conversationTranscript = this.formatConversationTranscriptForNotes(transcripts);
+    
+    // Generate summary
+    const topics = this.detectTopics(transcripts.map(t => t.transcript).join(' '));
+    const summary = `This meeting discussed ${topics.map(t => t.topic).join(', ')}. ` +
+      `${keyPoints.length > 0 ? 'Key points included: ' + keyPoints.slice(0, 3).join(', ') + '. ' : ''}` +
+      `${decisions.length > 0 ? decisions.length + ' decisions were made. ' : ''}` +
+      `${actionItems.length > 0 ? actionItems.length + ' action items were identified.' : ''}`;
+    
+    return {
+      summary: summary.trim(),
+      keyPoints,
+      actionItems,
+      decisions,
+      studyGuide: {
+        definitions,
+        examples,
+        formulas
+      },
+      participantContributions,
+      conversationTranscript
+    };
+  }
+
+  // Helper: Create formatted conversation transcript showing who said what
+  createConversationTranscript(transcripts) {
+    return transcripts
+      .map(t => {
+        const timestamp = new Date(t.timestamp);
+        const timeStr = timestamp.toLocaleTimeString('en-US', { hour12: false });
+        return `${t.participantName || 'Unknown'} (${timeStr}): ${t.transcript}`;
+      })
+      .join('\n');
+  }
+
+  // Helper: Format conversation transcript for notes
+  formatConversationTranscriptForNotes(transcripts) {
+    return transcripts.map(t => {
+      const timestamp = new Date(t.timestamp);
+      const timeStr = timestamp.toLocaleTimeString('en-US', { hour12: false });
+      return {
+        speaker: t.participantName || 'Unknown',
+        timestamp: timeStr,
+        text: t.transcript
+      };
+    });
+  }
+
+  // Helper: Extract person name from text
+  extractPersonName(text, transcripts) {
+    const names = [...new Set(transcripts.map(t => t.participantName).filter(Boolean))];
+    for (const name of names) {
+      if (text.toLowerCase().includes(name.toLowerCase())) {
+        return name;
+      }
+    }
+    return 'TBD';
+  }
+
+  // Helper: Extract deadline from text
+  extractDeadline(text) {
+    const deadlinePatterns = [
+      /(?:by|before|until|deadline|due)\s+(\w+\s+\d+|\d+\s+\w+|\w+day|tomorrow|next\s+\w+)/i,
+      /(\d{1,2}\/\d{1,2}\/\d{2,4})/,
+      /(\w+\s+\d{1,2},?\s+\d{4})/
+    ];
+    
+    for (const pattern of deadlinePatterns) {
+      const match = text.match(pattern);
+      if (match) return match[1];
+    }
+    return 'TBD';
+  }
+
+  // Helper: Extract definitions
+  extractDefinitions(sentences) {
+    return sentences
+      .filter(s => {
+        const lower = s.text.toLowerCase();
+        return lower.includes('is defined as') || lower.includes('means') || 
+               lower.includes('refers to') || lower.includes(':') && lower.split(':').length === 2;
+      })
+      .map(s => s.text)
+      .slice(0, 10);
+  }
+
+  // Helper: Extract examples
+  extractExamples(sentences) {
+    return sentences
+      .filter(s => {
+        const lower = s.text.toLowerCase();
+        return lower.includes('for example') || lower.includes('such as') || 
+               lower.includes('like') || lower.includes('instance');
+      })
+      .map(s => s.text)
+      .slice(0, 10);
+  }
+
+  // Helper: Extract formulas
+  extractFormulas(sentences) {
+    return sentences
+      .filter(s => {
+        const text = s.text;
+        return /[=+\-*/()]/.test(text) && /\w+\s*[=+\-*/]/.test(text);
+      })
+      .map(s => s.text)
+      .slice(0, 10);
   }
 
   // Clean up meeting data

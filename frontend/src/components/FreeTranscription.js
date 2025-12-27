@@ -29,7 +29,8 @@ import {
 const FreeTranscription = ({ 
   socket, 
   meetingId, 
-  participantId, 
+  participantId,
+  participantName,
   isVisible = true,
   onTranscriptUpdate 
 }) => {
@@ -94,6 +95,7 @@ const FreeTranscription = ({
           socket.emit('transcript_update', {
             meetingId,
             participantId,
+            participantName: participantName || 'Unknown',
             transcript: final,
             timestamp: Date.now(),
             language: language,

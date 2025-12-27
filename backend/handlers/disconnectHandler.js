@@ -1,6 +1,7 @@
 // Disconnect-related socket event handlers
 import { activeMeetings, sentimentData, fatigueData, highlightData, recordingSessions, transcriptData } from '../config/stores.js';
 import llmService from '../src/utils/llmService.js';
+import meetingHistoryManager from '../src/utils/meetingHistory.js';
 
 /**
  * Register disconnect-related socket event handlers
@@ -92,7 +93,26 @@ export default function registerDisconnectHandler(socket, io) {
             console.log('🧹 Cleaned up recording session for meeting:', meetingId);
           }
           
+          // Generate meeting notes before cleaning up transcript data (async, don't await)
           if (transcriptData.has(meetingId)) {
+            const transcripts = transcriptData.get(meetingId);
+            if (transcripts && transcripts.length > 0) {
+              console.log(`📝 Generating meeting notes for meeting ${meetingId}...`);
+              // Run async operation without blocking
+              (async () => {
+                try {
+                  const notes = await llmService.generateMeetingNotes(transcripts, meetingId);
+                  console.log(`✅ Meeting notes generated for meeting ${meetingId}`);
+                  
+                  // Save notes to meeting history
+                  await meetingHistoryManager.saveMeetingNotes(meetingId, notes);
+                  console.log(`💾 Meeting notes saved to history for meeting ${meetingId}`);
+                } catch (error) {
+                  console.error(`❌ Error generating/saving meeting notes for meeting ${meetingId}:`, error);
+                }
+              })();
+            }
+            
             transcriptData.delete(meetingId);
             console.log('🧹 Cleaned up transcript data for meeting:', meetingId);
           }

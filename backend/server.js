@@ -17,20 +17,17 @@ const __dirname = path.dirname(__filename);
 // Import LLM Service for AI-Driven Smart Follow-up Question Generation
 import llmService from './src/utils/llmService.js';
 
-// Import Media Processor for AI-Generated Meeting Highlights
-import mediaProcessor from './src/utils/mediaProcessor.js';
-
-// Import Media Recorder for Real-Time Meeting Recording
-import mediaRecorder from './src/utils/mediaRecorder.js';
-
-// Import AI Highlight Detector for Free Automatic Highlight Detection
-import AIHighlightDetector from './src/utils/aiHighlightDetector.js';
+// REMOVED: Highlight detection and reel generation features
+// import mediaProcessor from './src/utils/mediaProcessor.js';
+// import mediaRecorder from './src/utils/mediaRecorder.js';
+// import AIHighlightDetector from './src/utils/aiHighlightDetector.js';
 
 // Import Meeting History Manager for persistent storage
 import meetingHistoryManager from './src/utils/meetingHistory.js';
 
 // Import data stores
-import { activeMeetings, sentimentData, fatigueData, highlightData, recordingSessions, transcriptData, persistentMeetings, persistentHighlights, persistentTranscripts } from './config/stores.js';
+import { activeMeetings, sentimentData, fatigueData, recordingSessions, transcriptData, persistentMeetings, persistentHighlights, persistentTranscripts } from './config/stores.js';
+// REMOVED: highlightData - Highlight detection feature removed
 
 // Import utilities
 import { updatePerformanceData, performanceData } from './utils/performanceUtils.js';
@@ -73,34 +70,11 @@ app.use(express.json());
 // Serve static files (highlight reels)
 app.use('/output', express.static('output'));
 
-// API endpoint to get highlight reel for a meeting
-app.get('/api/meetings/:meetingId/highlight-reel', async (req, res) => {
-  try {
-    const { meetingId } = req.params;
-    const history = await meetingHistoryManager.getMeetingHistory(meetingId);
-    
-    if (!history) {
-      return res.status(404).json({ error: 'Meeting history not found' });
-    }
-    
-    if (!history.highlightReel) {
-      return res.status(404).json({ error: 'Highlight reel not found for this meeting' });
-    }
-    
-    res.json({
-      meetingId,
-      highlightReel: history.highlightReel,
-      meeting: history.meeting,
-      highlights: history.highlights
-    });
-  } catch (error) {
-    console.error('❌ Error getting highlight reel:', error);
-    res.status(500).json({ error: 'Failed to get highlight reel' });
-  }
-});
+// REMOVED: Highlight reel API endpoint - Feature removed
+// app.get('/api/meetings/:meetingId/highlight-reel', ...)
 
-// Initialize AI Highlight Detector for automatic highlight detection
-const aiHighlightDetector = new AIHighlightDetector();
+// REMOVED: AI Highlight Detector initialization - Feature removed
+// const aiHighlightDetector = new AIHighlightDetector();
 
 // Start fatigue monitoring
 startFatigueMonitoring(io);
@@ -472,6 +446,26 @@ app.get('/api/meetings/:meetingId/history', async (req, res) => {
   } catch (error) {
     console.error('❌ Error getting meeting history:', error);
     res.status(500).json({ error: 'Failed to get meeting history' });
+  }
+});
+
+app.get('/api/meetings/:meetingId/notes', async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const history = await meetingHistoryManager.getMeetingHistory(meetingId);
+    
+    if (!history) {
+      return res.status(404).json({ error: 'Meeting history not found' });
+    }
+    
+    if (!history.notes) {
+      return res.status(404).json({ error: 'Meeting notes not found' });
+    }
+    
+    res.json({ notes: history.notes });
+  } catch (error) {
+    console.error('❌ Error getting meeting notes:', error);
+    res.status(500).json({ error: 'Failed to get meeting notes' });
   }
 });
 

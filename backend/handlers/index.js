@@ -6,7 +6,7 @@ import registerMediaHandlers from './mediaHandlers.js';
 import registerMediaRequestHandlers from './mediaRequestHandlers.js';
 import registerChatHandlers from './chatHandlers.js';
 import registerAIHandlers from './aiHandlers.js';
-import registerRecordingHandlers from './recordingHandlers.js';
+// import registerRecordingHandlers from './recordingHandlers.js'; // REMOVED: Recording feature
 import registerDisconnectHandler from './disconnectHandler.js';
 
 /**
@@ -31,7 +31,7 @@ export default function registerAllHandlers(socket, io) {
   registerMediaRequestHandlers(socket, io);
   registerChatHandlers(socket, io);
   registerAIHandlers(socket, io);
-  registerRecordingHandlers(socket, io);
+  // registerRecordingHandlers(socket, io); // REMOVED: Recording feature
   registerDisconnectHandler(socket, io);
 }
 

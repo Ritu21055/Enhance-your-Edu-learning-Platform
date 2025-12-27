@@ -36,7 +36,9 @@ class MeetingHistoryManager {
    * @param {Object} sentimentData - Sentiment analysis data
    * @returns {Promise<string>} Path to saved meeting file
    */
-  async saveMeetingToHistory(meetingData, highlights = [], recordingSession = null, transcriptHistory = [], sentimentData = null, highlightReelPath = null) {
+  async saveMeetingToHistory(meetingData, recordingSession = null, transcriptHistory = [], sentimentData = null) {
+    // REMOVED: highlights parameter - Highlight detection feature removed
+    // REMOVED: highlightReelPath parameter - Highlight reel feature removed
     try {
       const meetingId = meetingData.id;
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -55,11 +57,7 @@ class MeetingHistoryManager {
           duration: meetingData.duration || 0,
           status: 'completed'
         },
-        highlights: {
-          total: highlights.length,
-          data: highlights,
-          summary: this.generateHighlightSummary(highlights)
-        },
+        // REMOVED: highlights section - Highlight detection feature removed
         recording: recordingSession ? {
           sessionId: recordingSession.sessionId,
           recordingPath: recordingSession.recordingPath,
@@ -68,13 +66,7 @@ class MeetingHistoryManager {
           duration: recordingSession.endTime - recordingSession.startTime,
           options: recordingSession.options
         } : null,
-        highlightReel: highlightReelPath ? {
-          path: highlightReelPath,
-          url: `/output/${path.basename(highlightReelPath)}`,
-          filename: path.basename(highlightReelPath),
-          generatedAt: new Date().toISOString(),
-          highlightCount: highlights.length
-        } : null,
+        // REMOVED: highlightReel section - Highlight reel feature removed
         transcript: {
           totalEntries: transcriptHistory.length,
           data: transcriptHistory,
@@ -89,7 +81,7 @@ class MeetingHistoryManager {
           savedAt: new Date().toISOString(),
           version: '1.0',
           aiFeatures: {
-            highlightDetection: true,
+            highlightDetection: false, // Feature removed
             questionGeneration: true,
             sentimentAnalysis: !!sentimentData,
             transcription: transcriptHistory.length > 0
@@ -105,7 +97,6 @@ class MeetingHistoryManager {
       console.log('💾 Meeting saved to history:', {
         meetingId,
         fileName,
-        highlights: highlights.length,
         transcriptEntries: transcriptHistory.length,
         hasRecording: !!recordingSession
       });
@@ -195,6 +186,67 @@ class MeetingHistoryManager {
   }
 
   /**
+   * Save meeting notes to history
+   * @param {string} meetingId - Meeting ID
+   * @param {Object} notes - Generated meeting notes
+   * @returns {Promise<boolean>} Success status
+   */
+  async saveMeetingNotes(meetingId, notes) {
+    try {
+      const files = await fs.readdir(this.historyDir);
+      const meetingFile = files.find(file => file.includes(`meeting_${meetingId}_`));
+      
+      if (meetingFile) {
+        // Update existing meeting history
+        const filePath = path.join(this.historyDir, meetingFile);
+        const fileContent = await fs.readFile(filePath, 'utf8');
+        const meetingHistory = JSON.parse(fileContent);
+        
+        meetingHistory.notes = notes;
+        meetingHistory.metadata.aiFeatures.meetingNotes = true;
+        meetingHistory.metadata.notesGeneratedAt = new Date().toISOString();
+        
+        await fs.writeFile(filePath, JSON.stringify(meetingHistory, null, 2));
+        console.log(`💾 Updated meeting history with notes for meeting ${meetingId}`);
+        return true;
+      } else {
+        // Create new meeting history entry with notes
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const fileName = `meeting_${meetingId}_${timestamp}.json`;
+        const filePath = path.join(this.historyDir, fileName);
+        
+        const meetingHistory = {
+          meeting: {
+            id: meetingId,
+            title: `Meeting ${meetingId}`,
+            endedAt: new Date().toISOString(),
+            status: 'completed'
+          },
+          notes: notes,
+          metadata: {
+            savedAt: new Date().toISOString(),
+            version: '1.0',
+            aiFeatures: {
+              meetingNotes: true,
+              questionGeneration: false,
+              sentimentAnalysis: false,
+              transcription: false
+            },
+            notesGeneratedAt: new Date().toISOString()
+          }
+        };
+        
+        await fs.writeFile(filePath, JSON.stringify(meetingHistory, null, 2));
+        console.log(`💾 Created new meeting history with notes for meeting ${meetingId}`);
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ Failed to save meeting notes:', error);
+      return false;
+    }
+  }
+
+  /**
    * Get all meeting histories
    * @param {Object} options - Options for getting histories
    * @param {number} options.limit - Maximum number of histories to return (default: no limit)
@@ -229,13 +281,8 @@ class MeetingHistoryManager {
                   length: history.meeting.participants.length
                 } : []
               },
-              highlights: history.highlights ? { total: history.highlights.total } : null,
-              highlightReel: history.highlightReel ? {
-                path: history.highlightReel.path,
-                url: history.highlightReel.url,
-                generatedAt: history.highlightReel.generatedAt,
-                highlightCount: history.highlightReel.highlightCount
-              } : null,
+              // REMOVED: highlights - Highlight detection feature removed
+              // REMOVED: highlightReel section - Highlight reel feature removed
               recording: history.recording ? { exists: true } : null,
               transcript: history.transcript ? { totalEntries: history.transcript.totalEntries } : null
             };
@@ -382,7 +429,7 @@ class MeetingHistoryManager {
         createdAt: meetingHistory.meeting.createdAt,
         endedAt: meetingHistory.meeting.endedAt,
         duration: meetingHistory.meeting.duration,
-        highlights: meetingHistory.highlights.total,
+        // REMOVED: highlights - Highlight detection feature removed
         participants: meetingHistory.meeting.participants.length,
         hasRecording: !!meetingHistory.recording,
         hasTranscript: meetingHistory.transcript.totalEntries > 0,

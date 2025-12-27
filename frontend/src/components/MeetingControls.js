@@ -12,8 +12,9 @@ import {
   People,
   CallEnd,
   Star,
-  FiberManualRecord,
-  Stop,
+  // REMOVED: Recording feature
+  // FiberManualRecord,
+  // Stop,
   Psychology,
   Lock
 } from '@mui/icons-material';
@@ -35,8 +36,9 @@ const MeetingControls = ({
   onLeaveMeeting,
   onMarkHighlight,
   isHost,
-  isRecording,
-  onToggleRecording,
+  // REMOVED: Recording feature
+  // isRecording,
+  // onToggleRecording,
   // AI Question Generation props
   isQuestionGenerationActive,
   onToggleQuestionGeneration,
@@ -163,7 +165,8 @@ const MeetingControls = ({
         </IconButton>
         
         {/* Recording Control - Only for hosts */}
-        {isHost && (
+        {/* REMOVED: Recording feature */}
+        {/* {isHost && (
           <IconButton
             onClick={onToggleRecording}
             className={`control-button recording-toggle ${isRecording ? 'recording-active' : 'recording-inactive'}`}
@@ -171,7 +174,7 @@ const MeetingControls = ({
           >
             {isRecording ? <Stop /> : <FiberManualRecord />}
           </IconButton>
-        )}
+        )} */}
         
         {/* AI Question Generation Control - Only for hosts */}
         {isHost && (

@@ -16,7 +16,11 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { 
   ArrowBack,
@@ -26,11 +30,13 @@ import {
   Schedule,
   AccessTime,
   PlayArrow,
-  Star
+  Star,
+  Description
 } from '@mui/icons-material';
 import '../css/MeetingsHistory.css';
 import { getMeetings, getMeetingStats, clearAllMeetings } from '../services/meetingsService';
-import { getMeetingHistory, getAllMeetingHistories, deleteAllMeetingHistories } from '../services/meetingHistoryApi';
+import { getMeetingHistory, getAllMeetingHistories, deleteAllMeetingHistories, getMeetingNotes } from '../services/meetingHistoryApi';
+import MeetingNotes from '../components/MeetingNotes';
 
 const MeetingsHistory = () => {
   const navigate = useNavigate();
@@ -38,6 +44,9 @@ const MeetingsHistory = () => {
   const [loading, setLoading] = useState(true);
   const [highlightReels, setHighlightReels] = useState(new Map());
   const [expandedMeeting, setExpandedMeeting] = useState(null);
+  const [selectedMeetingNotes, setSelectedMeetingNotes] = useState(null);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesError, setNotesError] = useState(null);
 
   // Load meetings data from backend API
   useEffect(() => {
@@ -230,6 +239,31 @@ const MeetingsHistory = () => {
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  const handleViewNotes = async (meetingId) => {
+    setNotesLoading(true);
+    setNotesError(null);
+    setSelectedMeetingNotes(null);
+    
+    try {
+      const notes = await getMeetingNotes(meetingId);
+      if (notes) {
+        setSelectedMeetingNotes(notes);
+      } else {
+        setNotesError('No meeting notes available for this meeting. Notes are automatically generated when a meeting ends with transcript data. This meeting may have ended before the notes feature was enabled, or it may not have had sufficient transcript data.');
+      }
+    } catch (error) {
+      console.error('Error loading meeting notes:', error);
+      setNotesError(`Failed to load meeting notes: ${error.message || 'Unknown error'}`);
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  const handleCloseNotes = () => {
+    setSelectedMeetingNotes(null);
+    setNotesError(null);
   };
 
   if (loading) {
@@ -491,15 +525,26 @@ const MeetingsHistory = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => handleJoinMeeting(meeting.id)}
-                          className="join-button"
-                          startIcon={<VideoCall />}
-                        >
-                          Join Again
-                        </Button>
+                        <Box display="flex" gap={1} flexWrap="wrap">
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleViewNotes(meeting.id)}
+                            className="view-notes-button"
+                            startIcon={<Description />}
+                          >
+                            View Notes
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleJoinMeeting(meeting.id)}
+                            className="join-button"
+                            startIcon={<VideoCall />}
+                          >
+                            Join Again
+                          </Button>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -508,6 +553,42 @@ const MeetingsHistory = () => {
             </TableContainer>
           </Paper>
         )}
+
+        {/* Meeting Notes Dialog */}
+        <Dialog
+          open={selectedMeetingNotes !== null || notesLoading || notesError !== null}
+          onClose={handleCloseNotes}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{
+            sx: {
+              maxHeight: '90vh',
+              backgroundColor: '#1a1a1a',
+              color: 'white'
+            }
+          }}
+        >
+          <DialogTitle>
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Typography variant="h6">Meeting Notes</Typography>
+              <IconButton onClick={handleCloseNotes} sx={{ color: 'white' }}>
+                <ArrowBack />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <MeetingNotes
+              notes={selectedMeetingNotes}
+              loading={notesLoading}
+              error={notesError}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseNotes} variant="contained">
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* No Meetings Message - Show when there are no meetings */}
         {meetings.length === 0 && (

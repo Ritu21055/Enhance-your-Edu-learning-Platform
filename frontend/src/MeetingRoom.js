@@ -35,7 +35,7 @@ import SentimentDashboard from './components/SentimentDashboard';
 import FatigueAlert from './components/FatigueAlert';
 import MediaRequestDialog from './components/MediaRequestDialog';
 import MediaRequestNotification from './components/MediaRequestNotification';
-import RecordingNotification from './components/RecordingNotification';
+// import RecordingNotification from './components/RecordingNotification'; // REMOVED: Recording feature
 import AudioTroubleshooter from './components/AudioTroubleshooter';
 import CompatibilityTestResults from './components/CompatibilityTestResults';
 import QuestionSuggestion from './components/QuestionSuggestion';
@@ -47,15 +47,14 @@ import { runCompatibilityTest, getErrorMessage, getRecommendations } from './uti
 import useAudioTranscription from './hooks/useAudioTranscription';
 
 // Import Media Recorder hook
-import useMediaRecorder from './hooks/useMediaRecorder';
+// import useMediaRecorder from './hooks/useMediaRecorder'; // REMOVED: Recording feature
 
-// Import Highlight Marker hook
-import useHighlightMarker from './hooks/useHighlightMarker';
-import HighlightReminder from './components/HighlightReminder';
-import HighlightDashboard from './components/HighlightDashboard';
-import ShareHighlightReel from './components/ShareHighlightReel';
-
-import AIHighlightNotification from './components/AIHighlightNotification';
+// REMOVED: Highlight detection feature
+// import useHighlightMarker from './hooks/useHighlightMarker';
+// import HighlightReminder from './components/HighlightReminder';
+// import HighlightDashboard from './components/HighlightDashboard';
+// import ShareHighlightReel from './components/ShareHighlightReel';
+// import AIHighlightNotification from './components/AIHighlightNotification';
 import FreeTranscription from './components/FreeTranscription';
 
 // Import Meeting Media Protection
@@ -96,10 +95,11 @@ const MeetingRoom = () => {
   const [showMediaRequestDialog, setShowMediaRequestDialog] = useState(false);
   
   // Recording Notification State (for participants)
-  const [recordingNotification, setRecordingNotification] = useState({
-    open: false,
-    isRecording: false
-  });
+  // REMOVED: Recording feature
+  // const [recordingNotification, setRecordingNotification] = useState({
+  //   open: false,
+  //   isRecording: false
+  // });
   
   // Refs (localVideoRef comes from useWebRTC hook)
 
@@ -488,17 +488,11 @@ const MeetingRoom = () => {
   // Enhanced highlight system state (declared early to avoid initialization errors)
   const [highlights, setHighlights] = useState([]);
   const [meetingStartTime, setMeetingStartTime] = useState(Date.now());
-  const [showHighlightDashboard, setShowHighlightDashboard] = useState(false);
-  const [showShareDialog, setShowShareDialog] = useState(false);
-  const [highlightReelData, setHighlightReelData] = useState(null);
-
-  // Highlight Marker Hook
-  const {
-    markHighlight,
-    showHighlightFeedback,
-    feedbackMessage,
-    clearFeedback
-  } = useHighlightMarker(socket, meetingId, userName);
+  // REMOVED: Highlight detection feature
+  // const [showHighlightDashboard, setShowHighlightDashboard] = useState(false);
+  // const [showShareDialog, setShowShareDialog] = useState(false);
+  // const [highlightReelData, setHighlightReelData] = useState(null);
+  // const { markHighlight, showHighlightFeedback, feedbackMessage, clearFeedback } = useHighlightMarker(socket, meetingId, userName);
 
   // Media Controls Hook - Clean implementation
   const {
@@ -548,57 +542,40 @@ const MeetingRoom = () => {
   }, [isAudioLocked, isVideoLocked, activeRequest]);
 
   // Media Recorder hook for real-time recording
-  // Pass remoteStreams and localVideoRef to record actual meeting (all participants)
-  const {
-    isRecording: isMediaRecording,
-    recordingStatus,
-    recordingError,
-    startRecording: startMediaRecording,
-    stopRecording: stopMediaRecording,
-    toggleRecording,
-    getRecordingInfo
-  } = useMediaRecorder(socket, meetingId, localStream, remoteStreams, localVideoRef, finalUserName);
+  // REMOVED: Recording feature
+  // const {
+  //   isRecording: isMediaRecording,
+  //   recordingStatus,
+  //   recordingError,
+  //   startRecording: startMediaRecording,
+  //   stopRecording: stopMediaRecording,
+  //   toggleRecording,
+  //   getRecordingInfo
+  // } = useMediaRecorder(socket, meetingId, localStream, remoteStreams, localVideoRef, finalUserName);
 
   // Debug recording status
-  useEffect(() => {
-    console.log('🎬 Recording status:', {
-      isMediaRecording,
-      recordingStatus,
-      recordingError,
-      hasLocalStream: !!localStream,
-      hasSocket: !!socket,
-      meetingId
-    });
-  }, [isMediaRecording, recordingStatus, recordingError, localStream, socket, meetingId]);
+  // REMOVED: Recording feature
+  // useEffect(() => {
+  //   console.log('🎬 Recording status:', {
+  //     isMediaRecording,
+  //     recordingStatus,
+  //     recordingError,
+  //     hasLocalStream: !!localStream,
+  //     hasSocket: !!socket,
+  //     meetingId
+  //   });
+  // }, [isMediaRecording, recordingStatus, recordingError, localStream, socket, meetingId]);
 
   // Listen for recording notifications (for participants)
-  useEffect(() => {
-    if (!socket || isHost) return; // Only for participants
-
-    const handleRecordingStarted = (data) => {
-      console.log('🎬 Recording started notification:', data);
-      setRecordingNotification({
-        open: true,
-        isRecording: true
-      });
-    };
-
-    const handleRecordingStopped = (data) => {
-      console.log('🛑 Recording stopped notification:', data);
-      setRecordingNotification({
-        open: true,
-        isRecording: false
-      });
-    };
-
-    socket.on('recording_started', handleRecordingStarted);
-    socket.on('recording_stopped', handleRecordingStopped);
-
-    return () => {
-      socket.off('recording_started', handleRecordingStarted);
-      socket.off('recording_stopped', handleRecordingStopped);
-    };
-  }, [socket, isHost]);
+  // REMOVED: Recording feature
+  // useEffect(() => {
+  //   if (!socket || isHost) return; // Only for participants
+  //   const handleRecordingStarted = (data) => { ... };
+  //   const handleRecordingStopped = (data) => { ... };
+  //   socket.on('recording_started', handleRecordingStarted);
+  //   socket.on('recording_stopped', handleRecordingStopped);
+  //   return () => { ... };
+  // }, [socket, isHost]);
 
   // Meeting Media Protection - Start protection when meeting starts
   useEffect(() => {
@@ -649,43 +626,7 @@ const MeetingRoom = () => {
   // Recording should only start when host manually clicks the recording button
   // No auto-start - removed to allow host control
 
-  // Listen for highlight events
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleHighlightMarked = (data) => {
-      console.log('⭐ Highlight marked:', data);
-      setHighlights(prev => [...prev, {
-        id: Date.now(),
-        timestamp: data.timestamp,
-        participantId: data.participantId,
-        type: data.highlightType || 'important',
-        description: data.description || '',
-        totalHighlights: data.totalHighlights
-      }]);
-    };
-
-    const handleHighlightReelStatus = (data) => {
-      console.log('🎬 Highlight reel status:', data);
-      if (data.status === 'success') {
-        setHighlightReelData({
-          id: data.meetingId,
-          url: data.videoUrl,
-          highlightCount: highlights.length,
-          duration: data.duration || 'N/A',
-          status: 'success'
-        });
-      }
-    };
-
-    socket.on('highlight_marked', handleHighlightMarked);
-    socket.on('highlight_reel_status', handleHighlightReelStatus);
-
-    return () => {
-      socket.off('highlight_marked', handleHighlightMarked);
-      socket.off('highlight_reel_status', handleHighlightReelStatus);
-    };
-  }, [socket, highlights.length]);
+  // REMOVED: Highlight events listeners - Feature removed
 
   // SimplePeer handles video setup automatically
 
@@ -1134,12 +1075,7 @@ const MeetingRoom = () => {
 
 
 
-      {/* Highlight Toast Notification */}
-      {showHighlightFeedback && (
-        <div className="highlight-toast">
-          {feedbackMessage}
-        </div>
-      )}
+      {/* REMOVED: Highlight Toast Notification - Feature removed */}
 
       {/* Audio Troubleshooter */}
       <AudioTroubleshooter
@@ -1188,17 +1124,14 @@ const MeetingRoom = () => {
         socket={socket}
         meetingId={meetingId}
         participantId={socket?.id}
+        participantName={finalUserName}
         isVisible={true}
         onTranscriptUpdate={(transcript, confidence) => {
           console.log('📝 Transcript update received:', { transcript, confidence });
         }}
       />
 
-      {/* AI Highlight Notifications */}
-      <AIHighlightNotification
-        socket={socket}
-        meetingId={meetingId}
-      />
+      {/* REMOVED: AI Highlight Notifications - Feature removed */}
 
       {/* Chat Sidebar */}
       {showChat && (
@@ -1298,142 +1231,12 @@ const MeetingRoom = () => {
               }
             }, 0);
           }}
-          onMarkHighlight={(highlightType) => {
-            // SIMPLE - Mark highlight, but protect video
-            console.log('⭐ Mark highlight:', highlightType);
-            
-            // CRITICAL: Capture video state BEFORE any operations
-            const videoTrack = localStream?.getVideoTracks()[0];
-            const videoWasEnabled = isVideoEnabled;
-            
-            // CRITICAL: Protect video SYNCHRONOUSLY before calling markHighlight
-            if (localStream && localVideoRef?.current) {
-              const videoElement = localVideoRef.current;
-              
-              if (videoTrack && videoWasEnabled) {
-                // Force video to stay on immediately (synchronous)
-                if (!videoTrack.enabled) {
-                  console.warn('🛡️ MeetingRoom: Mark highlight - track disabled, re-enabling immediately');
-                  videoTrack.enabled = true;
-                }
-                
-                if (videoElement.srcObject !== localStream) {
-                  console.warn('🛡️ MeetingRoom: Mark highlight - srcObject lost, restoring immediately');
-                  videoElement.srcObject = localStream;
-                }
-                
-                // Force visibility
-                videoElement.style.opacity = '1';
-                videoElement.style.visibility = 'visible';
-                videoElement.style.display = 'block';
-              }
-            }
-            
-            // CRITICAL: Also protect using requestAnimationFrame for immediate browser update
-            requestAnimationFrame(() => {
-              if (localStream && localVideoRef?.current) {
-                const videoElement = localVideoRef.current;
-                
-                if (videoTrack && videoWasEnabled) {
-                  if (!videoTrack.enabled) {
-                    videoTrack.enabled = true;
-                  }
-                  
-                  if (videoElement.srcObject !== localStream) {
-                    videoElement.srcObject = localStream;
-                  }
-                  
-                  videoElement.style.opacity = '1';
-                  videoElement.style.visibility = 'visible';
-                  videoElement.style.display = 'block';
-                  
-                  if (videoElement.paused) {
-                    videoElement.play().catch(() => {});
-                  }
-                }
-              }
-            });
-            
-            // Call the original markHighlight function
-            markHighlight(highlightType);
-            
-            // CRITICAL: Multiple protection checks after highlight is marked
-            setTimeout(() => {
-              if (localStream && localVideoRef?.current) {
-                const videoElement = localVideoRef.current;
-                
-                if (videoTrack && videoWasEnabled) {
-                  // Force video to stay on
-                  if (!videoTrack.enabled) {
-                    console.warn('🛡️ MeetingRoom: Mark highlight - track disabled, re-enabling');
-                    videoTrack.enabled = true;
-                  }
-                  
-                  if (videoElement.srcObject !== localStream) {
-                    console.warn('🛡️ MeetingRoom: Mark highlight - srcObject lost, restoring');
-                    videoElement.srcObject = localStream;
-                  }
-                  
-                  // Force visibility
-                  videoElement.style.opacity = '1';
-                  videoElement.style.visibility = 'visible';
-                  videoElement.style.display = 'block';
-                  
-                  // Force play
-                  if (videoElement.paused) {
-                    videoElement.play().catch(() => {});
-                  }
-                }
-              }
-            }, 0);
-            
-            // Additional checks
-            setTimeout(() => {
-              if (localStream && localVideoRef?.current) {
-                const videoElement = localVideoRef.current;
-                
-                if (videoTrack && videoWasEnabled) {
-                  if (!videoTrack.enabled) {
-                    videoTrack.enabled = true;
-                  }
-                  if (videoElement.srcObject !== localStream) {
-                    videoElement.srcObject = localStream;
-                  }
-                  videoElement.style.opacity = '1';
-                  videoElement.style.visibility = 'visible';
-                  videoElement.style.display = 'block';
-                  if (videoElement.paused) {
-                    videoElement.play().catch(() => {});
-                  }
-                }
-              }
-            }, 50);
-            
-            setTimeout(() => {
-              if (localStream && localVideoRef?.current) {
-                const videoElement = localVideoRef.current;
-                
-                if (videoTrack && videoWasEnabled) {
-                  if (!videoTrack.enabled) {
-                    videoTrack.enabled = true;
-                  }
-                  if (videoElement.srcObject !== localStream) {
-                    videoElement.srcObject = localStream;
-                  }
-                  videoElement.style.opacity = '1';
-                  videoElement.style.visibility = 'visible';
-                  videoElement.style.display = 'block';
-                  if (videoElement.paused) {
-                    videoElement.play().catch(() => {});
-                  }
-                }
-              }
-            }, 200);
-          }}
-          isRecording={isMediaRecording}
-          onToggleRecording={toggleRecording}
-          recordingStatus={recordingStatus}
-          recordingError={recordingError}
+          // REMOVED: onMarkHighlight prop - Feature removed
+          // REMOVED: Recording feature
+          // isRecording={isMediaRecording}
+          // onToggleRecording={toggleRecording}
+          // recordingStatus={recordingStatus}
+          // recordingError={recordingError}
           onLeaveMeeting={() => {
             // Update meeting status when leaving
             if (isHost) {
@@ -1543,13 +1346,14 @@ const MeetingRoom = () => {
       )}
 
       {/* Recording Notification (for participants) */}
-      {!isHost && (
+      {/* REMOVED: Recording feature */}
+      {/* {!isHost && (
         <RecordingNotification
           open={recordingNotification.open}
           isRecording={recordingNotification.isRecording}
           onClose={() => setRecordingNotification(prev => ({ ...prev, open: false }))}
         />
-      )}
+      )} */}
 
       {/* Enhanced Highlight System Components */}
       
@@ -1561,40 +1365,10 @@ const MeetingRoom = () => {
         isVisible={!isWaitingForApproval}
       /> */}
 
-      {/* Small Highlight Indicator - Top right corner */}
-      {isHost && highlights.length > 0 && (
-        <Box
-          className="highlight-indicator"
-          onClick={() => setShowHighlightDashboard(!showHighlightDashboard)}
-        >
-          <Star className="star-icon" />
-          <Typography variant="body2" className="bold-text">
-            {highlights.length} Highlight{highlights.length !== 1 ? 's' : ''}
-          </Typography>
-        </Box>
-      )}
+      {/* REMOVED: Small Highlight Indicator - Feature removed */}
 
-      {/* Highlight Dashboard - Only show when explicitly requested by host */}
-      {isHost && showHighlightDashboard && highlights.length > 0 && (
-        <HighlightDashboard
-          highlights={highlights}
-          meetingDuration={Date.now() - meetingStartTime}
-          onPlayHighlight={(highlight) => {
-            // Jump to highlight timestamp in video
-            console.log('🎬 Playing highlight:', highlight);
-          }}
-          isExpanded={showHighlightDashboard}
-          onToggleExpanded={() => setShowHighlightDashboard(!showHighlightDashboard)}
-        />
-      )}
-
-      {/* Share Highlight Reel Dialog */}
-      <ShareHighlightReel
-        open={showShareDialog}
-        onClose={() => setShowShareDialog(false)}
-        highlightReel={highlightReelData}
-        meetingTitle={`Meeting ${meetingId}`}
-      />
+      {/* REMOVED: Highlight Dashboard - Feature removed */}
+      {/* REMOVED: Share Highlight Reel Dialog - Feature removed */}
 
       {/* Screen Share Viewer - Show when there's active screen sharing (local or remote) */}
       {(isNewScreenSharing || newRemoteScreenStream) && (
