@@ -181,46 +181,13 @@ export default function registerAIHandlers(socket, io) {
           context: recentContext.substring(0, 100) + '...'
         });
         
-        // STRICT validation - require substantial conversation
-        // Minimum 500 characters to ensure real conversation, not just noise
-        if (recentContext.length < 500) {
-          console.log('📝 Skipping question generation - insufficient transcript context (need at least 500 chars)');
-          return;
-        }
-        
-        // Check if context contains actual meaningful conversation (not just empty strings or noise)
-        const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
-        if (meaningfulWords < 50) {
-          console.log('📝 Skipping question generation - insufficient meaningful words (need at least 50 words)');
-          return;
-        }
-        
-        // Check for actual speech patterns - ensure it's not just silence or noise
-        const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
-        if (sentences.length < 3) {
-          console.log('📝 Skipping question generation - insufficient complete sentences (need at least 3 sentences)');
-          return;
-        }
-        
-        // Check for variety in words - ensure it's not repetitive noise
-        const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
-        if (uniqueWords.size < 20) {
-          console.log('📝 Skipping question generation - insufficient word variety (need at least 20 unique words)');
-          return;
-        }
-        
-        // Use intelligent question generation trigger
-        if (!llmService.shouldGenerateQuestionIntelligently(meetingId, recentContext)) {
-          console.log('⏰ Skipping question generation - not a good time for questions');
-          return;
-        }
-        
-        // Get facial expression sentiment data for intelligent question generation
+        // Get facial expression sentiment data FIRST (before validation)
+        // This allows question generation based on emotions even with low conversation
         const meetingSentimentData = sentimentData.get(meetingId);
         const allParticipantsWithEmotions = [];
         const participantEmotions = {};
         const participantNames = {};
-        
+
         if (meetingSentimentData && meetingSentimentData.participants) {
           const meeting = activeMeetings.get(meetingId);
           
@@ -235,7 +202,7 @@ export default function registerAIHandlers(socket, io) {
               }
             }
             
-            // Collect ALL participants with their emotions (not just negative ones)
+            // Collect ALL participants with their emotions
             allParticipantsWithEmotions.push({
               id: participantId,
               name: participantNames[participantId] || 'a participant',
@@ -244,7 +211,72 @@ export default function registerAIHandlers(socket, io) {
             });
           });
         }
-        
+
+        // Check if we have participant emotions
+        const hasParticipantEmotions = allParticipantsWithEmotions.length > 0;
+
+        // Progressive validation based on conversation length
+        const contextLength = recentContext.length;
+
+        // Very early conversation (< 200 chars): Only allow if emotions are present
+        if (contextLength < 200) {
+          if (!hasParticipantEmotions) {
+            console.log('📝 Skipping question generation - very low conversation and no emotions (need at least 200 chars)');
+            return;
+          }
+          // If emotions present, allow (will be handled by shouldGenerateQuestionIntelligently)
+          console.log('📝 Low conversation but emotions present - will generate based on emotions');
+        } 
+        // Early conversation (200-500 chars): Relaxed requirements
+        else if (contextLength < 500) {
+          const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
+          const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+          
+          // Relaxed: at least 30 words and 15 unique words
+          if (meaningfulWords < 30 || uniqueWords.size < 15) {
+            // If emotions present, even more relaxed (20 words, 10 unique)
+            if (hasParticipantEmotions && meaningfulWords >= 20 && uniqueWords.size >= 10) {
+              console.log('📝 Early conversation with emotions - relaxed requirements met');
+            } else if (!hasParticipantEmotions) {
+              console.log('📝 Skipping question generation - insufficient meaningful words (need at least 30 words, 15 unique)');
+              return;
+            } else {
+              console.log('📝 Skipping question generation - insufficient meaningful words even with emotions');
+              return;
+            }
+          }
+        }
+        // Medium conversation (500-1000 chars): Moderate requirements
+        else if (contextLength < 1000) {
+          const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
+          const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+          const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+          
+          // Moderate: at least 50 words, 20 unique words, 3 sentences
+          if (meaningfulWords < 50 || uniqueWords.size < 20 || sentences.length < 3) {
+            console.log('📝 Skipping question generation - insufficient conversation quality (need at least 50 words, 20 unique, 3 sentences)');
+            return;
+          }
+        }
+        // Substantial conversation (1000+ chars): Stricter requirements
+        else {
+          const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
+          const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+          const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+          
+          // Stricter: at least 60 words, 25 unique words, 5 sentences
+          if (meaningfulWords < 60 || uniqueWords.size < 25 || sentences.length < 5) {
+            console.log('📝 Skipping question generation - insufficient conversation quality (need at least 60 words, 25 unique, 5 sentences)');
+            return;
+          }
+        }
+
+        // Use intelligent question generation trigger (passes emotion info)
+        if (!llmService.shouldGenerateQuestionIntelligently(meetingId, recentContext, hasParticipantEmotions)) {
+          console.log('⏰ Skipping question generation - not a good time for questions');
+          return;
+        }
+
         // Categorize emotions for better context
         const emotionCategories = {
           positive: allParticipantsWithEmotions.filter(p => ['happy', 'surprised', 'excited'].includes(p.emotion)),

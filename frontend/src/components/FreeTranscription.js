@@ -3,7 +3,7 @@
  * Provides real-time transcription without any cloud costs
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -39,9 +39,10 @@ const FreeTranscription = ({
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isSupported, setIsSupported] = useState(false);
   const [error, setError] = useState(null);
-  const [language, setLanguage] = useState('en-US');
+  const [language, setLanguage] = useState('en-US,hi-IN'); // Support both English and Hindi
   const [isMuted, setIsMuted] = useState(false);
   const [confidence, setConfidence] = useState(0);
+  const shouldAutoRestartRef = useRef(false);
 
   // Check Web Speech API support
   useEffect(() => {
@@ -121,9 +122,13 @@ const FreeTranscription = ({
     recognition.onend = () => {
       setIsListening(false);
       // Auto-restart if it was listening
-      if (isListening) {
+      if (shouldAutoRestartRef.current) {
         setTimeout(() => {
-          recognition.start();
+          try {
+            recognition.start();
+          } catch (e) {
+            console.log('Auto-restart failed:', e);
+          }
         }, 100);
       }
     };
@@ -131,16 +136,33 @@ const FreeTranscription = ({
     // Store recognition instance
     window.recognition = recognition;
 
+    // Auto-start transcription when meeting starts (after a small delay)
+    const autoStartTimer = setTimeout(() => {
+      if (window.recognition && !isListening && socket && meetingId && participantId) {
+        try {
+          console.log('🎤 Auto-starting transcription on meeting start...');
+          shouldAutoRestartRef.current = true;
+          window.recognition.start();
+        } catch (error) {
+          console.log('⚠️ Auto-start failed (user can start manually):', error.message);
+          // Don't show error to user - they can start manually if needed
+        }
+      }
+    }, 1500); // 1.5 second delay to ensure everything is ready
+
     return () => {
+      clearTimeout(autoStartTimer);
+      shouldAutoRestartRef.current = false;
       if (window.recognition) {
         window.recognition.stop();
       }
     };
-  }, [isSupported, language, socket, meetingId, participantId, isListening, onTranscriptUpdate]);
+  }, [isSupported, language, socket, meetingId, participantId, participantName, onTranscriptUpdate]); // Removed isListening from dependencies to avoid re-initialization
 
   const startListening = () => {
     if (window.recognition && !isListening) {
       try {
+        shouldAutoRestartRef.current = true;
         window.recognition.start();
       } catch (error) {
         setError('Failed to start speech recognition');
@@ -150,6 +172,7 @@ const FreeTranscription = ({
 
   const stopListening = () => {
     if (window.recognition && isListening) {
+      shouldAutoRestartRef.current = false;
       window.recognition.stop();
     }
   };
@@ -328,7 +351,7 @@ const FreeTranscription = ({
               color: 'rgba(255, 255, 255, 0.6)'
             }}
           >
-            {isListening ? 'Listening for speech...' : 'Click the microphone to start transcription'}
+            {isListening ? 'Listening for speech...' : 'Transcription will start automatically when meeting begins'}
           </Typography>
         )}
       </Box>

@@ -11,7 +11,6 @@ import {
   VideocamOff,
   People,
   CallEnd,
-  Star,
   // REMOVED: Recording feature
   // FiberManualRecord,
   // Stop,
@@ -34,7 +33,6 @@ const MeetingControls = ({
   onToggleChat,
   onToggleParticipants,
   onLeaveMeeting,
-  onMarkHighlight,
   isHost,
   // REMOVED: Recording feature
   // isRecording,
@@ -184,17 +182,6 @@ const MeetingControls = ({
             title={isQuestionGenerationActive ? 'Stop AI Questions' : 'Start AI Questions'}
           >
             <Psychology />
-          </IconButton>
-        )}
-        
-        {/* Simple Highlight Control - Only for hosts */}
-        {isHost && (
-          <IconButton
-            onClick={() => onMarkHighlight('important')}
-            className="control-button highlight-button"
-            title="Mark Important Moment"
-          >
-            <Star />
           </IconButton>
         )}
         

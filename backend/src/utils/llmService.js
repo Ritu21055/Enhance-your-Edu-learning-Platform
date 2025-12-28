@@ -1,8 +1,10 @@
 // LLM Service for AI-Driven Smart Follow-up Question Generation
 // This service handles audio transcription and question generation
+// Main orchestration and state management - generation logic is in llmGenerators.js
 
 import speech from '@google-cloud/speech';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { llmGenerators } from './llmGenerators.js';
 
 // Using Google Gemini 2.5 Flash (fallback to gemini-1.5-flash if not available)
 
@@ -27,8 +29,29 @@ class LLMService {
     this.geminiModel = 'models/gemini-2.5-flash'; // Use Gemini 2.5 Flash (latest fast model)
     this.geminiClient = null;
     
+    // Ollama configuration
+    this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+    this.ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2'; // Default model
+    this.ollamaEnabled = false;
+    
+    // Debug: Log API key status (without exposing the key)
+    if (this.geminiApiKey) {
+      console.log('✅ GEMINI_API_KEY loaded:', this.geminiApiKey.substring(0, 10) + '...');
+    } else {
+      console.log('⚠️ GEMINI_API_KEY not found in environment variables');
+      console.log('   Make sure .env file exists in backend folder and contains: GEMINI_API_KEY=your_key');
+    }
+    
+    // Debug: Log Ollama configuration
+    console.log(`🔧 Ollama configured: ${this.ollamaUrl} (model: ${this.ollamaModel})`);
+    
     // Initialize Speech-to-Text client
     this.initializeSpeechClient();
+    
+    // Bind generator methods from llmGenerators.js to this instance
+    Object.keys(llmGenerators).forEach(methodName => {
+      this[methodName] = llmGenerators[methodName].bind(this);
+    });
     
     // Initialize LLM - Try multiple options in order of preference
     this.initializeLLMAsync();
@@ -152,6 +175,9 @@ class LLMService {
       llmType: this.llmType,
       geminiModel: this.geminiModel,
       hasApiKey: !!this.geminiApiKey,
+      ollamaEnabled: this.ollamaEnabled,
+      ollamaUrl: this.ollamaUrl,
+      ollamaModel: this.ollamaModel,
       isInitialized: !!this.llmType,
       performanceStats: this.performanceStats
     };
@@ -177,25 +203,65 @@ class LLMService {
     }
   }
 
+  // Re-check API key from environment (useful after .env is loaded)
+  async recheckApiKey() {
+    const newApiKey = process.env.GEMINI_API_KEY || null;
+    if (newApiKey && !this.geminiApiKey) {
+      console.log('🔄 GEMINI_API_KEY found in environment, reinitializing...');
+      this.geminiApiKey = newApiKey;
+      // Reinitialize LLM if API key is now available
+      await this.initializeLLM(); // FIX: Changed from initializeLLMAsync() to initializeLLM()
+    } else if (newApiKey && this.geminiApiKey !== newApiKey) {
+      // Also reinitialize if API key changed
+      console.log('🔄 GEMINI_API_KEY updated, reinitializing...');
+      this.geminiApiKey = newApiKey;
+      await this.initializeLLM();
+    }
+  }
+
   // Initialize LLM with fallback options
   async initializeLLM() {
-    // Option 1: Google Gemini 2.5 Flash
+    // Re-check API key in case .env was loaded after constructor
+    if (!this.geminiApiKey) {
+      this.geminiApiKey = process.env.GEMINI_API_KEY || null;
+      if (this.geminiApiKey) {
+        console.log('✅ GEMINI_API_KEY loaded during initialization:', this.geminiApiKey.substring(0, 10) + '...');
+      }
+    }
+    
+    // Option 1: Google Gemini 2.5 Flash (PRIORITY - always use if available)
     if (this.geminiApiKey) {
       try {
-        this.geminiClient = new GoogleGenerativeAI(this.geminiApiKey);
-        // Use gemini-2.5-flash (latest fast model)
-        const model = this.geminiClient.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
-        this.geminiModel = 'models/gemini-2.5-flash';
-        this.llmType = 'gemini';
+        // Only reinitialize if not already set or if client is null
+        if (!this.geminiClient) {
+          this.geminiClient = new GoogleGenerativeAI(this.geminiApiKey);
+          const model = this.geminiClient.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
+          this.geminiModel = 'models/gemini-2.5-flash';
+        }
+        this.llmType = 'gemini'; // FIX: Always set to gemini if API key exists
         console.log('🤖 Using Google Gemini 2.5 Flash for question generation');
-        return;
+        return; // FIX: Return early, don't check Ollama if Gemini is available
       } catch (error) {
         console.error('🤖 Gemini initialization failed:', error.message);
-        // Fall through to rule-based
+        // Fall through to Ollama only if Gemini fails
       }
     }
 
-    // Option 2: Fallback to rule-based (always available)
+    // Option 2: Ollama (local LLM) - only if Gemini is not available
+    try {
+      const ollamaAvailable = await this.checkOllamaAvailability();
+      if (ollamaAvailable) {
+        this.ollamaEnabled = true;
+        this.llmType = 'ollama';
+        console.log(`🤖 Using Ollama (${this.ollamaModel}) for question generation`);
+        return;
+      }
+    } catch (error) {
+      console.error('🤖 Ollama initialization failed:', error.message);
+      // Fall through to rule-based
+    }
+
+    // Option 3: Fallback to rule-based (always available)
     this.llmType = 'rule-based';
     console.log('🤖 Using rule-based question generation (fallback)');
   }
@@ -293,6 +359,7 @@ class LLMService {
   }
 
   // Generate follow-up questions using available LLM
+  // Generate follow-up question - Priority: 1. Gemini (fastest) -> 2. Ollama (if Gemini quota exhausted) -> 3. Rule-based (always available)
   async generateFollowUpQuestion(transcriptContext, meetingId, allParticipantsWithEmotions = [], participantEmotions = {}, participantNames = {}, emotionCategories = {}) {
     const startTime = Date.now();
     this.performanceStats.totalRequests++;
@@ -320,20 +387,114 @@ class LLMService {
       // Try different LLM options based on availability
       if (this.llmType === 'gemini') {
         try {
-        const result = await this.generateWithGemini(
-          transcriptContext, 
-          topics, 
-          sentiment,
-          allParticipantsWithEmotions,
-          participantEmotions,
-          participantNames,
-          emotionCategories
-        );
-        generatedQuestion = result.question;
-        modelName = this.geminiModel;
-        confidence = 0.9;
+          const result = await this.generateWithGemini(
+            transcriptContext, 
+            topics, 
+            sentiment,
+            allParticipantsWithEmotions,
+            participantEmotions,
+            participantNames,
+            emotionCategories
+          );
+          generatedQuestion = result.question;
+          modelName = this.geminiModel;
+          confidence = 0.9;
         } catch (error) {
-          console.log('🤖 Gemini failed, falling back to rule-based:', error.message);
+          // Check if it's a quota/rate limit error
+          const errorMessage = error.message || error.toString() || '';
+          const isQuotaError = errorMessage.includes('quota') || 
+                              errorMessage.includes('QUOTA') || 
+                              errorMessage.includes('429') ||
+                              errorMessage.includes('ResourceExhausted') ||
+                              errorMessage.includes('rate limit') ||
+                              errorMessage.includes('Quota exceeded');
+          
+          if (isQuotaError) {
+            console.log('⚠️ Gemini quota exhausted, trying Ollama fallback (priority: phi3:mini -> llama3.2:3b)...');
+            
+            // Try Ollama with priority: phi3:mini -> llama3.2:3b -> rule-based
+            try {
+              const ollamaResult = await this.tryOllamaWithPriority(
+                transcriptContext, 
+                topics, 
+                sentiment,
+                allParticipantsWithEmotions,
+                participantEmotions,
+                participantNames,
+                emotionCategories
+              );
+              
+              if (ollamaResult.success) {
+                generatedQuestion = ollamaResult.question;
+                modelName = ollamaResult.modelName;
+                confidence = ollamaResult.confidence;
+                this.ollamaEnabled = true;
+                this.llmType = 'ollama';
+                console.log('✅ Successfully used Ollama as fallback');
+              } else {
+                throw new Error('All Ollama models failed');
+              }
+            } catch (ollamaError) {
+              console.log('⚠️ All Ollama models failed, falling back to rule-based:', ollamaError.message);
+              const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
+              generatedQuestion = result.question;
+              modelName = 'rule-based-fallback';
+              confidence = 0.6;
+            }
+          } else {
+            // Non-quota error, try Ollama with priority then rule-based
+            console.log('🤖 Gemini failed (non-quota), trying Ollama fallback (priority: phi3:mini -> llama3.2:3b)...');
+            try {
+              const ollamaResult = await this.tryOllamaWithPriority(
+                transcriptContext, 
+                topics, 
+                sentiment,
+                allParticipantsWithEmotions,
+                participantEmotions,
+                participantNames,
+                emotionCategories
+              );
+              
+              if (ollamaResult.success) {
+                generatedQuestion = ollamaResult.question;
+                modelName = ollamaResult.modelName;
+                confidence = ollamaResult.confidence;
+                this.ollamaEnabled = true;
+                this.llmType = 'ollama';
+              } else {
+                throw new Error('All Ollama models failed');
+              }
+            } catch (ollamaError) {
+              console.log('🤖 All Ollama models failed, falling back to rule-based:', ollamaError.message);
+              const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
+              generatedQuestion = result.question;
+              modelName = 'rule-based-fallback';
+              confidence = 0.6;
+            }
+          }
+        }
+      } else if (this.llmType === 'ollama') {
+        // Try Ollama with priority: phi3:mini -> llama3.2:3b -> rule-based
+        try {
+          const ollamaResult = await this.tryOllamaWithPriority(
+            transcriptContext, 
+            topics, 
+            sentiment,
+            allParticipantsWithEmotions,
+            participantEmotions,
+            participantNames,
+            emotionCategories
+          );
+          
+          if (ollamaResult.success) {
+            generatedQuestion = ollamaResult.question;
+            modelName = ollamaResult.modelName;
+            confidence = ollamaResult.confidence;
+          } else {
+            throw new Error('All Ollama models failed');
+          }
+        } catch (error) {
+          console.log('🤖 All Ollama models failed, falling back to rule-based:', error.message);
           const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
           generatedQuestion = result.question;
           modelName = 'rule-based-fallback';
@@ -389,497 +550,157 @@ class LLMService {
     }
   }
 
-  // Generate question using Google Gemini 2.5 Flash (or 1.5 Flash fallback)
-  async generateWithGemini(transcriptContext, topics, sentiment, allParticipantsWithEmotions = [], participantEmotions = {}, participantNames = {}, emotionCategories = {}) {
-    console.log('🤖 Gemini: Generating question with context:', {
-      transcriptLength: transcriptContext?.length || 0,
-      topicsCount: topics?.length || 0,
-      sentiment: sentiment,
-      totalParticipants: allParticipantsWithEmotions.length,
-      negativeEmotions: emotionCategories.negative?.length || 0,
-      positiveEmotions: emotionCategories.positive?.length || 0,
-      neutralEmotions: emotionCategories.neutral?.length || 0,
-      model: this.geminiModel
-    });
-
-    if (!this.geminiClient || !this.geminiApiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-
-    // Detect language from transcript context
-    const detectedLanguage = this.detectLanguageFromContext(transcriptContext);
-    
-    // Analyze conversation context more deeply
-    const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
-    
-    // Build participant state context based on ALL emotions (not just confused)
-    let participantStateContext = '';
-    if (allParticipantsWithEmotions.length > 0) {
-      const emotionDetails = allParticipantsWithEmotions.map(p => `${p.name}: ${p.emotion}`).join(', ');
-      
-      let emotionSummary = [];
-      if (emotionCategories.negative && emotionCategories.negative.length > 0) {
-        const negativeNames = emotionCategories.negative.map(p => p.name).join(', ');
-        const negativeEmotions = emotionCategories.negative.map(p => p.emotion).join(', ');
-        emotionSummary.push(`- Negative emotions (${negativeEmotions}): ${negativeNames}`);
-      }
-      if (emotionCategories.positive && emotionCategories.positive.length > 0) {
-        const positiveNames = emotionCategories.positive.map(p => p.name).join(', ');
-        const positiveEmotions = emotionCategories.positive.map(p => p.emotion).join(', ');
-        emotionSummary.push(`- Positive emotions (${positiveEmotions}): ${positiveNames}`);
-      }
-      if (emotionCategories.neutral && emotionCategories.neutral.length > 0) {
-        const neutralNames = emotionCategories.neutral.map(p => p.name).join(', ');
-        emotionSummary.push(`- Neutral emotions: ${neutralNames}`);
-      }
-      
-      participantStateContext = `\n\nPARTICIPANT STATE (IMPORTANT):
-${emotionSummary.join('\n')}
-- All participant emotions: ${emotionDetails}
-- Generate questions that:
-  * For negative emotions (confused, sad, fear, angry): Help clarify or address concerns
-  * For positive emotions (happy, surprised): Build on their engagement or excitement
-  * For neutral emotions: Maintain engagement or check understanding
-- Consider the overall emotional state when generating the question`;
-    }
-    
-    const prompt = `You are an intelligent meeting facilitator. Analyze this conversation and generate ONE highly relevant follow-up question that will advance the discussion.
-
-CONVERSATION CONTEXT:
-"${transcriptContext}"
-
-ANALYSIS:
-- Main Topics: ${topics.map(t => t.topic).join(', ')}
-- Sentiment: ${sentiment}
-- Language: ${detectedLanguage}
-- Key Points: ${conversationAnalysis.keyPoints.join(', ')}
-- Unresolved Issues: ${conversationAnalysis.unresolvedIssues.join(', ')}
-- Recent Focus: ${conversationAnalysis.recentFocus}${participantStateContext}
-
-CRITICAL REQUIREMENTS:
-1. The question MUST be DIRECTLY related to what was discussed in the conversation above
-2. The question MUST reference specific topics, points, or issues mentioned in the conversation
-3. ${allParticipantsWithEmotions.length > 0 ? `Consider participant emotions when generating questions:
-   - For negative emotions (confused, sad, fear, angry): Generate questions that help clarify or address concerns
-   - For positive emotions (happy, surprised, excited): Generate questions that build on their engagement or excitement
-   - For neutral emotions: Generate questions that maintain engagement or check understanding` : ''}
-4. DO NOT generate generic questions that could apply to any meeting
-5. DO NOT generate questions about topics NOT mentioned in the conversation
-6. If the conversation is unclear or too short, DO NOT generate a question
-7. The question should build on the LAST 2-3 sentences or main points discussed
-8. Use the same language as the conversation (${detectedLanguage})
-9. Keep it concise (one sentence, maximum 20 words)
-
-EXAMPLES OF GOOD QUESTIONS:
-- If conversation mentions "budget", ask: "What is the total budget allocated for this project?"
-- If conversation mentions "timeline", ask: "When do we need to complete this by?"
-- If conversation mentions "team", ask: "Who will be responsible for this task?"
-${allParticipantsWithEmotions.length > 0 ? `- If participants show negative emotions: "Would you like to clarify ${emotionCategories.negative && emotionCategories.negative.length > 0 ? emotionCategories.negative[0].name + '\'s' : 'the'} question about [specific topic]?"
-- If participants show positive emotions: "What aspects of [topic] are you most excited about?"
-- If participants show neutral emotions: "How do you feel about [topic]? Any questions?"` : ''}
-
-EXAMPLES OF BAD QUESTIONS (DO NOT GENERATE THESE):
-- "Are there any dependencies we need to consider?" (too generic, not specific to conversation)
-- "What are your thoughts on this?" (too vague)
-- "Can you elaborate?" (not specific enough)
-
-Generate ONLY the question, no explanations or additional text.`;
-
+  // Check if Ollama is available
+  async checkOllamaAvailability() {
     try {
-      // Get the model (try primary model, fallback if needed)
-      let model;
-      try {
-        model = this.geminiClient.getGenerativeModel({ model: this.geminiModel });
-      } catch (e) {
-        // If gemini-pro fails, throw the error
-        throw e;
-      }
-      
-      console.log('🤖 Gemini: Sending request to Gemini API...');
-      
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
-      const result = await Promise.race([
-        model.generateContent(prompt),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 30000))
-      ]);
+      const response = await fetch(`${this.ollamaUrl}/api/tags`, {
+        method: 'GET',
+        signal: controller.signal
+      });
       
       clearTimeout(timeoutId);
       
-      if (!result || !result.response) {
-        throw new Error('Gemini API returned no response');
-      }
-      
-      const responseText = result.response.text();
-      console.log('🤖 Gemini: Generated question:', responseText);
-      
-      return { question: responseText.trim() };
-    } catch (error) {
-      console.error('🤖 Gemini: Error generating question:', error);
-      if (error.message === 'Timeout' || error.name === 'AbortError') {
-        throw new Error('Gemini request timeout');
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Detect language from transcript context
-   * @param {string} text - Text to analyze
-   * @returns {string} Detected language
-   */
-  detectLanguageFromContext(text) {
-    if (!text || text.length < 10) return 'english';
-    
-    const lowerText = text.toLowerCase();
-    const languagePatterns = {
-      'spanish': /[ñáéíóúü]/i,
-      'french': /[àâäéèêëïîôöùûüÿç]/i,
-      'german': /[äöüß]/i,
-      'hindi': /[अ-ह]/,
-      'english': /[a-z]/i
-    };
-    
-    let maxMatches = 0;
-    let detectedLang = 'english';
-    
-    for (const [lang, pattern] of Object.entries(languagePatterns)) {
-      const matches = (lowerText.match(pattern) || []).length;
-      if (matches > maxMatches) {
-        maxMatches = matches;
-        detectedLang = lang;
-      }
-    }
-    
-    console.log(`🌍 LLM Language detected: ${detectedLang}`);
-    return detectedLang;
-  }
-
-  // Analyze conversation context for better question generation
-  analyzeConversationContext(transcriptContext) {
-    if (!transcriptContext || transcriptContext.length < 20) {
-      return {
-        keyPoints: [],
-        unresolvedIssues: [],
-        recentFocus: 'General discussion'
-      };
-    }
-
-    const text = transcriptContext.toLowerCase();
-    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    
-    // Extract key points from the conversation
-    const keyPoints = [];
-    const unresolvedIssues = [];
-    
-    // Look for decision points, problems, and important statements
-    sentences.forEach(sentence => {
-      const lowerSentence = sentence.toLowerCase();
-      
-      // Key points - decisions, conclusions, important statements
-      if (lowerSentence.includes('decided') || lowerSentence.includes('agreed') || 
-          lowerSentence.includes('concluded') || lowerSentence.includes('important') ||
-          lowerSentence.includes('key') || lowerSentence.includes('main')) {
-        keyPoints.push(sentence.trim());
-      }
-      
-      // Unresolved issues - problems, concerns, questions
-      if (lowerSentence.includes('problem') || lowerSentence.includes('issue') || 
-          lowerSentence.includes('concern') || lowerSentence.includes('challenge') ||
-          lowerSentence.includes('difficult') || lowerSentence.includes('unclear') ||
-          lowerSentence.includes('need to') || lowerSentence.includes('should we')) {
-        unresolvedIssues.push(sentence.trim());
-      }
-    });
-    
-    // Determine recent focus from the last few sentences
-    const recentSentences = sentences.slice(-3);
-    let recentFocus = 'General discussion';
-    
-    if (recentSentences.length > 0) {
-      const lastSentence = recentSentences[recentSentences.length - 1];
-      if (lastSentence.toLowerCase().includes('budget') || lastSentence.toLowerCase().includes('cost')) {
-        recentFocus = 'Budget and financial planning';
-      } else if (lastSentence.toLowerCase().includes('timeline') || lastSentence.toLowerCase().includes('schedule')) {
-        recentFocus = 'Timeline and scheduling';
-      } else if (lastSentence.toLowerCase().includes('team') || lastSentence.toLowerCase().includes('people')) {
-        recentFocus = 'Team and resources';
-      } else if (lastSentence.toLowerCase().includes('technical') || lastSentence.toLowerCase().includes('implementation')) {
-        recentFocus = 'Technical implementation';
-      } else if (lastSentence.toLowerCase().includes('customer') || lastSentence.toLowerCase().includes('user')) {
-        recentFocus = 'Customer/user experience';
-      }
-    }
-    
-    return {
-      keyPoints: keyPoints.slice(0, 3), // Limit to 3 most relevant
-      unresolvedIssues: unresolvedIssues.slice(0, 3), // Limit to 3 most relevant
-      recentFocus: recentFocus
-    };
-  }
-
-  // Generate question using rule-based system
-  generateWithRuleBased(topics, sentiment, transcriptContext) {
-    // Use conversation analysis for better rule-based questions
-    const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
-    const followUpQuestions = this.generateContextualQuestions(topics, sentiment, transcriptContext, conversationAnalysis);
-    
-    // Filter out empty questions
-    const validQuestions = followUpQuestions.filter(q => q && q.trim().length > 0);
-    
-    if (validQuestions.length === 0) {
-      console.log('📝 No valid context-specific questions - conversation not specific enough');
-      // Return a very generic question only as last resort, but this should rarely happen
-      return { question: '' };
-    }
-    
-    const selectedQuestion = validQuestions[Math.floor(Math.random() * validQuestions.length)];
-    return { question: selectedQuestion };
-  }
-
-  // Detect topics from transcript
-  detectTopics(transcript) {
-    const topicKeywords = {
-      'budget': ['budget', 'cost', 'money', 'financial', 'expense', 'revenue'],
-      'timeline': ['timeline', 'schedule', 'deadline', 'time', 'when', 'due'],
-      'technical': ['technical', 'implementation', 'code', 'development', 'technology'],
-      'team': ['team', 'collaboration', 'work', 'people', 'staff', 'members'],
-      'features': ['features', 'functionality', 'requirements', 'specifications'],
-      'user': ['user', 'customer', 'client', 'audience', 'experience'],
-      'project': ['project', 'initiative', 'program', 'campaign']
-    };
-
-    const detectedTopics = [];
-    const lowerTranscript = transcript.toLowerCase();
-
-    for (const [topic, keywords] of Object.entries(topicKeywords)) {
-      const matches = keywords.filter(keyword => lowerTranscript.includes(keyword));
-      if (matches.length > 0) {
-        detectedTopics.push({
-          topic,
-          matches,
-          confidence: matches.length / keywords.length
+      if (response.ok) {
+        const data = await response.json();
+        const models = data.models || [];
+        // Check if model exists (exact match or partial match)
+        const modelExists = models.some(m => {
+          const modelName = m.name.toLowerCase();
+          const searchModel = this.ollamaModel.toLowerCase();
+          return modelName === searchModel || modelName.includes(searchModel) || searchModel.includes(modelName.split(':')[0]);
         });
-      }
-    }
-
-    return detectedTopics;
-  }
-
-  // Analyze sentiment of transcript
-  analyzeSentiment(transcript) {
-    const positiveWords = ['good', 'great', 'excellent', 'positive', 'success', 'improve', 'better', 'promising'];
-    const negativeWords = ['bad', 'poor', 'concern', 'problem', 'issue', 'challenge', 'difficult', 'worry'];
-    const neutralWords = ['discuss', 'consider', 'think', 'plan', 'review', 'analyze'];
-
-    const lowerTranscript = transcript.toLowerCase();
-    
-    const positiveCount = positiveWords.filter(word => lowerTranscript.includes(word)).length;
-    const negativeCount = negativeWords.filter(word => lowerTranscript.includes(word)).length;
-    const neutralCount = neutralWords.filter(word => lowerTranscript.includes(word)).length;
-
-    if (positiveCount > negativeCount && positiveCount > neutralCount) {
-      return 'positive';
-    } else if (negativeCount > positiveCount && negativeCount > neutralCount) {
-      return 'negative';
-    } else {
-      return 'neutral';
-    }
-  }
-
-  // Generate question using rule-based system
-  generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions = [], participantNames = {}, emotionCategories = {}) {
-    // Use conversation analysis for better rule-based questions
-    const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
-    const followUpQuestions = this.generateContextualQuestions(topics, sentiment, transcriptContext, conversationAnalysis, allParticipantsWithEmotions, participantNames, emotionCategories);
-    
-    // Filter out empty questions
-    const validQuestions = followUpQuestions.filter(q => q && q.trim().length > 0);
-    
-    if (validQuestions.length === 0) {
-      console.log('📝 No valid context-specific questions - conversation not specific enough');
-      // Return a very generic question only as last resort, but this should rarely happen
-      return { question: '' };
-    }
-    
-    const selectedQuestion = validQuestions[Math.floor(Math.random() * validQuestions.length)];
-    return { question: selectedQuestion };
-  }
-
-  // Generate contextual follow-up questions - STRICT: Only questions directly related to conversation
-  generateContextualQuestions(topics, sentiment, transcript, conversationAnalysis = null, allParticipantsWithEmotions = [], participantNames = {}, emotionCategories = {}) {
-    const questions = [];
-    const lowerTranscript = transcript.toLowerCase();
-
-    // CRITICAL: Only generate questions if we have clear topics or issues from the conversation
-    if (topics.length === 0 && (!conversationAnalysis || conversationAnalysis.unresolvedIssues.length === 0)) {
-      console.log('📝 No clear topics or issues found - skipping question generation');
-      return ['']; // Return empty to prevent generic questions
-    }
-
-    // If we have conversation analysis, use it for more specific questions
-    if (conversationAnalysis && conversationAnalysis.unresolvedIssues.length > 0) {
-      // Generate questions based on unresolved issues - MUST reference specific issue
-      conversationAnalysis.unresolvedIssues.forEach(issue => {
-        const lowerIssue = issue.toLowerCase();
-        // Only generate if the issue is actually mentioned in transcript
-        if (!lowerTranscript.includes(lowerIssue.substring(0, 10))) {
-          return; // Skip if issue not in transcript
-        }
         
-        if (lowerIssue.includes('budget') || lowerIssue.includes('cost') || lowerIssue.includes('money')) {
-          // Extract specific budget/cost mention from transcript
-          const budgetMention = this.extractSpecificMention(transcript, ['budget', 'cost', 'money', 'financial']);
-          if (budgetMention) {
-            questions.push(`What's the budget for ${budgetMention}?`);
-            questions.push(`How much will ${budgetMention} cost?`);
+        if (modelExists) {
+          // Find the actual model name to use
+          const foundModel = models.find(m => {
+            const modelName = m.name.toLowerCase();
+            const searchModel = this.ollamaModel.toLowerCase();
+            return modelName === searchModel || modelName.includes(searchModel) || searchModel.includes(modelName.split(':')[0]);
+          });
+          
+          if (foundModel) {
+            // Update to use the actual model name
+            this.ollamaModel = foundModel.name;
+            console.log(`✅ Ollama is available with model: ${this.ollamaModel}`);
+            return true;
           }
-        } else if (lowerIssue.includes('timeline') || lowerIssue.includes('schedule') || lowerIssue.includes('deadline')) {
-          const timelineMention = this.extractSpecificMention(transcript, ['timeline', 'schedule', 'deadline', 'when']);
-          if (timelineMention) {
-            questions.push(`When do we need to complete ${timelineMention}?`);
-            questions.push(`What's the deadline for ${timelineMention}?`);
-          }
-        } else if (lowerIssue.includes('team') || lowerIssue.includes('people') || lowerIssue.includes('resource')) {
-          const teamMention = this.extractSpecificMention(transcript, ['team', 'people', 'resource', 'who']);
-          if (teamMention) {
-            questions.push(`Who will handle ${teamMention}?`);
-            questions.push(`What resources do we need for ${teamMention}?`);
-          }
+          console.log(`✅ Ollama is available with model: ${this.ollamaModel}`);
+          return true;
         } else {
-          // Generic but still related to the specific issue
-          const issueWords = issue.split(/\s+/).slice(0, 3).join(' ');
-          questions.push(`How do we resolve the ${issueWords} issue?`);
+          console.log(`⚠️ Ollama is available but model ${this.ollamaModel} not found. Available models:`, models.map(m => m.name).join(', '));
+          // Try to use the first available model if our default doesn't exist
+          if (models.length > 0) {
+            this.ollamaModel = models[0].name;
+            console.log(`⚠️ Using available model instead: ${this.ollamaModel}`);
+            return true;
+          }
+          return false;
         }
+      }
+      return false;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log(`⚠️ Ollama check timeout at ${this.ollamaUrl}`);
+      } else {
+        console.log(`⚠️ Ollama not available at ${this.ollamaUrl}:`, error.message);
+      }
+      return false;
+    }
+  }
+
+  // Get available Ollama models
+  async getAvailableOllamaModels() {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(`${this.ollamaUrl}/api/tags`, {
+        method: 'GET',
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.models || [];
+      }
+      return [];
+    } catch (error) {
+      return [];
     }
-
-    // Topic-based questions - ONLY if topic is clearly mentioned
-    topics.forEach(topicData => {
-      // Verify topic is actually in transcript
-      const topicKeywords = topicData.matches || [];
-      if (topicKeywords.length === 0) return;
-      
-      // Extract specific mention of the topic
-      const specificMention = this.extractSpecificMention(transcript, topicKeywords);
-      if (!specificMention) return; // Skip if no specific mention found
-      
-      switch (topicData.topic) {
-        case 'budget':
-          questions.push(`What's the budget for ${specificMention}?`);
-          questions.push(`How much does ${specificMention} cost?`);
-          break;
-        case 'timeline':
-          questions.push(`What's the timeline for ${specificMention}?`);
-          questions.push(`When will ${specificMention} be completed?`);
-          break;
-        case 'technical':
-          questions.push(`What are the technical challenges for ${specificMention}?`);
-          questions.push(`How will we implement ${specificMention}?`);
-          break;
-        case 'team':
-          questions.push(`Who will work on ${specificMention}?`);
-          questions.push(`What team is needed for ${specificMention}?`);
-          break;
-        case 'features':
-          questions.push(`What features are needed for ${specificMention}?`);
-          questions.push(`Which features are most important for ${specificMention}?`);
-          break;
-        case 'user':
-          questions.push(`How will ${specificMention} affect users?`);
-          questions.push(`What do users need from ${specificMention}?`);
-          break;
-      }
-    });
-
-    // Add participant-specific questions based on ALL emotions (not just confused)
-    if (allParticipantsWithEmotions.length > 0) {
-      const mainTopic = topics.length > 0 ? topics[0].topic : 'the current topic';
-      
-      // Questions for negative emotions (confused, sad, fear, angry)
-      if (emotionCategories.negative && emotionCategories.negative.length > 0) {
-        const negativeNames = emotionCategories.negative.map(p => p.name).join(', ');
-        if (emotionCategories.negative.length === 1) {
-          const participant = emotionCategories.negative[0];
-          questions.push(`Would you like to clarify ${participant.name}'s question about ${mainTopic}?`);
-          questions.push(`${participant.name} appears ${participant.emotion}. Should we revisit ${mainTopic}?`);
-        } else {
-          questions.push(`Would you like to clarify the discussion for ${negativeNames}?`);
-          questions.push(`Some participants appear concerned. Should we revisit ${mainTopic}?`);
-        }
-      }
-      
-      // Questions for positive emotions (happy, surprised, excited)
-      if (emotionCategories.positive && emotionCategories.positive.length > 0) {
-        const positiveNames = emotionCategories.positive.map(p => p.name).join(', ');
-        if (emotionCategories.positive.length === 1) {
-          questions.push(`What aspects of ${mainTopic} is ${positiveNames} most excited about?`);
-          questions.push(`Should we explore ${mainTopic} further based on ${positiveNames}'s interest?`);
-        } else {
-          questions.push(`What aspects of ${mainTopic} are ${positiveNames} most excited about?`);
-          questions.push(`Should we build on the positive engagement around ${mainTopic}?`);
-        }
-      }
-      
-      // Questions for neutral emotions
-      if (emotionCategories.neutral && emotionCategories.neutral.length > 0) {
-        const neutralNames = emotionCategories.neutral.map(p => p.name).join(', ');
-        if (emotionCategories.neutral.length === 1) {
-          questions.push(`How does ${neutralNames} feel about ${mainTopic}?`);
-          questions.push(`Any questions from ${neutralNames} about ${mainTopic}?`);
-        } else {
-          questions.push(`How do ${neutralNames} feel about ${mainTopic}?`);
-          questions.push(`Any questions from the participants about ${mainTopic}?`);
-        }
-      }
-    }
-
-    // REMOVED: Sentiment-based and general questions - they're too generic
-    // Only use questions that reference specific topics from the conversation
-
-    // If no specific questions generated, return empty array to prevent generic questions
-    if (questions.length === 0) {
-      console.log('📝 No context-specific questions generated - conversation too generic');
-      return [''];
-    }
-
-    return questions;
   }
 
-  // Helper function to extract specific mention from transcript
-  extractSpecificMention(transcript, keywords) {
-    if (!transcript || !keywords || keywords.length === 0) return null;
+  // Try Ollama models in priority order: phi3:mini -> llama3.2:3b
+  async tryOllamaWithPriority(transcriptContext, topics, sentiment, allParticipantsWithEmotions, participantEmotions, participantNames, emotionCategories) {
+    const priorityModels = ['phi3:mini', 'phi-3:mini', 'llama3.2:3b'];
     
-    const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    const lowerTranscript = transcript.toLowerCase();
+    // Get available models
+    const availableModels = await this.getAvailableOllamaModels();
+    if (!availableModels || availableModels.length === 0) {
+      return { success: false, error: 'No Ollama models available' };
+    }
     
-    // Find sentence containing the keyword
-    for (const keyword of keywords) {
-      const lowerKeyword = keyword.toLowerCase();
-      if (lowerTranscript.includes(lowerKeyword)) {
-        // Find the sentence with the keyword
-        for (const sentence of sentences) {
-          if (sentence.toLowerCase().includes(lowerKeyword)) {
-            // Extract 3-5 words around the keyword
-            const words = sentence.trim().split(/\s+/);
-            const keywordIndex = words.findIndex(w => w.toLowerCase().includes(lowerKeyword));
-            if (keywordIndex >= 0) {
-              const start = Math.max(0, keywordIndex - 2);
-              const end = Math.min(words.length, keywordIndex + 3);
-              const mention = words.slice(start, end).join(' ');
-              // Clean up mention (remove punctuation at start/end)
-              return mention.replace(/^[^\w]+|[^\w]+$/g, '').trim() || keyword;
-            }
+    console.log(`🔍 Available Ollama models: ${availableModels.map(m => m.name).join(', ')}`);
+    console.log(`🎯 Trying models in priority order: phi3:mini -> llama3.2:3b`);
+    
+    const triedModels = new Set(); // Track tried models to avoid duplicates
+    
+    // Try models in priority order
+    for (const modelName of priorityModels) {
+      const modelExists = availableModels.some(m => {
+        const mName = m.name.toLowerCase();
+        const searchName = modelName.toLowerCase();
+        return mName === searchName || mName.includes(searchName) || searchName.includes(mName.split(':')[0]);
+      });
+      
+      if (modelExists) {
+        const foundModel = availableModels.find(m => {
+          const mName = m.name.toLowerCase();
+          const searchName = modelName.toLowerCase();
+          return mName === searchName || mName.includes(searchName) || searchName.includes(mName.split(':')[0]);
+        });
+        
+        if (foundModel && !triedModels.has(foundModel.name)) {
+          triedModels.add(foundModel.name); // Mark as tried
+          console.log(`🔄 Trying Ollama model: ${foundModel.name}`);
+          const originalModel = this.ollamaModel;
+          this.ollamaModel = foundModel.name;
+          
+          try {
+            const result = await this.generateWithOllama(
+              transcriptContext, 
+              topics, 
+              sentiment,
+              allParticipantsWithEmotions,
+              participantEmotions,
+              participantNames,
+              emotionCategories
+            );
+            
+            console.log(`✅ Successfully used ${foundModel.name}`);
+            return {
+              success: true,
+              question: result.question,
+              modelName: `ollama-${foundModel.name}`,
+              confidence: 0.8
+            };
+          } catch (error) {
+            console.log(`⚠️ ${foundModel.name} failed:`, error.message);
+            this.ollamaModel = originalModel; // Restore original
+            continue; // Try next model
           }
         }
-        // Fallback: return the keyword itself
-        return keyword;
       }
     }
     
-    return null;
+    return { success: false, error: 'All priority models failed' };
   }
+
+  // All generation methods are now in llmGenerators.js and bound in constructor
 
   // Add transcript to history
   addToTranscriptHistory(meetingId, transcript) {
@@ -935,40 +756,69 @@ Generate ONLY the question, no explanations or additional text.`;
   }
 
   // Intelligent question generation trigger based on conversation flow
-  shouldGenerateQuestionIntelligently(meetingId, transcriptContext) {
-    // First check basic time interval - exactly 5 minutes minimum (increased from 3)
-    // This ensures questions only appear after substantial conversation time
-    if (!this.shouldGenerateQuestion(meetingId, 5)) {
-      console.log('🤖 Question trigger: Time interval not met (need 5 minutes)');
+  shouldGenerateQuestionIntelligently(meetingId, transcriptContext, hasParticipantEmotions = false) {
+    // First check basic time interval - 3 minutes minimum for first question
+    // This allows questions after some initial conversation time
+    const timeInterval = 3; // Changed from 5 to 3 minutes
+    if (!this.shouldGenerateQuestion(meetingId, timeInterval)) {
+      console.log(`🤖 Question trigger: Time interval not met (need ${timeInterval} minutes)`);
       return false;
     }
 
-    // STRICT validation - require substantial conversation (increased from 200 to 800 characters)
-    if (!transcriptContext || transcriptContext.length < 800) {
-      console.log('🤖 Question trigger: Insufficient conversation content (need at least 800 chars)');
-      return false;
+    const contextLength = transcriptContext?.length || 0;
+
+    // If conversation is very low BUT we have participant emotions, allow question generation
+    // This handles early meeting scenarios where conversation hasn't started but participants show emotions
+    if (hasParticipantEmotions && contextLength < 200) {
+      console.log('🤖 Question trigger: Low conversation but emotions present - will generate based on emotions');
+      return true; // Allow generation based on emotions
+    }
+
+    // Progressive requirements based on conversation length
+    // Early conversation (200-500 chars): Relaxed requirements
+    if (contextLength < 500) {
+      const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
+      const uniqueWords = new Set(words.map(word => word.toLowerCase()));
+      
+      // Relaxed: at least 30 words and 15 unique words
+      if (words.length >= 30 && uniqueWords.size >= 15) {
+        console.log('🤖 Question trigger: Early conversation detected - generating question');
+        return true;
+      }
+      
+      // If emotions present, even more relaxed
+      if (hasParticipantEmotions && words.length >= 20 && uniqueWords.size >= 10) {
+        console.log('🤖 Question trigger: Early conversation with emotions - generating question');
+        return true;
+      }
     }
     
-    // Check for meaningful conversation with higher requirements
+    // Medium conversation (500-1000 chars): Moderate requirements
+    if (contextLength < 1000) {
+      const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
+      const uniqueWords = new Set(words.map(word => word.toLowerCase()));
+      const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 15);
+      
+      // Moderate: at least 50 words, 20 unique words, 3 sentences
+      if (words.length >= 50 && uniqueWords.size >= 20 && sentences.length >= 3) {
+        console.log('🤖 Question trigger: Medium conversation detected - generating question');
+        return true;
+      }
+    }
+    
+    // Substantial conversation (1000+ chars): Stricter requirements
     const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
     const uniqueWords = new Set(words.map(word => word.toLowerCase()));
-    
-    // Increased requirements: at least 60 words and 25 unique words
-    if (words.length < 60 || uniqueWords.size < 25) {
-      console.log('🤖 Question trigger: Insufficient meaningful conversation (need at least 60 words, 25 unique)');
-      return false;
-    }
-    
-    // Check for complete sentences - ensure it's actual conversation
     const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 15);
-    if (sentences.length < 5) {
-      console.log('🤖 Question trigger: Insufficient complete sentences (need at least 5 sentences)');
-      return false;
+    
+    // Stricter: at least 60 words, 25 unique words, 5 sentences
+    if (words.length >= 60 && uniqueWords.size >= 25 && sentences.length >= 5) {
+      console.log('🤖 Question trigger: Substantial conversation detected - generating question');
+      return true;
     }
 
-    // Only generate questions if there's substantial, meaningful conversation
-    console.log('🤖 Question trigger: Time interval met with substantial conversation - generating question');
-    return true;
+    console.log('🤖 Question trigger: Conversation requirements not met');
+    return false;
   }
 
   // Update last question time
@@ -1065,110 +915,7 @@ Generate ONLY the question, no explanations or additional text.`;
     }
   }
   
-  // Generate summary using Gemini
-  async generateSummaryWithGemini(transcriptContext, topics, sentiment, conversationAnalysis) {
-    if (!this.geminiClient || !this.geminiApiKey) {
-      throw new Error('Gemini API key not configured');
-    }
-    
-    const prompt = `You are an intelligent meeting assistant. Analyze this meeting transcript and generate a comprehensive summary.
-
-MEETING TRANSCRIPT:
-"${transcriptContext}"
-
-ANALYSIS:
-- Main Topics: ${topics.map(t => t.topic).join(', ')}
-- Sentiment: ${sentiment}
-- Key Points: ${conversationAnalysis.keyPoints.join(', ')}
-- Unresolved Issues: ${conversationAnalysis.unresolvedIssues.join(', ')}
-- Recent Focus: ${conversationAnalysis.recentFocus}
-
-INSTRUCTIONS:
-1. Generate a concise but comprehensive summary of the meeting (2-3 paragraphs)
-2. Extract 3-5 key points discussed
-3. Identify any action items mentioned
-4. Note any decisions made
-5. Be specific and reference actual content from the transcript
-
-FORMAT YOUR RESPONSE AS JSON:
-{
-  "summary": "Brief meeting summary here",
-  "keyPoints": ["Point 1", "Point 2", "Point 3"],
-  "actionItems": ["Action 1", "Action 2"],
-  "decisions": ["Decision 1", "Decision 2"]
-}
-
-Return ONLY valid JSON, no additional text.`;
-    
-    try {
-      const model = this.geminiClient.getGenerativeModel({ model: this.geminiModel });
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      
-      // Parse JSON response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          summary: parsed.summary || 'Summary generated successfully.',
-          keyPoints: parsed.keyPoints || [],
-          actionItems: parsed.actionItems || [],
-          decisions: parsed.decisions || []
-        };
-      } else {
-        // Fallback: treat entire response as summary
-        return {
-          summary: responseText.trim(),
-          keyPoints: conversationAnalysis.keyPoints.slice(0, 5),
-          actionItems: [],
-          decisions: []
-        };
-      }
-    } catch (error) {
-      console.error('🤖 Gemini summary generation failed:', error);
-      throw error;
-    }
-  }
-  
-  // Generate rule-based summary
-  generateRuleBasedSummary(transcriptContext, topics, sentiment, conversationAnalysis) {
-    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    const keyPoints = conversationAnalysis.keyPoints.slice(0, 5);
-    
-    // Extract action items (sentences with action words)
-    const actionItems = [];
-    sentences.forEach(sentence => {
-      const lowerSentence = sentence.toLowerCase();
-      if (lowerSentence.includes('need to') || lowerSentence.includes('should') || 
-          lowerSentence.includes('must') || lowerSentence.includes('will') ||
-          lowerSentence.includes('action') || lowerSentence.includes('task')) {
-        actionItems.push(sentence.trim());
-      }
-    });
-    
-    // Extract decisions
-    const decisions = [];
-    sentences.forEach(sentence => {
-      const lowerSentence = sentence.toLowerCase();
-      if (lowerSentence.includes('decided') || lowerSentence.includes('agreed') || 
-          lowerSentence.includes('concluded') || lowerSentence.includes('chosen')) {
-        decisions.push(sentence.trim());
-      }
-    });
-    
-    // Generate summary text
-    const summary = `This meeting discussed ${topics.map(t => t.topic).join(', ')}. ` +
-      `${conversationAnalysis.keyPoints.length > 0 ? 'Key points included: ' + conversationAnalysis.keyPoints.slice(0, 3).join(', ') + '. ' : ''}` +
-      `${conversationAnalysis.unresolvedIssues.length > 0 ? 'Unresolved issues: ' + conversationAnalysis.unresolvedIssues.slice(0, 2).join(', ') + '. ' : ''}` +
-      `The overall sentiment was ${sentiment}.`;
-    
-    return {
-      summary: summary.trim(),
-      keyPoints: keyPoints.slice(0, 5),
-      actionItems: actionItems.slice(0, 5),
-      decisions: decisions.slice(0, 5)
-    };
-  }
+  // All summary generation methods are now in llmGenerators.js and bound in constructor
 
   // Generate comprehensive meeting notes from transcripts
   async generateMeetingNotes(transcripts, meetingId) {
@@ -1188,12 +935,51 @@ Return ONLY valid JSON, no additional text.`;
         .map(t => `${t.participantName || 'Unknown'}: ${t.transcript}`)
         .join('\n');
       
-      // Try Gemini first, fallback to rule-based
+      // Try Gemini first, then Ollama, then rule-based
       if (this.llmType === 'gemini' && this.geminiClient && this.geminiApiKey) {
         try {
           return await this.generateComprehensiveNotesWithGemini(fullTranscript, conversationTranscript, transcripts);
         } catch (error) {
-          console.log('⚠️ Gemini notes generation failed, using rule-based fallback:', error.message);
+          const errorMessage = error.message || error.toString() || '';
+          const isQuotaError = errorMessage.includes('quota') || 
+                              errorMessage.includes('QUOTA') || 
+                              errorMessage.includes('429') ||
+                              errorMessage.includes('ResourceExhausted') ||
+                              errorMessage.includes('rate limit') ||
+                              errorMessage.includes('Quota exceeded');
+          
+          if (isQuotaError) {
+            console.log('⚠️ Gemini quota exhausted for notes, trying Ollama...');
+            try {
+              const ollamaAvailable = await this.checkOllamaAvailability();
+              if (ollamaAvailable) {
+                this.ollamaEnabled = true;
+                this.llmType = 'ollama';
+                return await this.generateComprehensiveNotesWithOllama(fullTranscript, conversationTranscript, transcripts);
+              }
+            } catch (ollamaError) {
+              console.log('⚠️ Ollama failed for notes, using rule-based fallback');
+            }
+          } else {
+            console.log('⚠️ Gemini notes generation failed, trying Ollama...');
+            try {
+              const ollamaAvailable = await this.checkOllamaAvailability();
+              if (ollamaAvailable) {
+                this.ollamaEnabled = true;
+                this.llmType = 'ollama';
+                return await this.generateComprehensiveNotesWithOllama(fullTranscript, conversationTranscript, transcripts);
+              }
+            } catch (ollamaError) {
+              console.log('⚠️ Ollama failed for notes, using rule-based fallback');
+            }
+          }
+          return this.generateRuleBasedNotes(transcripts);
+        }
+      } else if (this.llmType === 'ollama') {
+        try {
+          return await this.generateComprehensiveNotesWithOllama(fullTranscript, conversationTranscript, transcripts);
+        } catch (error) {
+          console.log('⚠️ Ollama notes generation failed, using rule-based fallback:', error.message);
           return this.generateRuleBasedNotes(transcripts);
         }
       } else {
@@ -1205,272 +991,7 @@ Return ONLY valid JSON, no additional text.`;
     }
   }
 
-  // Generate comprehensive notes using Gemini
-  async generateComprehensiveNotesWithGemini(fullTranscript, conversationTranscript, transcripts) {
-    const prompt = `You are an AI assistant that generates comprehensive meeting notes. Analyze the following meeting transcript and create structured notes.
-
-MEETING TRANSCRIPT:
-${fullTranscript}
-
-CONVERSATION TRANSCRIPT (Who Said What):
-${conversationTranscript}
-
-Please generate comprehensive meeting notes in the following JSON format:
-{
-  "summary": "A brief 2-3 sentence summary of the entire meeting",
-  "keyPoints": ["Point 1", "Point 2", "Point 3", ...],
-  "actionItems": [
-    {
-      "task": "Task description",
-      "assignedTo": "Person name or 'TBD'",
-      "deadline": "Deadline if mentioned or 'TBD'"
-    }
-  ],
-  "decisions": ["Decision 1", "Decision 2", ...],
-  "studyGuide": {
-    "definitions": ["Term: Definition", ...],
-    "examples": ["Example 1", "Example 2", ...],
-    "formulas": ["Formula 1", ...]
-  },
-  "participantContributions": {
-    "Person Name": ["Contribution 1", "Contribution 2", ...]
-  },
-  "conversationTranscript": [
-    {
-      "speaker": "Person Name",
-      "timestamp": "HH:MM:SS",
-      "text": "What they said"
-    }
-  ]
-}
-
-IMPORTANT REQUIREMENTS:
-1. Extract ALL action items with who is responsible (if mentioned) and deadlines (if mentioned)
-2. List ALL decisions made during the meeting
-3. Identify key definitions, examples, and formulas if this is an educational meeting
-4. For participantContributions, group what each person said/contributed
-5. For conversationTranscript, format it clearly showing who said what with timestamps
-6. Be comprehensive - don't miss important details
-7. Use the exact participant names from the transcript
-8. Format timestamps as HH:MM:SS based on the transcript timestamps
-
-Return ONLY valid JSON, no additional text.`;
-
-    try {
-      const model = this.geminiClient.getGenerativeModel({ model: this.geminiModel });
-      
-      const result = await Promise.race([
-        model.generateContent(prompt),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 60000))
-      ]);
-      
-      const responseText = result.response.text();
-      
-      // Extract JSON from response (handle markdown code blocks)
-      let jsonText = responseText.trim();
-      if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/```\n?/g, '').trim();
-      }
-      
-      const notes = JSON.parse(jsonText);
-      
-      // Ensure conversationTranscript is included
-      if (!notes.conversationTranscript && conversationTranscript) {
-        notes.conversationTranscript = this.formatConversationTranscriptForNotes(transcripts);
-      }
-      
-      return notes;
-    } catch (error) {
-      console.error('❌ Error in Gemini notes generation:', error);
-      throw error;
-    }
-  }
-
-  // Generate rule-based notes (fallback)
-  generateRuleBasedNotes(transcripts) {
-    if (!transcripts || transcripts.length === 0) {
-      return {
-        summary: 'No transcript data available for this meeting.',
-        keyPoints: [],
-        actionItems: [],
-        decisions: [],
-        studyGuide: { definitions: [], examples: [], formulas: [] },
-        participantContributions: {},
-        conversationTranscript: []
-      };
-    }
-    
-    const fullText = transcripts.map(t => t.transcript).join(' ').toLowerCase();
-    const sentences = transcripts.flatMap(t => 
-      t.transcript.split(/[.!?]+/).filter(s => s.trim().length > 10).map(s => ({
-        text: s.trim(),
-        speaker: t.participantName || 'Unknown',
-        timestamp: t.timestamp
-      }))
-    );
-    
-    // Extract key points
-    const keyPoints = sentences
-      .filter(s => {
-        const lower = s.text.toLowerCase();
-        return lower.includes('important') || lower.includes('key') || 
-               lower.includes('main') || lower.includes('critical');
-      })
-      .map(s => s.text)
-      .slice(0, 10);
-    
-    // Extract action items
-    const actionItems = sentences
-      .filter(s => {
-        const lower = s.text.toLowerCase();
-        return lower.includes('need to') || lower.includes('should') || 
-               lower.includes('must') || lower.includes('will do') ||
-               lower.includes('action') || lower.includes('task');
-      })
-      .map(s => ({
-        task: s.text,
-        assignedTo: this.extractPersonName(s.text, transcripts),
-        deadline: this.extractDeadline(s.text)
-      }))
-      .slice(0, 10);
-    
-    // Extract decisions
-    const decisions = sentences
-      .filter(s => {
-        const lower = s.text.toLowerCase();
-        return lower.includes('decided') || lower.includes('agreed') || 
-               lower.includes('concluded') || lower.includes('chosen');
-      })
-      .map(s => s.text)
-      .slice(0, 10);
-    
-    // Extract study guide content
-    const definitions = this.extractDefinitions(sentences);
-    const examples = this.extractExamples(sentences);
-    const formulas = this.extractFormulas(sentences);
-    
-    // Group participant contributions
-    const participantContributions = {};
-    transcripts.forEach(t => {
-      const name = t.participantName || 'Unknown';
-      if (!participantContributions[name]) {
-        participantContributions[name] = [];
-      }
-      const contributions = t.transcript.split(/[.!?]+/).filter(s => s.trim().length > 20);
-      participantContributions[name].push(...contributions.slice(0, 5));
-    });
-    
-    // Create conversation transcript
-    const conversationTranscript = this.formatConversationTranscriptForNotes(transcripts);
-    
-    // Generate summary
-    const topics = this.detectTopics(transcripts.map(t => t.transcript).join(' '));
-    const summary = `This meeting discussed ${topics.map(t => t.topic).join(', ')}. ` +
-      `${keyPoints.length > 0 ? 'Key points included: ' + keyPoints.slice(0, 3).join(', ') + '. ' : ''}` +
-      `${decisions.length > 0 ? decisions.length + ' decisions were made. ' : ''}` +
-      `${actionItems.length > 0 ? actionItems.length + ' action items were identified.' : ''}`;
-    
-    return {
-      summary: summary.trim(),
-      keyPoints,
-      actionItems,
-      decisions,
-      studyGuide: {
-        definitions,
-        examples,
-        formulas
-      },
-      participantContributions,
-      conversationTranscript
-    };
-  }
-
-  // Helper: Create formatted conversation transcript showing who said what
-  createConversationTranscript(transcripts) {
-    return transcripts
-      .map(t => {
-        const timestamp = new Date(t.timestamp);
-        const timeStr = timestamp.toLocaleTimeString('en-US', { hour12: false });
-        return `${t.participantName || 'Unknown'} (${timeStr}): ${t.transcript}`;
-      })
-      .join('\n');
-  }
-
-  // Helper: Format conversation transcript for notes
-  formatConversationTranscriptForNotes(transcripts) {
-    return transcripts.map(t => {
-      const timestamp = new Date(t.timestamp);
-      const timeStr = timestamp.toLocaleTimeString('en-US', { hour12: false });
-      return {
-        speaker: t.participantName || 'Unknown',
-        timestamp: timeStr,
-        text: t.transcript
-      };
-    });
-  }
-
-  // Helper: Extract person name from text
-  extractPersonName(text, transcripts) {
-    const names = [...new Set(transcripts.map(t => t.participantName).filter(Boolean))];
-    for (const name of names) {
-      if (text.toLowerCase().includes(name.toLowerCase())) {
-        return name;
-      }
-    }
-    return 'TBD';
-  }
-
-  // Helper: Extract deadline from text
-  extractDeadline(text) {
-    const deadlinePatterns = [
-      /(?:by|before|until|deadline|due)\s+(\w+\s+\d+|\d+\s+\w+|\w+day|tomorrow|next\s+\w+)/i,
-      /(\d{1,2}\/\d{1,2}\/\d{2,4})/,
-      /(\w+\s+\d{1,2},?\s+\d{4})/
-    ];
-    
-    for (const pattern of deadlinePatterns) {
-      const match = text.match(pattern);
-      if (match) return match[1];
-    }
-    return 'TBD';
-  }
-
-  // Helper: Extract definitions
-  extractDefinitions(sentences) {
-    return sentences
-      .filter(s => {
-        const lower = s.text.toLowerCase();
-        return lower.includes('is defined as') || lower.includes('means') || 
-               lower.includes('refers to') || lower.includes(':') && lower.split(':').length === 2;
-      })
-      .map(s => s.text)
-      .slice(0, 10);
-  }
-
-  // Helper: Extract examples
-  extractExamples(sentences) {
-    return sentences
-      .filter(s => {
-        const lower = s.text.toLowerCase();
-        return lower.includes('for example') || lower.includes('such as') || 
-               lower.includes('like') || lower.includes('instance');
-      })
-      .map(s => s.text)
-      .slice(0, 10);
-  }
-
-  // Helper: Extract formulas
-  extractFormulas(sentences) {
-    return sentences
-      .filter(s => {
-        const text = s.text;
-        return /[=+\-*/()]/.test(text) && /\w+\s*[=+\-*/]/.test(text);
-      })
-      .map(s => s.text)
-      .slice(0, 10);
-  }
+  // All notes generation methods and helpers are now in llmGenerators.js and bound in constructor
 
   // Clean up meeting data
   cleanupMeeting(meetingId) {

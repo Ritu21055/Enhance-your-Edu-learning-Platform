@@ -1,6 +1,6 @@
-// Load environment variables from .env file
-import 'dotenv/config';
-
+// Load environment variables from .env file FIRST
+// Remove 'dotenv/config' import and use explicit config() to ensure it loads before llmService
+import { config } from 'dotenv';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -12,10 +12,70 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Explicitly load .env file from backend directory BEFORE importing llmService
+const envPath = path.join(__dirname, '.env');
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+
+console.log('🔍 Loading .env file from:', envPath);
+console.log('   File exists:', existsSync(envPath));
+
+if (existsSync(envPath)) {
+  try {
+    let envContent = readFileSync(envPath, 'utf8');
+    
+    // Remove BOM (Byte Order Mark) if present
+    if (envContent.charCodeAt(0) === 0xFEFF) {
+      envContent = envContent.slice(1);
+      console.log('   ⚠️ BOM detected and removed');
+    }
+    
+    // Remove any leading/trailing whitespace
+    envContent = envContent.trim();
+    
+    console.log('   File content length:', envContent.length);
+    console.log('   File content (first 60 chars):', envContent.substring(0, 60).replace(/\n/g, '\\n'));
+    
+    // Write cleaned content back to file (without BOM)
+    if (envContent) {
+      writeFileSync(envPath, envContent, 'utf8');
+      console.log('   ✅ Cleaned .env file (removed BOM)');
+    }
+    
+    // Load with dotenv - use override: true to ensure it loads
+    const envResult = config({ path: envPath, override: true });
+    
+    console.log('   Variables parsed:', envResult.parsed ? Object.keys(envResult.parsed).length : 0);
+    if (envResult.parsed && Object.keys(envResult.parsed).length > 0) {
+      console.log('   Parsed keys:', Object.keys(envResult.parsed));
+    }
+    if (envResult.error) {
+      console.log('   ⚠️ Error:', envResult.error.message);
+    }
+  } catch (error) {
+    console.log('   ❌ Error reading .env:', error.message);
+  }
+}
+
+// Check if GEMINI_API_KEY is now in process.env
+console.log('   GEMINI_API_KEY in process.env:', !!process.env.GEMINI_API_KEY);
+console.log('   GEMINI_API_KEY value:', process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.substring(0, 15) + '...' : 'NOT FOUND');
+
 // AI features removed - will be reimplemented based on new requirements
 
 // Import LLM Service for AI-Driven Smart Follow-up Question Generation
+// NOTE: Import happens after .env is loaded, but module evaluation might happen before
+// So we'll reinitialize after import
 import llmService from './src/utils/llmService.js';
+
+// Re-check API key and reinitialize LLM now that .env is loaded
+if (process.env.GEMINI_API_KEY) {
+  console.log('🔄 Reinitializing LLM service with loaded API key...');
+  // Use async IIFE since this is top-level code
+  (async () => {
+    await llmService.recheckApiKey();
+  })();
+}
 
 // REMOVED: Highlight detection and reel generation features
 // import mediaProcessor from './src/utils/mediaProcessor.js';
@@ -504,18 +564,86 @@ app.get('/api/meetings/history/statistics', async (req, res) => {
 app.get('/api/ai/status', async (req, res) => {
   try {
     const aiStatus = llmService.getLLMStatus();
+    // Check Ollama availability
+    const ollamaAvailable = await llmService.checkOllamaAvailability();
+    
     res.json({
       status: 'success',
-      ai: aiStatus,
-      ollama: {
-        running: true, // We know it's running from netstat
-        port: 11434,
-        models: ['llama3.2:3b']
-      }
+      llmType: aiStatus.llmType,
+      hasApiKey: aiStatus.hasApiKey,
+      geminiModel: aiStatus.geminiModel,
+      ollamaEnabled: ollamaAvailable,
+      ollamaModel: aiStatus.ollamaModel,
+      ollamaUrl: aiStatus.ollamaUrl,
+      ...aiStatus
     });
   } catch (error) {
     console.error('❌ Error getting AI status:', error);
     res.status(500).json({ error: 'Failed to get AI status' });
+  }
+});
+
+// Test endpoint for speech-to-notes generation
+app.post('/api/ai/test-speech-to-notes', async (req, res) => {
+  console.log('🧪 Speech-to-Notes test endpoint hit!');
+  try {
+    const { transcript, participantName = 'User' } = req.body;
+    
+    if (!transcript || transcript.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Transcript is required'
+      });
+    }
+    
+    // Check LLM status
+    const llmStatus = llmService.getLLMStatus();
+    console.log('🧪 LLM Status:', llmStatus);
+    
+    // Format transcript as array (like meeting transcripts)
+    const transcripts = [{
+      participantId: 'test-user',
+      participantName: participantName,
+      transcript: transcript,
+      timestamp: Date.now(),
+      language: 'en-US',
+      confidence: 1.0,
+      id: 'test-' + Date.now()
+    }];
+    
+    console.log('🧪 Generating notes from transcript:', {
+      transcriptLength: transcript.length,
+      participantName,
+      llmType: llmStatus.llmType,
+      hasApiKey: llmStatus.hasApiKey
+    });
+    
+    const startTime = Date.now();
+    
+    // Generate meeting notes
+    const notes = await llmService.generateMeetingNotes(transcripts, 'test-meeting-' + Date.now());
+    
+    const responseTime = Date.now() - startTime;
+    
+    res.json({
+      success: true,
+      notes: notes,
+      model: llmStatus.llmType || 'unknown',
+      responseTime,
+      llmStatus: {
+        type: llmStatus.llmType,
+        hasApiKey: llmStatus.hasApiKey,
+        geminiModel: llmStatus.geminiModel,
+        ollamaEnabled: llmStatus.ollamaEnabled,
+        ollamaModel: llmStatus.ollamaModel
+      }
+    });
+  } catch (error) {
+    console.error('❌ Speech-to-Notes test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
@@ -661,4 +789,14 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🌍 Server accessible from all network interfaces (0.0.0.0:${PORT})`);
   console.log(`📱 For cross-device access, use your computer's IP address instead of localhost`);
   console.log(`🤖 AI Performance monitoring enabled`);
+  
+  // Final check: Verify GEMINI_API_KEY after server starts
+  console.log(`\n🔍 Final Environment Check:`);
+  console.log(`   GEMINI_API_KEY loaded: ${!!process.env.GEMINI_API_KEY}`);
+  if (process.env.GEMINI_API_KEY) {
+    console.log(`   ✅ Gemini API is configured`);
+  } else {
+    console.log(`   ⚠️ Gemini API key not found - using rule-based fallback`);
+    console.log(`   💡 To enable Gemini: Set GEMINI_API_KEY in .env file and restart server`);
+  }
 });

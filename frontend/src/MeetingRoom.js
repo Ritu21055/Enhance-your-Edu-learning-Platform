@@ -3,13 +3,9 @@ import {
   Box,
   Typography,
   Container,
-  Button,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText
+  Button
 } from '@mui/material';
-import { People, BugReport, Star, Psychology, Videocam, Mic } from '@mui/icons-material';
+import { People, Psychology, Videocam, Mic } from '@mui/icons-material';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { getBackendUrl } from './config/network';
 import { updateMeetingStatus } from './services/meetingsService';
@@ -32,16 +28,12 @@ import MeetingControls from './components/MeetingControls';
 import ChatSidebar from './components/ChatSidebar';
 import ParticipantsDialog from './components/ParticipantsDialog';
 import SentimentDashboard from './components/SentimentDashboard';
+
 import FatigueAlert from './components/FatigueAlert';
 import MediaRequestDialog from './components/MediaRequestDialog';
 import MediaRequestNotification from './components/MediaRequestNotification';
 // import RecordingNotification from './components/RecordingNotification'; // REMOVED: Recording feature
-import AudioTroubleshooter from './components/AudioTroubleshooter';
-import CompatibilityTestResults from './components/CompatibilityTestResults';
 import QuestionSuggestion from './components/QuestionSuggestion';
-
-// Import device compatibility utilities
-import { runCompatibilityTest, getErrorMessage, getRecommendations } from './utils/deviceCompatibility';
 
 // Import AI Follow-up Question Generation hook
 import useAudioTranscription from './hooks/useAudioTranscription';
@@ -76,11 +68,6 @@ const MeetingRoom = () => {
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showSentimentDashboard, setShowSentimentDashboard] = useState(false);
-  const [showAudioTroubleshooter, setShowAudioTroubleshooter] = useState(false);
-  const [showVideoDebugPanel, setShowVideoDebugPanel] = useState(false);
-  const [showCompatibilityTest, setShowCompatibilityTest] = useState(false);
-  const [compatibilityResults, setCompatibilityResults] = useState(null);
-  const [debugMenuAnchor, setDebugMenuAnchor] = useState(null);
   const [sentimentData, setSentimentData] = useState(null);
   
   // AI Follow-up Question Generation state
@@ -693,28 +680,6 @@ const MeetingRoom = () => {
     });
   };
 
-  // Run compatibility test
-  const handleCompatibilityTest = async () => {
-    try {
-      console.log('🔍 Running compatibility test...');
-      const results = await runCompatibilityTest(socket?.io?.uri || getBackendUrl());
-      setCompatibilityResults(results);
-      setShowCompatibilityTest(true);
-      
-      // Log results for debugging
-      console.log('🔍 Compatibility test completed:', results);
-      
-      // Show warnings if any
-      if (results.device.issues.length > 0) {
-        console.warn('⚠️ Compatibility issues detected:', results.device.issues);
-      }
-      if (results.device.warnings.length > 0) {
-        console.warn('⚠️ Compatibility warnings:', results.device.warnings);
-      }
-    } catch (error) {
-      console.error('❌ Compatibility test failed:', error);
-    }
-  };
 
   // Note: handleStartQuestionGeneration and handleStopQuestionGeneration are now defined earlier
   // (before the useEffect hooks that use them) to avoid initialization errors
@@ -804,10 +769,9 @@ const MeetingRoom = () => {
           </Typography>
         </Box>
         
-
         {/* AI Features - Sentiment Dashboard Toggle and Camera Request */}
         {isHost && (
-          <Box className="ai-features-notification" sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Box className="ai-features-notification" sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
             <Button
               variant="contained"
               color="primary"
@@ -836,200 +800,15 @@ const MeetingRoom = () => {
             
             {/* AI Status Display */}
             {aiStatus && (
-              <Box sx={{ mt: 1, p: 1, backgroundColor: aiStatus.status === 'ready' ? '#e8f5e8' : aiStatus.status === 'limited' ? '#fff3cd' : '#f8d7da', borderRadius: 1, border: `1px solid ${aiStatus.status === 'ready' ? '#28a745' : aiStatus.status === 'limited' ? '#ffc107' : '#dc3545'}` }}>
+              <Box sx={{ p: 1, backgroundColor: aiStatus.status === 'ready' ? '#e8f5e8' : aiStatus.status === 'limited' ? '#fff3cd' : '#f8d7da', borderRadius: 1, border: `1px solid ${aiStatus.status === 'ready' ? '#28a745' : aiStatus.status === 'limited' ? '#ffc107' : '#dc3545'}` }}>
                 <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {aiStatus.status === 'ready' ? '✅' : aiStatus.status === 'limited' ? '⚠️' : '❌'}
                   <strong>AI Status:</strong> {aiStatus.message}
                 </Typography>
               </Box>
             )}
-            
           </Box>
         )}
-
-        {/* Debug Tools Menu */}
-        <Box className="debug-tools-notification">
-          <Button
-            variant="outlined"
-            color="secondary"
-            className="debug-tools-button"
-            onClick={(e) => setDebugMenuAnchor(e.currentTarget)}
-            startIcon={<BugReport />}
-          >
-            Debug Tools
-          </Button>
-          
-          <Menu
-            anchorEl={debugMenuAnchor}
-            open={Boolean(debugMenuAnchor)}
-            onClose={() => setDebugMenuAnchor(null)}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'left',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
-            }}
-          >
-            <MenuItem 
-              onClick={() => {
-                setShowAudioTroubleshooter(!showAudioTroubleshooter);
-                setDebugMenuAnchor(null);
-              }}
-            >
-              <ListItemIcon>
-                🔧
-              </ListItemIcon>
-              <ListItemText 
-                primary={showAudioTroubleshooter ? 'Hide Audio Troubleshooter' : 'Show Audio Troubleshooter'}
-                secondary="Diagnose audio issues"
-              />
-            </MenuItem>
-            
-            <MenuItem 
-              onClick={() => {
-                handleCompatibilityTest();
-                setDebugMenuAnchor(null);
-              }}
-            >
-              <ListItemIcon>
-                🔍
-              </ListItemIcon>
-              <ListItemText 
-                primary="Run Device Compatibility Test"
-                secondary="Check device capabilities"
-              />
-            </MenuItem>
-            
-            <MenuItem 
-              onClick={() => {
-                // Re-initialize media (includes audio)
-                if (initializeMedia) {
-                  initializeMedia().then(() => {
-                    alert('Media re-initialized. Check if audio is now working.');
-                  }).catch((err) => {
-                    alert('Failed to re-initialize media: ' + err.message);
-                  });
-                } else {
-                  alert('Media initialization function not available');
-                }
-                setDebugMenuAnchor(null);
-              }}
-            >
-              <ListItemIcon>
-                🔄
-              </ListItemIcon>
-              <ListItemText 
-                primary="Re-initialize Media"
-                secondary="Re-initialize camera and microphone"
-              />
-            </MenuItem>
-            
-            <MenuItem 
-              onClick={() => {
-                if (window.forceLocalVideo) {
-                  window.forceLocalVideo();
-                  alert('Force local video attempted. Check if your video is now visible.');
-                } else {
-                  alert('Force local video function not available');
-                }
-                setDebugMenuAnchor(null);
-              }}
-            >
-              <ListItemIcon>
-                📹
-              </ListItemIcon>
-              <ListItemText 
-                primary="Force Local Video"
-                secondary="Manually force local video stream assignment"
-              />
-            </MenuItem>
-            
-            <MenuItem 
-              onClick={() => {
-                if (window.debugVideoStatus) {
-                  window.debugVideoStatus();
-                  alert('Video status logged to console. Check browser console for details.');
-                } else {
-                  alert('Debug video status function not available');
-                }
-                setDebugMenuAnchor(null);
-              }}
-            >
-              <ListItemIcon>
-                🔍
-              </ListItemIcon>
-              <ListItemText 
-                primary="Debug Video Status"
-                secondary="Check video stream and element status in console"
-              />
-            </MenuItem>
-            
-            <MenuItem 
-              onClick={() => {
-                setShowVideoDebugPanel(!showVideoDebugPanel);
-                setDebugMenuAnchor(null);
-              }}
-            >
-              <ListItemIcon>
-                🛠️
-              </ListItemIcon>
-              <ListItemText 
-                primary={showVideoDebugPanel ? 'Hide Video Debug Panel' : 'Show Video Debug Panel'}
-                secondary="Toggle video debugging tools panel"
-              />
-            </MenuItem>
-            
-            {isHost && (
-              <MenuItem 
-                onClick={() => {
-                  // Force connection to all participants
-                  if (forceConnection) {
-                    forceConnection();
-                    alert('Force connection attempted. Video should be re-shared to all participants.');
-                  } else {
-                    alert('Force connection function not available');
-                  }
-                  setDebugMenuAnchor(null);
-                }}
-              >
-                <ListItemIcon>
-                  📹
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Force Re-connect"
-                  secondary="Force re-connection to all participants"
-                />
-              </MenuItem>
-            )}
-            
-            
-            {isHost && (
-              <MenuItem 
-                onClick={() => {
-                  if (isQuestionGenerationActive) {
-                    handleStopQuestionGeneration();
-                  } else {
-                    handleStartQuestionGeneration();
-                  }
-                  setDebugMenuAnchor(null);
-                }}
-              >
-                <ListItemIcon>
-                  {isQuestionGenerationActive ? '🛑' : '🤖'}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={isQuestionGenerationActive ? 'Stop AI Question Generation' : 'Start AI Question Generation'}
-                  secondary={isQuestionGenerationActive ? 'Stop AI follow-up questions' : 'Enable AI follow-up questions'}
-                />
-              </MenuItem>
-            )}
-          </Menu>
-        </Box>
-
-        {/* AI Status removed for privacy - participants should not see analysis status */}
-
       </Box>
 
       {/* AI Features - Sentiment Dashboard */}
@@ -1077,21 +856,6 @@ const MeetingRoom = () => {
 
       {/* REMOVED: Highlight Toast Notification - Feature removed */}
 
-      {/* Audio Troubleshooter */}
-      <AudioTroubleshooter
-        localStream={localStream}
-        remoteStreams={remoteStreams}
-        isVisible={showAudioTroubleshooter}
-        onClose={() => setShowAudioTroubleshooter(false)}
-      />
-
-      {/* Compatibility Test Results */}
-      <CompatibilityTestResults
-        open={showCompatibilityTest}
-        onClose={() => setShowCompatibilityTest(false)}
-        results={compatibilityResults}
-        onRetest={handleCompatibilityTest}
-      />
       
       {/* Debug info for dashboard visibility */}
       {console.log('🔍 Dashboard Debug:', {
@@ -1119,13 +883,13 @@ const MeetingRoom = () => {
       </Box>
 
 
-      {/* Free Transcription for AI Question Generation */}
+      {/* Free Transcription for AI Question Generation - Hidden UI, runs in background */}
       <FreeTranscription
         socket={socket}
         meetingId={meetingId}
         participantId={socket?.id}
         participantName={finalUserName}
-        isVisible={true}
+        isVisible={false}
         onTranscriptUpdate={(transcript, confidence) => {
           console.log('📝 Transcript update received:', { transcript, confidence });
         }}
@@ -1381,109 +1145,6 @@ const MeetingRoom = () => {
           onStopScreenShare={stopNewScreenShare}
           userName={finalUserName}
         />
-      )}
-
-      {/* Video Debug Panel */}
-      {showVideoDebugPanel && (
-        <Box
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            width: '300px',
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            color: 'white',
-            padding: '20px',
-            borderRadius: '8px',
-            zIndex: 9999,
-            border: '2px solid #4CAF50',
-            fontFamily: 'monospace',
-            fontSize: '12px'
-          }}
-        >
-          <Typography variant="h6" style={{ marginBottom: '15px', color: '#4CAF50' }}>
-            🛠️ Video Debug Panel
-          </Typography>
-          
-          <Box style={{ marginBottom: '15px' }}>
-            <Typography variant="body2" style={{ marginBottom: '5px' }}>
-              <strong>Local Stream:</strong> {localStream ? '✅ Available' : '❌ Not Available'}
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: '5px' }}>
-              <strong>Video Element:</strong> {localVideoRef?.current ? '✅ Found' : '❌ Not Found'}
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: '5px' }}>
-              <strong>Remote Streams:</strong> {Object.keys(remoteStreams).length} participant(s)
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: '5px' }}>
-              <strong>Participants:</strong> {participants.length} total
-            </Typography>
-            <Typography variant="body2" style={{ marginBottom: '5px' }}>
-              <strong>Is Host:</strong> {isHost ? '✅ Yes' : '❌ No'}
-            </Typography>
-          </Box>
-          
-          <Box style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <Button
-              variant="contained"
-              color="primary"
-              size="small"
-              onClick={() => {
-                if (window.forceLocalVideo) {
-                  window.forceLocalVideo();
-                } else {
-                  alert('Force local video function not available');
-                }
-              }}
-              style={{ fontSize: '11px' }}
-            >
-              🔧 Force Local Video
-            </Button>
-            
-            <Button
-              variant="contained"
-              color="secondary"
-              size="small"
-              onClick={() => {
-                if (window.debugVideoStatus) {
-                  window.debugVideoStatus();
-                } else {
-                  alert('Debug video status function not available');
-                }
-              }}
-              style={{ fontSize: '11px' }}
-            >
-              🔍 Debug Video Status
-            </Button>
-            
-            <Button
-              variant="contained"
-              color="warning"
-              size="small"
-              onClick={() => {
-                if (initializeMedia) {
-                  initializeMedia();
-                  alert('Media initialization attempted');
-                } else {
-                  alert('Initialize media function not available');
-                }
-              }}
-              style={{ fontSize: '11px' }}
-            >
-              🎥 Re-initialize Media
-            </Button>
-            
-            <Button
-              variant="outlined"
-              color="error"
-              size="small"
-              onClick={() => setShowVideoDebugPanel(false)}
-              style={{ fontSize: '11px' }}
-            >
-              ❌ Close Panel
-            </Button>
-          </Box>
-        </Box>
       )}
 
     </Container>

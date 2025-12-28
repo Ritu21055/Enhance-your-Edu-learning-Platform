@@ -2,7 +2,8 @@ import { activeMeetings, fatigueData, sentimentData } from '../config/stores.js'
 
 // Fatigue Detection Configuration
 export const FATIGUE_THRESHOLD = 20;
-export const SUSTAINED_DURATION = 2 * 60 * 1000;
+export const SUSTAINED_DURATION = 3 * 60 * 1000; // 3 minutes for all emotions (negative + neutral)
+export const NEUTRAL_FATIGUE_DURATION = 3 * 60 * 1000; // 3 minutes for neutral (boredom)
 export const HISTORY_DURATION = 5 * 60 * 1000;
 export const FATIGUE_CHECK_INTERVAL = 30 * 1000;
 
@@ -184,6 +185,69 @@ export function checkFatigue(meetingId, io) {
   }
   
   const now = Date.now();
+  
+  // Check for sustained neutral emotion (boredom detection) - 3 minutes
+  const neutralHistory = meetingFatigueData.history.filter(
+    entry => now - entry.timestamp <= NEUTRAL_FATIGUE_DURATION
+  );
+  
+  if (neutralHistory.length >= 2) {
+    // Check if all or majority participants showing neutral for 3+ minutes
+    const allNeutral = neutralHistory.every(entry => {
+      const neutralCount = entry.sentimentCounts['neutral'] || 0;
+      const totalParticipants = entry.totalParticipants || 0;
+      // If 80%+ showing neutral, consider it as boredom
+      return totalParticipants > 0 && (neutralCount / totalParticipants) >= 0.8;
+    });
+    
+    const neutralDuration = now - neutralHistory[0].timestamp;
+    
+    if (allNeutral && neutralDuration >= NEUTRAL_FATIGUE_DURATION) {
+      const latestSentimentCounts = neutralHistory[neutralHistory.length - 1]?.sentimentCounts || {};
+      const neutralPercentage = ((latestSentimentCounts['neutral'] || 0) / (neutralHistory[neutralHistory.length - 1]?.totalParticipants || 1)) * 100;
+      
+      const alertMessage = {
+        type: 'warning',
+        icon: '😴',
+        title: 'Boredom Detected (Sustained Neutral)',
+        message: `${Math.round(neutralPercentage)}% of participants showing neutral emotion for ${Math.floor(neutralDuration / (60 * 1000))} minutes - may indicate boredom`,
+        suggestions: [
+          'Ask an engaging question to re-energize participants',
+          'Switch to a more interactive or visual format',
+          'Take a short 2-3 minute break',
+          'Use polls, activities, or breakout discussions',
+          'Check if the content is too repetitive or unclear',
+          'Encourage participants to share their thoughts'
+        ],
+        dominantEmotion: 'neutral',
+        urgency: 'medium',
+        isNeutralFatigue: true
+      };
+      
+      const hostSocketId = meeting.hostId;
+      if (hostSocketId) {
+        io.to(hostSocketId).emit('fatigue_alert', {
+          meetingId,
+          alert: alertMessage,
+          fatiguePercentage: neutralPercentage,
+          duration: neutralDuration,
+          timestamp: now
+        });
+        
+        console.log('🚨 Neutral fatigue (boredom) alert sent to host:', {
+          meetingId,
+          hostId: hostSocketId,
+          neutralPercentage: Math.round(neutralPercentage),
+          duration: Math.round(neutralDuration / 1000),
+          alertType: alertMessage.type
+        });
+        
+        return; // Don't check regular fatigue if neutral fatigue detected
+      }
+    }
+  }
+  
+  // Original fatigue detection for negative emotions - 2 minutes
   const recentHistory = meetingFatigueData.history.filter(
     entry => now - entry.timestamp <= SUSTAINED_DURATION
   );
