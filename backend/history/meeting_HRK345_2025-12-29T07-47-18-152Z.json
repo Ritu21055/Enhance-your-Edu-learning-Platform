@@ -1,0 +1,42 @@
+{
+  "meeting": {
+    "id": "HRK345",
+    "title": "Meeting HRK345",
+    "endedAt": "2025-12-29T07:47:18.163Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "This meeting discussed .",
+    "keyPoints": [],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "riya": [
+        "oh okay he was a baby"
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "riya",
+        "timestamp": "13:28:45",
+        "text": "oh okay he was a baby"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-29T07:47:18.167Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-29T07:47:18.167Z"
+  }
+}
