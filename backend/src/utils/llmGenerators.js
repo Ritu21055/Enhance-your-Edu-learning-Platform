@@ -200,8 +200,8 @@ ${emotionSummary.join('\n')}
 - Consider the overall emotional state when generating the question`;
     }
     
-    // Ultra-minimal prompt for fastest generation
-    const contextLimit = 150; // Very short context for fastest processing
+    // Improved prompt with better context and instructions
+    const contextLimit = 300; // Increased from 150 to 300 for better context
     const shortContext = transcriptContext.length > contextLimit 
       ? transcriptContext.substring(0, contextLimit) + '...' 
       : transcriptContext;
@@ -211,10 +211,29 @@ ${emotionSummary.join('\n')}
       ? `Participants: ${allParticipantsWithEmotions.map(p => p.name).join(', ')}. ` 
       : '';
     
-    // Minimal prompt - context, participant names, and instruction
-    const prompt = `"${shortContext}"
+    // IMPROVED prompt with critical instructions to prevent generic questions
+    const prompt = `You are an intelligent meeting facilitator. Analyze this conversation and generate ONE highly relevant follow-up question.
 
-${participantNamesList}${allParticipantsWithEmotions.length > 0 ? `CRITICAL: When generating a question based on participant emotions or conversation, ALWAYS start with their name followed by a comma. Available names: "${allParticipantsWithEmotions.map(p => p.name).join('", "')}". Example format: "Rahul, [question]" or "Priya, [question]". ` : ''}Q:`;
+CONVERSATION CONTEXT:
+"${shortContext}"
+
+CRITICAL REQUIREMENTS:
+1. The question MUST be DIRECTLY related to what was discussed in the conversation above
+2. The question MUST reference specific topics, points, or issues mentioned in the conversation
+3. ${allParticipantsWithEmotions.length > 0 ? `ALWAYS start with participant name followed by comma when addressing them. Available names: "${allParticipantsWithEmotions.map(p => p.name).join('", "')}". Example: "Rahul, [question]" or "Priya, [question]". ` : ''}
+4. DO NOT generate generic questions that could apply to any meeting
+5. DO NOT generate questions about topics NOT mentioned in the conversation
+6. If the conversation is unclear or too short, respond with only "SKIP" (no question)
+7. The question should build on the LAST 2-3 sentences or main points discussed
+8. Keep it concise (one sentence, maximum 20 words)
+
+EXAMPLES OF BAD QUESTIONS (DO NOT GENERATE THESE):
+- "Are there any dependencies we need to consider?" (too generic)
+- "What are your thoughts on this?" (too vague)
+- "Can you elaborate?" (not specific enough)
+- "I understand your concerns about..." (not a question, too generic)
+
+Generate ONLY the question, or "SKIP" if conversation is unclear. No explanations.`;
 
     try {
       const controller = new AbortController();
@@ -257,6 +276,20 @@ ${participantNamesList}${allParticipantsWithEmotions.length > 0 ? `CRITICAL: Whe
       }
 
       const question = data.response.trim();
+      
+      // CRITICAL: Filter out generic/invalid questions
+      if (!question || 
+          question.toLowerCase() === 'skip' || 
+          question.length < 10 ||
+          question.toLowerCase().startsWith('i understand') ||
+          question.toLowerCase().startsWith('i see') ||
+          question.toLowerCase().includes('any thoughts') ||
+          question.toLowerCase().includes('can you elaborate') ||
+          question.toLowerCase().includes('are there any dependencies')) {
+        console.log('🤖 Ollama: Skipping generic/invalid question:', question);
+        return { question: '' };
+      }
+      
       console.log('🤖 Ollama: Generated question:', question);
       
       return { question };

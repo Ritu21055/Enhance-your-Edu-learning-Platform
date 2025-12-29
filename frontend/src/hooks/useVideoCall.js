@@ -958,8 +958,10 @@ const useVideoCall = (meetingId, userName) => {
     // CRITICAL: Wait a tiny bit to ensure stream is fully ready
     // SimplePeer needs the stream to be in a stable state
     
-    // Ensure audio is enabled before creating peer
-    PeerOptimizer.ensureAudioEnabled(streamRef.current, participantId);
+    // REMOVED: PeerOptimizer.ensureAudioEnabled call
+    // This was forcing audio to be enabled even when user had explicitly muted themselves
+    // Audio state should be controlled ONLY by user's toggle actions
+    // The stream tracks should maintain their current enabled/disabled state
     
     const peer = new SimplePeer({
       initiator,

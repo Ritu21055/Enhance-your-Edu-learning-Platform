@@ -1,0 +1,50 @@
+{
+  "meeting": {
+    "id": "2222",
+    "title": "Meeting 2222",
+    "endedAt": "2025-12-29T07:29:59.289Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "This meeting discussed .",
+    "keyPoints": [],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "VINESH MANOJ": []
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "13:06:36",
+        "text": "Albany"
+      },
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "13:06:38",
+        "text": " perfect"
+      },
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "13:06:47",
+        "text": " entire screenshot"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-29T07:29:59.296Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-29T07:29:59.297Z"
+  }
+}

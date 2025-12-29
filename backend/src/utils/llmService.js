@@ -366,14 +366,17 @@ class LLMService {
     this.performanceStats.lastRequestTime = startTime;
     
     try {
-      console.log(`🤖 Generating follow-up question with ${this.llmType}...`, { 
+      console.log(`🤖 Generating follow-up question...`, { 
         meetingId, 
         contextLength: transcriptContext.length,
         totalParticipants: allParticipantsWithEmotions.length,
         negativeEmotions: emotionCategories.negative?.length || 0,
         positiveEmotions: emotionCategories.positive?.length || 0,
         neutralEmotions: emotionCategories.neutral?.length || 0,
-        participantEmotionsCount: Object.keys(participantEmotions).length
+        participantEmotionsCount: Object.keys(participantEmotions).length,
+        currentLLMType: this.llmType,
+        hasGeminiKey: !!this.geminiApiKey,
+        hasGeminiClient: !!this.geminiClient
       });
       
       // Analyze transcript context for topic detection
@@ -384,9 +387,11 @@ class LLMService {
       let modelName;
       let confidence;
 
-      // Try different LLM options based on availability
-      if (this.llmType === 'gemini') {
+      // CRITICAL FIX: Always try Gemini FIRST if API key exists, regardless of current llmType
+      // This ensures Gemini is used whenever available, even if it failed before
+      if (this.geminiApiKey && this.geminiClient) {
         try {
+          console.log('🤖 Attempting Gemini generation...');
           const result = await this.generateWithGemini(
             transcriptContext, 
             topics, 
@@ -399,6 +404,9 @@ class LLMService {
           generatedQuestion = result.question;
           modelName = this.geminiModel;
           confidence = 0.9;
+          // CRITICAL: Reset llmType to gemini on success
+          this.llmType = 'gemini';
+          console.log('✅ Gemini generation successful');
         } catch (error) {
           // Check if it's a quota/rate limit error
           const errorMessage = error.message || error.toString() || '';
@@ -409,72 +417,41 @@ class LLMService {
                               errorMessage.includes('rate limit') ||
                               errorMessage.includes('Quota exceeded');
           
-          if (isQuotaError) {
-            console.log('⚠️ Gemini quota exhausted, trying Ollama fallback (priority: phi3:mini -> llama3.2:3b)...');
+          console.log(`⚠️ Gemini failed (${isQuotaError ? 'quota' : 'error'}):`, errorMessage);
+          
+          // Fall back to Ollama only for this request
+          // Don't permanently change llmType - keep it as 'gemini' for next request
+          try {
+            console.log('🔄 Trying Ollama fallback for this request...');
+            const ollamaResult = await this.tryOllamaWithPriority(
+              transcriptContext, 
+              topics, 
+              sentiment,
+              allParticipantsWithEmotions,
+              participantEmotions,
+              participantNames,
+              emotionCategories
+            );
             
-            // Try Ollama with priority: phi3:mini -> llama3.2:3b -> rule-based
-            try {
-              const ollamaResult = await this.tryOllamaWithPriority(
-                transcriptContext, 
-                topics, 
-                sentiment,
-                allParticipantsWithEmotions,
-                participantEmotions,
-                participantNames,
-                emotionCategories
-              );
-              
-              if (ollamaResult.success) {
-                generatedQuestion = ollamaResult.question;
-                modelName = ollamaResult.modelName;
-                confidence = ollamaResult.confidence;
-                this.ollamaEnabled = true;
-                this.llmType = 'ollama';
-                console.log('✅ Successfully used Ollama as fallback');
-              } else {
-                throw new Error('All Ollama models failed');
-              }
-            } catch (ollamaError) {
-              console.log('⚠️ All Ollama models failed, falling back to rule-based:', ollamaError.message);
-              const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
-              generatedQuestion = result.question;
-              modelName = 'rule-based-fallback';
-              confidence = 0.6;
+            if (ollamaResult.success) {
+              generatedQuestion = ollamaResult.question;
+              modelName = ollamaResult.modelName;
+              confidence = ollamaResult.confidence;
+              // Don't change llmType - keep it as 'gemini' so next request tries Gemini again
+              console.log('✅ Used Ollama as temporary fallback (Gemini will be tried again next time)');
+            } else {
+              throw new Error('All Ollama models failed');
             }
-          } else {
-            // Non-quota error, try Ollama with priority then rule-based
-            console.log('🤖 Gemini failed (non-quota), trying Ollama fallback (priority: phi3:mini -> llama3.2:3b)...');
-            try {
-              const ollamaResult = await this.tryOllamaWithPriority(
-                transcriptContext, 
-                topics, 
-                sentiment,
-                allParticipantsWithEmotions,
-                participantEmotions,
-                participantNames,
-                emotionCategories
-              );
-              
-              if (ollamaResult.success) {
-                generatedQuestion = ollamaResult.question;
-                modelName = ollamaResult.modelName;
-                confidence = ollamaResult.confidence;
-                this.ollamaEnabled = true;
-                this.llmType = 'ollama';
-              } else {
-                throw new Error('All Ollama models failed');
-              }
-            } catch (ollamaError) {
-              console.log('🤖 All Ollama models failed, falling back to rule-based:', ollamaError.message);
-              const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
-              generatedQuestion = result.question;
-              modelName = 'rule-based-fallback';
-              confidence = 0.6;
-            }
+          } catch (ollamaError) {
+            console.log('⚠️ Ollama fallback failed, using rule-based:', ollamaError.message);
+            const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
+            generatedQuestion = result.question;
+            modelName = 'rule-based-fallback';
+            confidence = 0.6;
           }
         }
       } else if (this.llmType === 'ollama') {
-        // Try Ollama with priority: phi3:mini -> llama3.2:3b -> rule-based
+        // Only use Ollama if Gemini is not available at all
         try {
           const ollamaResult = await this.tryOllamaWithPriority(
             transcriptContext, 
@@ -501,10 +478,10 @@ class LLMService {
           confidence = 0.6;
         }
       } else {
-        // Fallback to rule-based
+        // Rule-based fallback
         const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
         generatedQuestion = result.question;
-        modelName = 'rule-based';
+        modelName = 'rule-based-fallback';
         confidence = 0.6;
       }
       

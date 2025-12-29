@@ -814,41 +814,10 @@ const useSimplePeer = (meetingId, userName) => {
     }
   }, [participants, localStream, createConnectionsToAllParticipants]);
 
-  // CRITICAL: Periodically ensure audio tracks are enabled in all peer connections
-  useEffect(() => {
-    if (!localStream || !isHost) return; // Only for host
-    
-    const ensureAudioEnabled = () => {
-      // Ensure audio tracks in local stream are enabled
-      const audioTracks = localStream.getAudioTracks();
-      audioTracks.forEach((track, index) => {
-        if (!track.enabled) {
-          track.enabled = true;
-          console.log(`🔊 SimplePeer: Periodic check - enabled audio track ${index} in local stream`);
-        }
-      });
-      
-      // Ensure audio tracks in all peer connections are enabled
-      Object.entries(peersRef.current).forEach(([participantId, peer]) => {
-        if (peer && peer._pc) {
-          const senders = peer._pc.getSenders();
-          const audioSenders = senders.filter(s => s.track && s.track.kind === 'audio');
-          audioSenders.forEach((sender, index) => {
-            if (sender.track && !sender.track.enabled) {
-              sender.track.enabled = true;
-              console.log(`🔊 SimplePeer: Periodic check - enabled audio track in sender ${index} for ${participantId}`);
-            }
-          });
-        }
-      });
-    };
-    
-    // Check immediately and then every 5 seconds
-    ensureAudioEnabled();
-    const interval = setInterval(ensureAudioEnabled, 5000);
-    
-    return () => clearInterval(interval);
-  }, [localStream, isHost]);
+  // REMOVED: Periodic audio enable check
+  // This was causing audio to automatically turn back on even when user explicitly muted themselves
+  // Audio state should be controlled ONLY by user's toggle actions, not by periodic checks
+  // The periodic check was interfering with user's explicit mute/unmute actions
 
   // Set up socket event listeners
   useEffect(() => {
