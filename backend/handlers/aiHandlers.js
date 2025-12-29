@@ -108,13 +108,13 @@ export default function registerAIHandlers(socket, io) {
     checkFatigue(meetingId, io);
   });
 
-  // AI-Driven Smart Follow-up Question Generation - Audio Data Handler with Intelligent Recording
+  // AI-Driven Smart Follow-up Question Generation - Audio Data Handler
   socket.on('audio_data', async (data) => {
     try {
       console.log('🎤 Received audio data:', { meetingId: data.meetingId, chunkIndex: data.chunkIndex });
       
-      // Process audio with intelligent stream handling
-      mediaRecorder.processAudioChunk(data.meetingId, socket.id, data.audioChunk, data.timestamp);
+      // REMOVED: Recording feature - mediaRecorder no longer exists
+      // mediaRecorder.processAudioChunk(data.meetingId, socket.id, data.audioChunk, data.timestamp);
       
       // Process audio for transcription
       const transcriptionResult = await llmService.getTranscription(data.audioChunk, data.meetingId);
@@ -191,7 +191,16 @@ export default function registerAIHandlers(socket, io) {
         if (meetingSentimentData && meetingSentimentData.participants) {
           const meeting = activeMeetings.get(meetingId);
           
+          // Get host ID to exclude from participant emotions
+          const hostId = meeting?.hostId;
+          
           meetingSentimentData.participants.forEach((data, participantId) => {
+            // EXCLUDE HOST - only count actual participants' emotions
+            if (participantId === hostId) {
+              console.log('🚫 Skipping host emotions for question generation');
+              return; // Skip host emotions
+            }
+            
             participantEmotions[participantId] = data.emotion;
             
             // Get participant name
@@ -202,7 +211,7 @@ export default function registerAIHandlers(socket, io) {
               }
             }
             
-            // Collect ALL participants with their emotions
+            // Collect ONLY actual participants with their emotions (not host)
             allParticipantsWithEmotions.push({
               id: participantId,
               name: participantNames[participantId] || 'a participant',
@@ -212,8 +221,14 @@ export default function registerAIHandlers(socket, io) {
           });
         }
 
-        // Check if we have participant emotions
+        // Check if we have participant emotions (excluding host)
         const hasParticipantEmotions = allParticipantsWithEmotions.length > 0;
+        
+        console.log('🤖 Emotion check:', {
+          totalEmotions: meetingSentimentData?.participants?.size || 0,
+          participantEmotions: allParticipantsWithEmotions.length,
+          hasParticipantEmotions
+        });
 
         // Progressive validation based on conversation length
         const contextLength = recentContext.length;

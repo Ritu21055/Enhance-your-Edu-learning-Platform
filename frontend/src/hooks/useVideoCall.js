@@ -35,7 +35,6 @@ const useVideoCall = (meetingId, userName) => {
   const signalQueueRef = useRef([]); // Queue signals if socket isn't ready
   const earlySignalQueueRef = useRef([]); // Queue signals that arrive before media is ready
   const reconnectingUsersRef = useRef(new Set()); // Track users currently reconnecting
-  const remoteStreamsRef = useRef({}); // Track remote streams for debugging
   const participantMediaStateRef = useRef({}); // Track video/audio enabled state for each participant
 
   // Initialize Socket Connection
@@ -937,55 +936,21 @@ const useVideoCall = (meetingId, userName) => {
 
   // Create Peer Connection
   const createPeerConnection = useCallback((participantId, initiator) => {
-    const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
-    console.log(`🔗🔗🔗🔗🔗 CREATE PEER CONNECTION CALLED 🔗🔗🔗🔗🔗`);
-    console.log(`🔗 createPeerConnection called:`, {
-      participantId,
-      participantName,
-      initiator,
-      hasStream: !!streamRef.current,
-      streamActive: streamRef.current?.active || false,
-      streamTracks: streamRef.current ? streamRef.current.getTracks().length : 0,
-      hasExistingPeer: !!peersRef.current[participantId],
-      socketId: socketRef.current?.id,
-      isHost: isHostRef.current
-    });
-    
     // Don't create duplicate connections
     if (peersRef.current[participantId]) {
-      console.log(`⏭️ Connection already exists to ${participantId}`);
       return;
     }
 
-    if (!streamRef.current) {
-      console.error(`❌ Cannot create connection: no local stream`);
-      return;
-    }
-
-    console.log(`✅ Creating new peer connection to ${participantId}, initiator: ${initiator}`);
-    console.log(`  - Stream available: ${!!streamRef.current}`);
-    console.log(`  - Stream active: ${streamRef.current?.active || false}`);
-    console.log(`  - Stream tracks: ${streamRef.current ? streamRef.current.getTracks().length : 0}`);
-    if (streamRef.current) {
-      const videoTracks = streamRef.current.getVideoTracks();
-      const audioTracks = streamRef.current.getAudioTracks();
-      console.log(`  - Video tracks: ${videoTracks.length}, enabled: ${videoTracks[0]?.enabled || false}`);
-      console.log(`  - Audio tracks: ${audioTracks.length}, enabled: ${audioTracks[0]?.enabled || false}`);
-    }
-    
-    // CRITICAL: Ensure stream is ready before creating peer
     if (!streamRef.current || !streamRef.current.active) {
-      console.error(`❌ Cannot create peer: stream not ready!`);
-      console.error(`  - Stream exists: ${!!streamRef.current}`);
-      console.error(`  - Stream active: ${streamRef.current?.active || false}`);
+      console.error(`❌ Cannot create connection: no local stream or stream not active`);
       return;
     }
-    
-    // CRITICAL: Ensure stream tracks are ready before creating peer
+
+    // Ensure stream tracks are ready
     const videoTracks = streamRef.current.getVideoTracks();
     const audioTracks = streamRef.current.getAudioTracks();
     if (videoTracks.length === 0 && audioTracks.length === 0) {
-      console.error(`❌ Cannot create peer: stream has no tracks!`);
+      console.error(`❌ Cannot create peer: stream has no tracks`);
       return;
     }
     
@@ -1671,18 +1636,9 @@ const useVideoCall = (meetingId, userName) => {
     }
   }, [socket, meetingId, streamRef.current, isInitializedRef.current]);
 
-  // Auto-initialize media for host
+  // Auto-initialize media when socket is connected
   useEffect(() => {
-    if (isHost && socketConnected && !isInitializedRef.current) {
-      setTimeout(() => {
-        initializeMedia();
-      }, 1000);
-    }
-  }, [isHost, socketConnected, initializeMedia]);
-
-  // Auto-initialize media for participants
-  useEffect(() => {
-    if (!isHost && socketConnected && !isInitializedRef.current) {
+    if (socketConnected && !isInitializedRef.current) {
       setTimeout(() => {
         initializeMedia();
       }, 1000);
@@ -1699,17 +1655,14 @@ const useVideoCall = (meetingId, userName) => {
 
   // Update all peer connections with new stream state (for video/audio toggle)
   const updateAllPeerConnections = useCallback((newStream, trackType = 'both') => {
-    // CRITICAL: PERMANENT FIX - Never replace stream if we're the host and already have one
-    // This prevents host's video from being affected when participant accepts request
+    // Don't replace stream if we're the host and already have one
     const isHost = isHostRef.current;
     const hasExistingStream = streamRef.current;
     
     if (isHost && hasExistingStream && newStream && newStream !== streamRef.current) {
-      console.warn('🛡️ PERMANENT FIX: Host already has stream, ignoring new stream to prevent video loss');
-      // Don't replace host's stream, just use the existing one
-      // But still update tracks if needed
+      // Use existing stream for host
     } else if (newStream && newStream !== streamRef.current) {
-      // Only replace stream if we're not the host or don't have an existing stream
+      // Replace stream if not host or no existing stream
       const oldStream = streamRef.current;
       if (oldStream) {
         oldStream.getTracks().forEach(track => track.stop());
@@ -1732,26 +1685,13 @@ const useVideoCall = (meetingId, userName) => {
     const triggerRenegotiation = (pc, participantId) => {
       // CRITICAL: Check signaling state more carefully
       // Only renegotiate if we're in a stable state and connection is established
-      if (pc.signalingState !== 'stable') {
-        console.log(`⏸️ Skipping renegotiation for ${participantId} - signaling state is ${pc.signalingState}, not stable`);
+      // Only renegotiate if connection is stable and established
+      if (pc.signalingState !== 'stable' || 
+          (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') ||
+          pc.signalingState === 'have-local-offer' || 
+          pc.signalingState === 'have-remote-offer') {
         return;
       }
-      
-      if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
-        console.log(`⏸️ Skipping renegotiation for ${participantId} - ICE connection state is ${pc.iceConnectionState}, not connected`);
-        return;
-      }
-      
-      // Check if renegotiation is already in progress
-      if (pc.signalingState === 'have-local-offer' || pc.signalingState === 'have-remote-offer') {
-        console.log(`⏸️ Skipping renegotiation for ${participantId} - renegotiation already in progress (${pc.signalingState})`);
-        return;
-      }
-      
-      console.log(`🔄 Triggering renegotiation for ${participantId}`, {
-        signalingState: pc.signalingState,
-        iceConnectionState: pc.iceConnectionState
-      });
       
       pc.createOffer()
         .then(offer => {
@@ -1771,7 +1711,6 @@ const useVideoCall = (meetingId, userName) => {
               from: socketRef.current.id,
               signal: { type: localDescription.type, sdp: localDescription.sdp }
             });
-            console.log(`✅ Renegotiation offer sent to ${participantId}`);
           }
         })
         .catch(err => {
@@ -1792,140 +1731,89 @@ const useVideoCall = (meetingId, userName) => {
       try {
         const pc = peer._pc;
         
-        // CRITICAL: If we're a participant and this is the host's connection,
-        // be extra careful not to trigger renegotiation that might affect host's incoming video
-        const participantIsHost = participantsRef.current.find(p => p.id === participantId)?.isHost;
-        if (!isHost && participantIsHost) {
-          console.log(`🛡️ PERMANENT FIX: Updating participant's outgoing tracks to host (won't affect host's incoming video)`);
-        }
-        
         const senders = pc.getSenders();
         const videoSender = senders.find(s => s.track?.kind === 'video');
         const audioSender = senders.find(s => s.track?.kind === 'audio');
         
         // Update video track
         if ((trackType === 'video' || trackType === 'both') && videoTrack) {
-          // Enable track first
-          if (!videoTrack.enabled) {
-            videoTrack.enabled = true;
-            console.log(`✅ Enabled video track for ${participantId}`);
-          }
-          
           if (videoSender) {
-            // Check if track needs to be replaced (different track ID)
             const currentTrack = videoSender.track;
             if (currentTrack && currentTrack.id === videoTrack.id) {
-              // Same track, ensure it's enabled - WebRTC handles enabled/disabled without renegotiation
-              if (!currentTrack.enabled) {
-                currentTrack.enabled = true;
-                console.log(`✅ Re-enabled video track in sender for ${participantId}`);
+              // Same track - sync enabled state (WebRTC handles this without renegotiation)
+              if (currentTrack.enabled !== videoTrack.enabled) {
+                currentTrack.enabled = videoTrack.enabled;
               }
-              console.log(`ℹ️ Video track already in sender for ${participantId}, track enabled: ${currentTrack.enabled}`);
             } else {
-              // Different track, replace it - but only if connection is stable
-              // ROOT CAUSE FIX: Don't trigger renegotiation if this is just enabling tracks after accept
+              // Different track, replace it if connection is stable
               const shouldReplace = pc.signalingState === 'stable' && 
                                    (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
               
               if (shouldReplace) {
-                console.log(`🔄 Replacing video track for ${participantId} (track ID changed)`);
                 videoSender.replaceTrack(videoTrack)
-                  .then(() => {
-                    console.log(`✅ Video track replaced for ${participantId}, triggering renegotiation`);
-                    triggerRenegotiation(pc, participantId);
-                  })
+                  .then(() => triggerRenegotiation(pc, participantId))
                   .catch(err => console.error(`❌ Failed to replace video track for ${participantId}:`, err));
-              } else {
-                // Connection not stable, just enable existing track
-                if (currentTrack && !currentTrack.enabled) {
-                  currentTrack.enabled = true;
-                }
               }
             }
           } else {
-            // No sender, add track - but only if connection is stable to avoid disconnect
+            // No sender, add track if connection is stable
             const isStable = pc.signalingState === 'stable' && 
                             (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
             
             if (isStable) {
-              console.log(`➕ Adding video track to peer connection for ${participantId}`);
               pc.addTrack(videoTrack, streamToUse);
               triggerRenegotiation(pc, participantId);
-            } else {
-              console.log(`⏸️ Skipping video track addition for ${participantId} - connection not stable (${pc.iceConnectionState})`);
             }
           }
         }
         
         // Update audio track
         if ((trackType === 'audio' || trackType === 'both') && audioTrack) {
-          // Enable track first
-          if (!audioTrack.enabled) {
-            audioTrack.enabled = true;
-            console.log(`✅ Enabled audio track for ${participantId}`);
-          }
-          
           if (audioSender) {
-            // Check if track needs to be replaced (different track ID)
             const currentTrack = audioSender.track;
             if (currentTrack && currentTrack.id === audioTrack.id) {
-              // Same track, ensure it's enabled - WebRTC handles enabled/disabled without renegotiation
-              if (!currentTrack.enabled) {
-                currentTrack.enabled = true;
-                console.log(`✅ Re-enabled audio track in sender for ${participantId}`);
+              // Same track - sync enabled state (WebRTC handles this without renegotiation)
+              if (currentTrack.enabled !== audioTrack.enabled) {
+                currentTrack.enabled = audioTrack.enabled;
               }
-              console.log(`ℹ️ Audio track already in sender for ${participantId}, track enabled: ${currentTrack.enabled}`);
             } else {
-              // Different track, replace it - but only if connection is stable
-              // ROOT CAUSE FIX: Don't trigger renegotiation if this is just enabling tracks after accept
+              // Different track, replace it if connection is stable
               const shouldReplace = pc.signalingState === 'stable' && 
                                    (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
               
               if (shouldReplace) {
-                console.log(`🔄 Replacing audio track for ${participantId} (track ID changed)`);
                 audioSender.replaceTrack(audioTrack)
                   .then(() => {
+                    // Ensure video track stays enabled after audio toggle
                     if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
                       videoTrack.enabled = true;
                     }
-                    console.log(`✅ Audio track replaced for ${participantId}, triggering renegotiation`);
                     triggerRenegotiation(pc, participantId);
                   })
                   .catch(err => console.error(`❌ Failed to replace audio track for ${participantId}:`, err));
-              } else {
-                // Connection not stable, just enable existing track
-                if (currentTrack && !currentTrack.enabled) {
-                  currentTrack.enabled = true;
-                }
               }
             }
           } else {
-            // No sender, add track - but only if connection is stable to avoid disconnect
+            // No sender, add track if connection is stable
             const isStable = pc.signalingState === 'stable' && 
                             (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
             
             if (isStable) {
-              console.log(`➕ Adding audio track to peer connection for ${participantId}`);
               pc.addTrack(audioTrack, streamToUse);
               triggerRenegotiation(pc, participantId);
-            } else {
-              console.log(`⏸️ Skipping audio track addition for ${participantId} - connection not stable (${pc.iceConnectionState})`);
             }
           }
         }
         
-        // Add both tracks if neither exists - but only if connection is stable
+        // Add both tracks if neither exists and connection is stable
         if (trackType === 'both' && !videoSender && !audioSender && videoTrack && audioTrack) {
           const isStable = pc.signalingState === 'stable' && 
                           (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
           
           if (isStable) {
-            console.log(`➕ Adding both tracks to peer connection for ${participantId}`);
             pc.addTrack(videoTrack, streamToUse);
             pc.addTrack(audioTrack, streamToUse);
             triggerRenegotiation(pc, participantId);
-          } else {
-            console.log(`⏸️ Skipping track addition for ${participantId} - connection not stable (${pc.iceConnectionState})`);
           }
         }
       } catch (error) {
@@ -1976,7 +1864,6 @@ const useVideoCall = (meetingId, userName) => {
               if (!videoTrack._targetBitrate || videoTrack._targetBitrate < quality.videoBitrate) {
                 videoTrack._targetBitrate = quality.videoBitrate;
                 videoTrack._targetFrameRate = quality.frameRate;
-                console.log(`🔧 Maintaining host video quality: ${quality.videoBitrate / 1000} kbps @ ${quality.frameRate} fps`);
               }
               
               // Re-apply bitrate to ensure it's maintained
@@ -1989,9 +1876,9 @@ const useVideoCall = (meetingId, userName) => {
       });
     };
     
-    // Check immediately and then every 5 seconds to maintain quality
+    // Check immediately and then every 15 seconds to maintain quality (reduced frequency)
     maintainQuality();
-    const interval = setInterval(maintainQuality, 5000);
+    const interval = setInterval(maintainQuality, 15000);
     
     return () => clearInterval(interval);
   }, [localStream, isHost]);

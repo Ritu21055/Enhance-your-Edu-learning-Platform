@@ -217,247 +217,44 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
     }
   };
 
-  // Toggle Audio - SIMPLE: Only touch audio, protect video
+  // Toggle Audio - SIMPLIFIED: Toggle track and update peer connections
   const toggleAudio = () => {
-    // Check if audio is locked by host request
     if (window.isAudioLocked) {
       console.warn('🔇 Audio is locked by host request - cannot toggle');
       return;
     }
     
-    console.log('🔇🔇🔇🔇 AUDIO TOGGLE START - DETAILED DEBUG');
-    console.trace('🔇 Stack trace at audio toggle start');
-    
     if (!localStream) {
-      console.warn('🔇 useMediaControls: No local stream for audio toggle');
+      console.warn('🔇 No local stream for audio toggle');
       return;
     }
 
-      const audioTrack = localStream.getAudioTracks()[0];
+    const audioTrack = localStream.getAudioTracks()[0];
     if (!audioTrack) {
-      console.warn('🔇 useMediaControls: No audio track found');
+      console.warn('🔇 No audio track found');
       return;
     }
 
-    // CRITICAL: Capture video state BEFORE any operations
-      const videoTrack = localStream.getVideoTracks()[0];
-    const videoWasEnabled = isVideoEnabledRef.current; // Use ref for current value
-    const videoTrackWasEnabled = videoTrack?.enabled ?? false;
-    const videoStateFromState = isVideoEnabled; // Also check state
-    
-    console.log('🔇🔇 BEFORE AUDIO TOGGLE:', {
-      audioCurrent: audioTrack.enabled,
-      videoState: videoWasEnabled,
-      videoStateFromState: videoStateFromState,
-      videoTrackEnabled: videoTrackWasEnabled,
-      isVideoEnabledRef: isVideoEnabledRef.current,
-      videoTrackId: videoTrack?.id,
-      lastToggleTime: lastToggleTimeRef.current,
-      timeSinceLastToggle: Date.now() - lastToggleTimeRef.current
-    });
-    
-    // CRITICAL: Mark that we're toggling audio - prevent sync effect from interfering
-    const toggleStartTime = Date.now();
-    lastToggleTimeRef.current = toggleStartTime;
-    // CRITICAL: Store in window for VideoCall to check
-    window.lastAudioToggleTime = toggleStartTime;
-    console.log('🔇🔇 Marked toggle time:', toggleStartTime);
-
-    // ONLY toggle audio track
+    // Toggle audio track
     const newAudioState = !audioTrack.enabled;
-    console.log('🔇🔇 About to toggle audio from', audioTrack.enabled, 'to', newAudioState);
-    
     audioTrack.enabled = newAudioState;
-    console.log('🔇🔇 Audio track toggled, new state:', audioTrack.enabled);
-    
     setIsAudioEnabled(newAudioState);
-    console.log('🔇🔇 Audio state updated to:', newAudioState);
 
-    // CRITICAL: Check video IMMEDIATELY after audio toggle
-    console.log('🔇🔇 IMMEDIATELY AFTER AUDIO TOGGLE:', {
-      videoTrackEnabled: videoTrack?.enabled,
-      videoState: isVideoEnabled,
-      videoStateRef: isVideoEnabledRef.current,
-      videoWasEnabled: videoWasEnabled,
-      videoTrackWasEnabled: videoTrackWasEnabled
-    });
+    // Get current video state
+    const videoTrack = localStream.getVideoTracks()[0];
+    const currentVideoState = videoTrack?.enabled ?? isVideoEnabled;
 
-    // CRITICAL: Protect video if it was enabled
-    if (videoTrack && videoWasEnabled) {
-      console.log('🔇🔇 Video should be enabled, checking...');
-      
-      // Check track
-      if (!videoTrack.enabled) {
-        console.error('🔇🔇 ❌❌❌ VIDEO TRACK WAS DISABLED! Re-enabling immediately');
-        console.trace('🔇🔇 Where did video track get disabled?');
-        videoTrack.enabled = true;
-        console.log('🔇🔇 ✅ Video track re-enabled');
-      } else {
-        console.log('🔇🔇 ✅ Video track is still enabled');
-      }
-      
-      // Check state
-      if (!isVideoEnabledRef.current) {
-        console.error('🔇🔇 ❌❌❌ VIDEO STATE WAS CHANGED TO FALSE! Restoring immediately');
-        console.trace('🔇🔇 Where did video state get changed?');
-        setIsVideoEnabled(true);
-        console.log('🔇🔇 ✅ Video state restored');
-      } else {
-        console.log('🔇🔇 ✅ Video state is still enabled');
-      }
-      
-      // CRITICAL: Immediately force video element to be visible and playing (SYNCHRONOUS)
-      // This fixes the black screen issue where state is correct but video element is hidden
-      const videoElement = document.querySelector('video.local-video');
-      const currentStream = localStreamRef.current || localStream;
-      if (videoElement && currentStream) {
-        // Force visibility immediately
-        videoElement.style.opacity = '1';
-        videoElement.style.visibility = 'visible';
-        videoElement.style.display = 'block';
-        
-        // Ensure srcObject is set
-        if (videoElement.srcObject !== currentStream) {
-          console.warn('🔇🔇 ❌ IMMEDIATE: Video element lost srcObject, restoring');
-          videoElement.srcObject = currentStream;
-        }
-        
-        // Force play if paused
-        if (videoElement.paused && videoElement.srcObject) {
-          videoElement.play().catch(err => {
-            console.error('🔇🔇 ❌ IMMEDIATE: Error playing video', err);
-          });
-        }
-        console.log('🔇🔇 ✅ Video element forced visible immediately');
-      }
-      
-      // CRITICAL: Also check in next frame to catch any delayed changes
-      requestAnimationFrame(() => {
-        // Find video element - use fresh stream reference
-        const videoElement = document.querySelector('video.local-video');
-        const currentStream = localStreamRef.current || localStream;
-        if (videoElement && videoWasEnabled && currentStream) {
-          // Force video element to be visible
-          videoElement.style.opacity = '1';
-          videoElement.style.visibility = 'visible';
-          videoElement.style.display = 'block';
-          
-          // Ensure srcObject is set
-          if (videoElement.srcObject !== currentStream) {
-            console.warn('🔇🔇 ❌ RAF: Video element lost srcObject, restoring');
-            videoElement.srcObject = currentStream;
-          }
-          
-          // Force play if paused
-          if (videoElement.paused && videoElement.srcObject) {
-            videoElement.play().catch(err => {
-              console.error('🔇🔇 ❌ RAF: Error playing video element', err);
-            });
-          }
-        }
-        
-        console.log('🔇🔇 RAF check after audio toggle:', {
-          videoTrackEnabled: videoTrack?.enabled,
-          videoStateRef: isVideoEnabledRef.current,
-          videoState: isVideoEnabledState,
-          videoWasEnabled: videoWasEnabled,
-          videoElementFound: !!videoElement,
-          videoElementPaused: videoElement?.paused,
-          videoElementSrcObject: !!videoElement?.srcObject
-        });
-        
-        if (videoTrack && videoWasEnabled) {
-          if (!videoTrack.enabled) {
-            console.error('🔇🔇 ❌ RAF: Video track disabled, re-enabling');
-            videoTrack.enabled = true;
-          }
-          if (!isVideoEnabledRef.current) {
-            console.error('🔇🔇 ❌ RAF: Video state ref changed, restoring');
-            setIsVideoEnabled(true);
-          }
-          if (!isVideoEnabledState) {
-            console.error('🔇🔇 ❌ RAF: Video state changed, restoring');
-            setIsVideoEnabled(true);
-          }
-        }
-      });
-      
-      // Additional checks after delays to catch any delayed state changes
-      // CRITICAL: Also force video element to be visible at each check
-      const checkDelays = [100, 200, 500, 1000, 2000];
-      checkDelays.forEach(delay => {
-        setTimeout(() => {
-          const currentTrackEnabled = videoTrack?.enabled;
-          const currentStateRef = isVideoEnabledRef.current;
-          const currentState = isVideoEnabledState;
-          
-          // CRITICAL: Force video element to be visible
-          const videoElement = document.querySelector('video.local-video');
-          const currentStream = localStreamRef.current || localStream;
-          if (videoElement && videoWasEnabled && currentStream) {
-            // Force visibility
-            videoElement.style.opacity = '1';
-            videoElement.style.visibility = 'visible';
-            videoElement.style.display = 'block';
-            
-            // Ensure srcObject
-            if (videoElement.srcObject !== currentStream) {
-              console.warn(`🔇🔇 ❌ ${delay}ms: Video element lost srcObject, restoring`);
-              videoElement.srcObject = currentStream;
-            }
-            
-            // Force play
-            if (videoElement.paused && videoElement.srcObject) {
-              videoElement.play().catch(err => {
-                console.error(`🔇🔇 ❌ ${delay}ms: Error playing video`, err);
-              });
-            }
-          }
-          
-          console.log(`🔇🔇 ${delay}ms check after audio toggle:`, {
-            videoTrackEnabled: currentTrackEnabled,
-            videoStateRef: currentStateRef,
-            videoState: currentState,
-            videoWasEnabled: videoWasEnabled,
-            timeSinceToggle: Date.now() - lastToggleTimeRef.current,
-            videoElementFound: !!videoElement,
-            videoElementPaused: videoElement?.paused,
-            videoElementSrcObject: !!videoElement?.srcObject
-          });
-          
-          if (videoTrack && videoWasEnabled) {
-            if (!currentTrackEnabled) {
-              console.error(`🔇🔇 ❌ ${delay}ms: Video track disabled, re-enabling`);
-              console.trace(`🔇🔇 Where did track get disabled at ${delay}ms?`);
-              videoTrack.enabled = true;
-            }
-            if (!currentStateRef) {
-              console.error(`🔇🔇 ❌ ${delay}ms: Video state ref changed to false, restoring`);
-              console.trace(`🔇🔇 Where did ref get changed at ${delay}ms?`);
-              setIsVideoEnabled(true);
-            }
-            if (!currentState) {
-              console.error(`🔇🔇 ❌ ${delay}ms: Video state changed to false, restoring`);
-              console.trace(`🔇🔇 Where did state get changed at ${delay}ms?`);
-              setIsVideoEnabled(true);
-            }
-          }
-        }, delay);
-      });
-    } else {
-      console.log('🔇🔇 Video was not enabled, skipping protection');
+    // Update peer connections with new track state
+    if (window.updateVideoCallPeerConnections) {
+      window.updateVideoCallPeerConnections(localStream, 'audio');
     }
 
-    // Emit state - use preserved video state
-    console.log('🔇🔇 Emitting media state:', { audio: newAudioState, video: videoWasEnabled });
-    emitMediaState(newAudioState, videoWasEnabled);
-    
-    console.log('🔇🔇🔇🔇 AUDIO TOGGLE END');
+    // Emit state
+    emitMediaState(newAudioState, currentVideoState);
   };
 
-  // Toggle Video - COMPLETELY ISOLATED: No effects, no sync, just toggle
+  // Toggle Video - SIMPLIFIED: Toggle track and update peer connections
   const toggleVideo = () => {
-    // Check if video is locked by host request
     if (window.isVideoLocked) {
       console.warn('🎥 Video is locked by host request - cannot toggle');
       return;
@@ -465,34 +262,22 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
     
     if (!localStream) return;
 
-      const videoTrack = localStream.getVideoTracks()[0];
+    const videoTrack = localStream.getVideoTracks()[0];
     if (!videoTrack) return;
 
-    // CRITICAL: Toggle based on CURRENT STATE only
+    // Toggle video track
     const newState = !isVideoEnabled;
-    
-    // CRITICAL: Mark toggle time to prevent sync effect from interfering
-    lastToggleTimeRef.current = Date.now();
-    
-    console.log('🎥 Video Toggle: Starting', { 
-      from: isVideoEnabled, 
-      to: newState,
-      trackBefore: videoTrack.enabled
-    });
-    
-    // CRITICAL: Set BOTH state and track immediately and synchronously
-    // Don't use protected setter - just set directly
     setIsVideoEnabled(newState);
-        videoTrack.enabled = newState;
-    
-    console.log('🎥 Video Toggle: Completed', { 
-      state: newState,
-      track: videoTrack.enabled
-    });
+    videoTrack.enabled = newState;
 
-    // Get current audio state from track (not state)
+    // Get current audio state
     const audioTrack = localStream.getAudioTracks()[0];
     const currentAudioState = audioTrack?.enabled ?? isAudioEnabled;
+
+    // Update peer connections with new track state
+    if (window.updateVideoCallPeerConnections) {
+      window.updateVideoCallPeerConnections(localStream, 'video');
+    }
     
     emitMediaState(currentAudioState, newState);
   };

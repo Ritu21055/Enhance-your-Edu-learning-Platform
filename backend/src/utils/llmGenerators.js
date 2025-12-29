@@ -192,10 +192,11 @@ Generate ONLY the question, no explanations or additional text.`;
 ${emotionSummary.join('\n')}
 - All participant emotions: ${emotionDetails}
 - Generate questions that:
-  * For negative emotions (confused, sad, fear, angry): Help clarify or address concerns. ALWAYS include participant name.
-  * For positive emotions (happy, surprised, excited): Build on their engagement or excitement. ALWAYS include participant name.
-  * For neutral emotions: Maintain engagement or check understanding. ALWAYS include participant name.
-- CRITICAL: When generating questions based on participant emotions, ALWAYS start with their name and mix the conversation topic with their emotional state
+  * For negative emotions (confused, sad, fear, angry): Help clarify or address concerns. ALWAYS start with participant name followed by comma. Example: "Rahul, would you like to clarify your question about [topic]?"
+  * For positive emotions (happy, surprised, excited): Build on their engagement or excitement. ALWAYS start with participant name followed by comma. Example: "Priya, what aspects of [topic] are you most excited about?"
+  * For neutral emotions: Maintain engagement or check understanding. ALWAYS start with participant name followed by comma. Example: "Sneha, how do you feel about this approach?"
+- CRITICAL: When generating questions based on participant emotions, ALWAYS start with their name followed by a comma. Mix the conversation topic with their emotional state to create a personalized question.
+- Available participant names: ${allParticipantsWithEmotions.map(p => p.name).join(', ')}
 - Consider the overall emotional state when generating the question`;
     }
     
@@ -213,7 +214,7 @@ ${emotionSummary.join('\n')}
     // Minimal prompt - context, participant names, and instruction
     const prompt = `"${shortContext}"
 
-${participantNamesList}${allParticipantsWithEmotions.length > 0 ? `If asking a participant, use their name: "${allParticipantsWithEmotions.map(p => p.name).join('", "')}". ` : ''}Q:`;
+${participantNamesList}${allParticipantsWithEmotions.length > 0 ? `CRITICAL: When generating a question based on participant emotions or conversation, ALWAYS start with their name followed by a comma. Available names: "${allParticipantsWithEmotions.map(p => p.name).join('", "')}". Example format: "Rahul, [question]" or "Priya, [question]". ` : ''}Q:`;
 
     try {
       const controller = new AbortController();
