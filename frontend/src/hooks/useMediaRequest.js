@@ -233,8 +233,9 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
           audioTrackEnabled: audioTrack?.enabled
         });
         
-        // ROOT CAUSE FIX: Enable tracks and add missing tracks directly
-        // This prevents host's video from disappearing when participant accepts
+        // CRITICAL FIX: Only enable existing tracks, don't add new ones here
+        // Adding tracks here causes multiple renegotiations and freezes connections
+        // Use updateAllPeerConnections instead which properly handles track replacement
         if (window.peersRef && localStream) {
           const videoTrack = localStream.getVideoTracks()[0];
           const audioTrack = localStream.getAudioTracks()[0];
@@ -246,35 +247,23 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
               const pc = peer._pc;
               const senders = pc.getSenders();
               
+              // Only enable existing tracks - don't add new ones to avoid renegotiation conflicts
               if (videoTrack) {
                 const videoSender = senders.find(s => s.track?.kind === 'video');
-                if (videoSender?.track) {
+                if (videoSender?.track && videoSender.track.id === videoTrack.id) {
                   if (!videoSender.track.enabled) {
                     videoSender.track.enabled = true;
+                    console.log(`✅ Enabled existing video track for ${participantId}`);
                   }
-                } else {
-                  // No video sender, add track
-                  console.log(`➕ Adding video track to peer connection for ${participantId}`);
-                  pc.addTrack(videoTrack, localStream);
                 }
               }
               
               if (audioTrack) {
                 const audioSender = senders.find(s => s.track?.kind === 'audio');
-                if (audioSender?.track) {
+                if (audioSender?.track && audioSender.track.id === audioTrack.id) {
                   if (!audioSender.track.enabled) {
                     audioSender.track.enabled = true;
-                    console.log(`✅ Enabled audio track in sender for ${participantId}`);
-                  }
-                } else {
-                  // CRITICAL: No audio sender, add track immediately
-                  console.log(`➕➕➕ Adding audio track to peer connection for ${participantId} (was missing)`);
-                  try {
-                    pc.addTrack(audioTrack, localStream);
-                    console.log(`✅ Audio track added to peer connection for ${participantId}`);
-                    // updateAllPeerConnections will handle renegotiation
-                  } catch (err) {
-                    console.error(`❌ Failed to add audio track:`, err);
+                    console.log(`✅ Enabled existing audio track for ${participantId}`);
                   }
                 }
               }
@@ -299,69 +288,16 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
         console.log('✅ Media state change emitted to socket');
       }
 
-      // CRITICAL: Update all peer connections to ensure audio track is added
-      // BUT: Don't trigger aggressive renegotiation that might cause disconnect
-      // Only enable existing tracks, don't add new tracks if connection is established
+      // CRITICAL: Use updateAllPeerConnections to properly handle track updates
+      // This function uses replaceTrack instead of addTrack, preventing multiple renegotiations
       if (window.updateAllPeerConnections && localStream) {
-        console.log('🔄 Calling updateAllPeerConnections to enable tracks (without aggressive renegotiation)');
+        console.log('🔄 Calling updateAllPeerConnections to update tracks properly');
         setTimeout(() => {
-          // Use a safer approach - only enable tracks, don't add new ones if connection exists
-          if (window.peersRef && window.peersRef.current) {
-            const videoTrack = localStream.getVideoTracks()[0];
-            const audioTrack = localStream.getAudioTracks()[0];
-            
-            Object.entries(window.peersRef.current).forEach(([participantId, peer]) => {
-              if (!peer || !peer._pc) return;
-              
-              try {
-                const pc = peer._pc;
-                const senders = pc.getSenders();
-                const videoSender = senders.find(s => s.track?.kind === 'video');
-                const audioSender = senders.find(s => s.track?.kind === 'audio');
-                
-                // Only enable existing tracks, don't add new ones to avoid renegotiation
-                if (videoSender?.track && videoTrack && videoSender.track.id === videoTrack.id) {
-                  if (!videoSender.track.enabled) {
-                    videoSender.track.enabled = true;
-                    console.log(`✅ Enabled existing video track for ${participantId}`);
-                  }
-                }
-                
-                if (audioSender?.track && audioTrack && audioSender.track.id === audioTrack.id) {
-                  if (!audioSender.track.enabled) {
-                    audioSender.track.enabled = true;
-                    console.log(`✅ Enabled existing audio track for ${participantId}`);
-                  }
-                }
-                
-                // Only add tracks if connection is stable and tracks are missing
-                const isStable = pc.signalingState === 'stable' && 
-                                (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
-                
-                if (isStable) {
-                  // Add missing tracks only if connection is stable
-                  if (!videoSender && videoTrack) {
-                    console.log(`➕ Adding video track to stable connection for ${participantId}`);
-                    pc.addTrack(videoTrack, localStream);
-                  }
-                  
-                  if (!audioSender && audioTrack) {
-                    console.log(`➕ Adding audio track to stable connection for ${participantId}`);
-                    pc.addTrack(audioTrack, localStream);
-                  }
-                } else {
-                  console.log(`⏸️ Skipping track addition for ${participantId} - connection not stable (${pc.iceConnectionState})`);
-                }
-              } catch (err) {
-                console.error(`❌ Error updating peer ${participantId}:`, err);
-              }
-            });
-          } else {
-            // Fallback to updateAllPeerConnections if peersRef not available
-            window.updateAllPeerConnections(localStream, 'both');
-            console.log('✅ updateAllPeerConnections called for audio and video (fallback)');
-          }
-        }, 500); // Delay to ensure tracks are ready
+          // Use the proper updateAllPeerConnections function which handles track replacement correctly
+          // It uses replaceTrack() for existing senders and addTrack() only when necessary
+          window.updateAllPeerConnections(localStream, 'both');
+          console.log('✅ updateAllPeerConnections called for audio and video');
+        }, 300); // Small delay to ensure tracks are ready
       }
     }, 200); // Increased delay to ensure tracks are ready
 

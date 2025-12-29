@@ -1844,13 +1844,14 @@ const useVideoCall = (meetingId, userName) => {
     }
   }, []);
 
-  // Expose peersRef to window for useMediaRequest to access
+  // Expose peersRef and updateAllPeerConnections to window for useMediaRequest to access
   useEffect(() => {
     window.peersRef = peersRef;
+    window.updateAllPeerConnections = updateAllPeerConnections;
     return () => {
       // Keep ref available
     };
-  }, []);
+  }, [updateAllPeerConnections]);
 
   // CRITICAL: Periodically maintain video quality and bitrate (for host)
   useEffect(() => {
