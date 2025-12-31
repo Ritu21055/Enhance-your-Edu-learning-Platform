@@ -114,16 +114,9 @@ export class PeerOptimizer {
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
-      sampleRate: 48000, // OPTIMIZED: Increased from 16000 for better quality
+      sampleRate: 16000, // Balanced for performance and quality
       channelCount: 1,
-      latency: 0.01, // OPTIMIZED: Reduced from 0.1 for lower latency
-      // OPTIMIZED: Add constraints for smooth, low-latency audio
-      googEchoCancellation: true,
-      googNoiseSuppression: true,
-      googAutoGainControl: true,
-      googHighpassFilter: true,
-      googTypingNoiseDetection: true,
-      googNoiseReduction: true
+      latency: 0.1 // Balanced latency
     };
   }
 

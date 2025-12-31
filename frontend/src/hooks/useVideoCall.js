@@ -1525,17 +1525,9 @@ const useVideoCall = (meetingId, userName) => {
 
   // Update all peer connections with new stream state (for video/audio toggle)
   const updateAllPeerConnections = useCallback((newStream, trackType = 'both') => {
-    // OPTIMIZED: Debounce to prevent rapid updates causing lag (200ms)
-    if (updateAllPeerConnections._pending) {
-      clearTimeout(updateAllPeerConnections._pending);
-    }
-    
-    updateAllPeerConnections._pending = setTimeout(() => {
-      updateAllPeerConnections._pending = null;
-      
-      // Don't replace stream if we're the host and already have one
-      const isHost = isHostRef.current;
-      const hasExistingStream = streamRef.current;
+    // Don't replace stream if we're the host and already have one
+    const isHost = isHostRef.current;
+    const hasExistingStream = streamRef.current;
     
     if (isHost && hasExistingStream && newStream && newStream !== streamRef.current) {
       // Use existing stream for host
@@ -1561,54 +1553,39 @@ const useVideoCall = (meetingId, userName) => {
     
     // Helper to trigger renegotiation - with better state checking
     const triggerRenegotiation = (pc, participantId) => {
-      // OPTIMIZED: Debounce renegotiation to prevent rapid updates causing lag (300ms)
-      const key = `${participantId}_${pc.signalingState}`;
-      if (triggerRenegotiation._pending && triggerRenegotiation._pending[key]) {
-        return; // Already pending for this peer
+      // CRITICAL: Check signaling state more carefully
+      // Only renegotiate if we're in a stable state and connection is established
+      if (pc.signalingState !== 'stable' || 
+          (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') ||
+          pc.signalingState === 'have-local-offer' || 
+          pc.signalingState === 'have-remote-offer') {
+        return;
       }
       
-      if (!triggerRenegotiation._pending) {
-        triggerRenegotiation._pending = {};
-      }
-      triggerRenegotiation._pending[key] = true;
-      
-      setTimeout(() => {
-        delete triggerRenegotiation._pending[key];
-        
-        // CRITICAL: Check signaling state more carefully
-        // Only renegotiate if we're in a stable state and connection is established
-        if (pc.signalingState !== 'stable' || 
-            (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') ||
-            pc.signalingState === 'have-local-offer' || 
-            pc.signalingState === 'have-remote-offer') {
-          return;
-        }
-        
-        pc.createOffer()
-          .then(offer => {
-            // Double-check state before setting local description
-            if (pc.signalingState === 'stable') {
-              return pc.setLocalDescription(offer);
-            } else {
-              console.warn(`⚠️ Signaling state changed to ${pc.signalingState} before setLocalDescription, skipping`);
-              throw new Error('Signaling state changed');
-            }
-          })
-          .then(() => {
-            const localDescription = pc.localDescription;
-            if (localDescription && socketRef.current?.id) {
-              socketRef.current.emit('signal', {
-                to: participantId,
-                from: socketRef.current.id,
-                signal: { type: localDescription.type, sdp: localDescription.sdp }
-              });
-            }
-          })
-          .catch(err => {
-            console.error(`❌ Failed to renegotiate with ${participantId}:`, err);
-            // Don't break the connection on renegotiation error
-          });
-      }, 300); // 300ms debounce for renegotiation
+      pc.createOffer()
+        .then(offer => {
+          // Double-check state before setting local description
+          if (pc.signalingState === 'stable') {
+            return pc.setLocalDescription(offer);
+          } else {
+            console.warn(`⚠️ Signaling state changed to ${pc.signalingState} before setLocalDescription, skipping`);
+            throw new Error('Signaling state changed');
+          }
+        })
+        .then(() => {
+          const localDescription = pc.localDescription;
+          if (localDescription && socketRef.current?.id) {
+            socketRef.current.emit('signal', {
+              to: participantId,
+              from: socketRef.current.id,
+              signal: { type: localDescription.type, sdp: localDescription.sdp }
+            });
+          }
+        })
+        .catch(err => {
+          console.error(`❌ Failed to renegotiate with ${participantId}:`, err);
+          // Don't break the connection on renegotiation error
+        });
     };
     
     // CRITICAL: PERMANENT FIX - Protect host's incoming video streams
@@ -1848,7 +1825,6 @@ const useVideoCall = (meetingId, userName) => {
         }
       });
     }
-    }, 200); // 200ms debounce for updateAllPeerConnections
   }, []);
 
   // Expose peersRef and updateAllPeerConnections to window for useMediaRequest to access
