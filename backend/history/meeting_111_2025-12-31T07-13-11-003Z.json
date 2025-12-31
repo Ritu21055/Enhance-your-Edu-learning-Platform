@@ -1,0 +1,89 @@
+{
+  "meeting": {
+    "id": "111",
+    "title": "Meeting 111",
+    "endedAt": "2025-12-31T07:13:11.021Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "This meeting discussed .",
+    "keyPoints": [],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "VINESH MANOJ": [],
+      "ritu": [
+        "I was at the lake audio Jason",
+        " I was never in the laptops"
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "12:51:00",
+        "text": "smoking Optometry"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:51:15",
+        "text": "oh madam"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:51:48",
+        "text": "I was at the lake audio Jason"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:52:01",
+        "text": " tuna"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:52:14",
+        "text": " audio"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:52:49",
+        "text": " I was never in the laptops"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:53:01",
+        "text": " video"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:53:32",
+        "text": " Ninja Turtle"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:54:22",
+        "text": "s"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:54:36",
+        "text": " yoga Pangea"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-31T07:13:11.022Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-31T07:13:11.022Z"
+  }
+}

@@ -381,33 +381,6 @@ const useVideoCall = (meetingId, userName) => {
             console.log('✅ Adding reconnected participant to list:', participant.name);
             const updated = [...filtered, participant];
             participantsRef.current = updated; // Update ref
-            
-            // CRITICAL: Update quality IMMEDIATELY before creating connection
-            // This ensures new connection uses correct bitrate
-            if (localStream && updated.length > 0) {
-              const newCount = updated.length + 1;
-              const quality = PeerOptimizer.getQualitySettings(newCount, isHostRef.current);
-              const videoTrack = localStream.getVideoTracks()[0];
-              
-              if (videoTrack) {
-                // Update BEFORE connection creation
-                videoTrack._targetBitrate = quality.videoBitrate;
-                videoTrack._targetFrameRate = quality.frameRate;
-                
-                // Update existing connections immediately (synchronously)
-                Object.entries(peersRef.current).forEach(([pid, peer]) => {
-                  if (peer?._pc) {
-                    const senders = peer._pc.getSenders();
-                    const vs = senders.find(s => s.track?.kind === 'video');
-                    if (vs && videoTrack) {
-                      // Apply immediately, don't wait
-                      PeerOptimizer.applySenderBitrate(vs, videoTrack, pid).catch(() => {});
-                    }
-                  }
-                });
-              }
-            }
-            
             return updated;
           });
         } else {
@@ -421,33 +394,6 @@ const useVideoCall = (meetingId, userName) => {
             console.log('✅ Adding new participant to list:', participant.name);
             const updated = [...prev, participant];
             participantsRef.current = updated; // Update ref
-            
-            // CRITICAL: Update quality IMMEDIATELY before creating connection
-            // This ensures new connection uses correct bitrate
-            if (localStream && updated.length > 0) {
-              const newCount = updated.length + 1;
-              const quality = PeerOptimizer.getQualitySettings(newCount, isHostRef.current);
-              const videoTrack = localStream.getVideoTracks()[0];
-              
-              if (videoTrack) {
-                // Update BEFORE connection creation
-                videoTrack._targetBitrate = quality.videoBitrate;
-                videoTrack._targetFrameRate = quality.frameRate;
-                
-                // Update existing connections immediately (synchronously)
-                Object.entries(peersRef.current).forEach(([pid, peer]) => {
-                  if (peer?._pc) {
-                    const senders = peer._pc.getSenders();
-                    const vs = senders.find(s => s.track?.kind === 'video');
-                    if (vs && videoTrack) {
-                      // Apply immediately, don't wait
-                      PeerOptimizer.applySenderBitrate(vs, videoTrack, pid).catch(() => {});
-                    }
-                  }
-                });
-              }
-            }
-            
             return updated;
           });
         }
@@ -1040,8 +986,8 @@ const useVideoCall = (meetingId, userName) => {
         
         // CRITICAL: Apply bitrate constraints to video sender for optimal performance
         if (videoSender && videoSender.setParameters) {
-          // CRITICAL FIX: Use FRESH participant count from ref, not stale closure
-          const participantCount = participantsRef.current.length + 1; // Use ref for latest value
+          // CRITICAL FIX: Use CURRENT participant count, not stale ref
+          const participantCount = participants.length + 1; // Use state, not ref
           const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
           
           // Set target bitrate on track
@@ -1413,6 +1359,7 @@ const useVideoCall = (meetingId, userName) => {
       console.log(`  - Initiator: ${initiator}`);
       console.log(`  - Peer destroyed: ${peer.destroyed}`);
       console.log(`  - Peer ready: ${peer.ready}`);
+      
       console.log(`  - Peer signalingState: ${peer.signalingState}`);
       console.log(`  - Peer ICE connection state: ${peer._pc?.iceConnectionState || 'N/A'}`);
       
@@ -1583,23 +1530,17 @@ const useVideoCall = (meetingId, userName) => {
     const audioTrack = streamToUse.getAudioTracks()[0];
     const videoWasEnabled = videoTrack?.enabled ?? true;
     
-    // Helper to trigger renegotiation - with better state checking and debouncing
+    // Helper to trigger renegotiation - with better state checking
     const triggerRenegotiation = (pc, participantId) => {
-      // CRITICAL: Debounce renegotiations - don't trigger multiple at once
-      if (pc._renegotiationPending) {
-        return; // Already pending
-      }
-      
       // CRITICAL: Check signaling state more carefully
       // Only renegotiate if we're in a stable state and connection is established
+      // Only renegotiate if connection is stable and established
       if (pc.signalingState !== 'stable' || 
           (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') ||
           pc.signalingState === 'have-local-offer' || 
           pc.signalingState === 'have-remote-offer') {
         return;
       }
-      
-      pc._renegotiationPending = true;
       
       pc.createOffer()
         .then(offer => {
@@ -1612,7 +1553,6 @@ const useVideoCall = (meetingId, userName) => {
           }
         })
         .then(() => {
-          pc._renegotiationPending = false;
           const localDescription = pc.localDescription;
           if (localDescription && socketRef.current?.id) {
             socketRef.current.emit('signal', {
@@ -1623,7 +1563,6 @@ const useVideoCall = (meetingId, userName) => {
           }
         })
         .catch(err => {
-          pc._renegotiationPending = false;
           console.error(`❌ Failed to renegotiate with ${participantId}:`, err);
           // Don't break the connection on renegotiation error
         });
@@ -1664,7 +1603,7 @@ const useVideoCall = (meetingId, userName) => {
                   .then(() => {
                     // CRITICAL: Apply bitrate constraints immediately after track replacement
                     // This prevents quality degradation after media request expires
-                    const participantCount = participantsRef.current.length + 1; // Use ref for latest value
+                    const participantCount = participants.length + 1; // Use state, not ref
                     const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
                     
                     // CRITICAL FIX: Always update bitrate, don't check if less
@@ -1719,7 +1658,7 @@ const useVideoCall = (meetingId, userName) => {
                     // CRITICAL: Re-apply video bitrate after audio track replacement
                     // This prevents quality degradation when audio is toggled
                     if (videoTrack && videoSender) {
-                      const participantCount = participantsRef.current.length + 1; // Use ref for latest value
+                      const participantCount = participants.length + 1; // Use state, not ref
                       const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
                       
                       // CRITICAL FIX: Always update bitrate, don't check if less
