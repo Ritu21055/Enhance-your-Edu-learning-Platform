@@ -288,44 +288,16 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
         console.log('✅ Media state change emitted to socket');
       }
 
-      // CRITICAL: Only call updateAllPeerConnections if tracks need to be added/replaced
-      // If tracks are already in peer connections and enabled, avoid renegotiation to prevent lag
-      if (window.updateAllPeerConnections && localStream && window.peersRef) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        const audioTrack = localStream.getAudioTracks()[0];
-        let needsUpdate = false;
-        
-        // Check if any peer connection is missing tracks or has disabled tracks
-        Object.entries(window.peersRef.current || {}).forEach(([participantId, peer]) => {
-          if (!peer || !peer._pc) return;
-          
-          const pc = peer._pc;
-          const senders = pc.getSenders();
-          const videoSender = senders.find(s => s.track?.kind === 'video');
-          const audioSender = senders.find(s => s.track?.kind === 'audio');
-          
-          // Check if tracks need to be added or replaced
-          if (videoTrack && !videoSender) needsUpdate = true;
-          if (audioTrack && !audioSender) needsUpdate = true;
-          
-          // Check if existing tracks are disabled when they should be enabled
-          if (videoTrack && videoSender?.track && !videoSender.track.enabled && videoTrack.enabled) {
-            needsUpdate = true;
-          }
-          if (audioTrack && audioSender?.track && !audioSender.track.enabled && audioTrack.enabled) {
-            needsUpdate = true;
-          }
-        });
-        
-        if (needsUpdate) {
-          console.log('🔄 Calling updateAllPeerConnections - tracks need update');
-          setTimeout(() => {
-            window.updateAllPeerConnections(localStream, 'both');
-            console.log('✅ updateAllPeerConnections called for audio and video');
-          }, 300);
-        } else {
-          console.log('⏭️ Skipping updateAllPeerConnections - tracks already enabled and present');
-        }
+      // CRITICAL: Use updateAllPeerConnections to properly handle track updates
+      // This function uses replaceTrack instead of addTrack, preventing multiple renegotiations
+      if (window.updateAllPeerConnections && localStream) {
+        console.log('🔄 Calling updateAllPeerConnections to update tracks properly');
+        setTimeout(() => {
+          // Use the proper updateAllPeerConnections function which handles track replacement correctly
+          // It uses replaceTrack() for existing senders and addTrack() only when necessary
+          window.updateAllPeerConnections(localStream, 'both');
+          console.log('✅ updateAllPeerConnections called for audio and video');
+        }, 300); // Small delay to ensure tracks are ready
       }
     }, 200); // Increased delay to ensure tracks are ready
 
