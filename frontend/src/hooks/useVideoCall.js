@@ -862,16 +862,12 @@ const useVideoCall = (meetingId, userName) => {
   const initializeMedia = useCallback(async () => {
     try {
       if (isInitializedRef.current && streamRef.current) {
-        console.log('🎥 Media already initialized, returning existing stream');
         // CRITICAL: Ensure state is updated even if stream already exists
         if (streamRef.current && !localStream) {
-          console.log('🔄 Updating local stream state from existing stream');
           setLocalStream(streamRef.current);
         }
         return streamRef.current;
       }
-      
-      console.log('🎥 Requesting user media...');
       
       // Get participant count for adaptive quality
       const participantCount = participantsRef.current.length + 1;
@@ -882,15 +878,6 @@ const useVideoCall = (meetingId, userName) => {
       const videoConstraints = PeerOptimizer.getVideoConstraints(participantCount, isHost);
       const audioConstraints = PeerOptimizer.getAudioConstraints();
       const quality = PeerOptimizer.getQualitySettings(participantCount, isHost);
-      
-      console.log('🎥 PeerOptimizer: Quality settings:', {
-        participantCount,
-        isHost,
-        videoWidth: quality.videoWidth,
-        videoHeight: quality.videoHeight,
-        frameRate: quality.frameRate,
-        videoBitrate: `${quality.videoBitrate / 1000} kbps`
-      });
       
       const stream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraints,
@@ -907,21 +894,9 @@ const useVideoCall = (meetingId, userName) => {
       // Ensure audio is enabled
       PeerOptimizer.ensureAudioEnabled(stream, 'local');
 
-      console.log('✅ User media obtained:', {
-        streamId: stream.id,
-        active: stream.active,
-        videoTracks: stream.getVideoTracks().length,
-        audioTracks: stream.getAudioTracks().length,
-        videoWidth: videoTrack?.getSettings()?.width,
-        videoHeight: videoTrack?.getSettings()?.height,
-        frameRate: videoTrack?.getSettings()?.frameRate
-      });
-
       streamRef.current = stream;
       setLocalStream(stream);
       isInitializedRef.current = true;
-      
-      console.log('✅ Media initialization complete, local stream state updated');
 
       return stream;
     } catch (error) {
@@ -973,30 +948,17 @@ const useVideoCall = (meetingId, userName) => {
     // CRITICAL: Verify stream was added to peer
     if (peer._pc) {
       const senders = peer._pc.getSenders();
-      console.log(`  - RTCRtpSenders: ${senders.length}`);
-      senders.forEach((sender, idx) => {
-        console.log(`    Sender ${idx}: track=${sender.track?.kind || 'none'}, enabled=${sender.track?.enabled || false}`);
-      });
-      
-      // CRITICAL: Double-check that stream tracks are actually added
-
       const videoSender = senders.find(s => s.track?.kind === 'video');
       const audioSender = senders.find(s => s.track?.kind === 'audio');
       const videoTrack = streamRef.current.getVideoTracks()[0];
       const audioTrack = streamRef.current.getAudioTracks()[0];
       
       if (senders.length === 0) {
-        console.error(`❌❌❌ CRITICAL: No senders found in peer connection! Stream may not be added properly.`);
-        console.error(`  - Stream tracks: ${streamRef.current.getTracks().length}`);
-        console.error(`  - Video tracks: ${streamRef.current.getVideoTracks().length}`);
-        console.error(`  - Audio tracks: ${streamRef.current.getAudioTracks().length}`);
-        
+        console.error(`❌ CRITICAL: No senders found in peer connection! Stream may not be added properly.`);
         // Try to manually add tracks
-        console.log(`🔄 Attempting to manually add tracks to peer connection...`);
         streamRef.current.getTracks().forEach(track => {
           try {
             peer._pc.addTrack(track, streamRef.current);
-            console.log(`✅ Added ${track.kind} track manually`);
           } catch (error) {
             console.error(`❌ Error adding ${track.kind} track:`, error);
           }
@@ -1004,10 +966,9 @@ const useVideoCall = (meetingId, userName) => {
       } else {
         // CRITICAL: Check if audio track is missing (common issue)
         if (audioTrack && !audioSender) {
-          console.warn(`⚠️⚠️⚠️ Audio track exists but no audio sender found! Adding audio track manually...`);
+          console.warn(`⚠️ Audio track exists but no audio sender found! Adding audio track manually...`);
           try {
             peer._pc.addTrack(audioTrack, streamRef.current);
-            console.log(`✅✅✅ Added missing audio track to peer connection for ${participantId}`);
           } catch (error) {
             console.error(`❌ Failed to add audio track:`, error);
           }
@@ -1018,7 +979,6 @@ const useVideoCall = (meetingId, userName) => {
           console.warn(`⚠️ Video track exists but no video sender found! Adding video track manually...`);
           try {
             peer._pc.addTrack(videoTrack, streamRef.current);
-            console.log(`✅ Added missing video track to peer connection for ${participantId}`);
           } catch (error) {
             console.error(`❌ Failed to add video track:`, error);
           }
@@ -1026,6 +986,16 @@ const useVideoCall = (meetingId, userName) => {
         
         // CRITICAL: Apply bitrate constraints to video sender for optimal performance
         if (videoSender && videoSender.setParameters) {
+          // CRITICAL FIX: Use CURRENT participant count, not stale ref
+          const participantCount = participants.length + 1; // Use state, not ref
+          const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
+          
+          // Set target bitrate on track
+          if (videoTrack) {
+            videoTrack._targetBitrate = quality.videoBitrate;
+            videoTrack._targetFrameRate = quality.frameRate;
+          }
+          
           PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId);
         }
         
@@ -1036,18 +1006,10 @@ const useVideoCall = (meetingId, userName) => {
 
     // Store peer immediately
     peersRef.current[participantId] = peer;
-    console.log(`✅ Peer stored for ${participantId}`);
-    console.log(`  - Peer ready: ${peer.ready}`);
-    console.log(`  - Peer destroyed: ${peer.destroyed}`);
-    console.log(`  - Initiator: ${initiator}`);
-    console.log(`  - Stream ID: ${streamRef.current?.id}`);
-    console.log(`  - Stream active: ${streamRef.current?.active}`);
     
     // CRITICAL: Add error handler immediately to catch any peer creation issues
     peer.on('error', (error) => {
-      console.error(`❌❌❌ Peer error for ${participantId}:`, error);
-      console.error(`  - Error message: ${error.message}`);
-      console.error(`  - Error stack: ${error.stack}`);
+      console.error(`❌ Peer error for ${participantId}:`, error);
     });
 
     // Handle signal data
@@ -1056,29 +1018,16 @@ const useVideoCall = (meetingId, userName) => {
     // 2. Non-initiator creates answer (after receiving offer)
     // 3. ICE candidates are generated (if trickle: true)
     peer.on('signal', (signal) => {
-      const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
-      console.log(`📡📡📡 Sending signal to ${participantName} (${participantId}):`);
-      console.log(`  - signalType: ${signal.type}`);
-      console.log(`  - hasSDP: ${!!signal.sdp}`);
-      console.log(`  - hasCandidate: ${!!signal.candidate}`);
-      console.log(`  - initiator: ${initiator}`);
-      console.log(`  - participantId: ${participantId}`);
-      console.log(`  - peerReady: ${peer.ready}`);
-      console.log(`  - peerDestroyed: ${peer.destroyed}`);
-      console.log(`  - socketId: ${socketRef.current?.id}`);
-      
       if (socketRef.current && socketRef.current.id) {
         const fromId = socketRef.current.id;
-        console.log(`📡📡📡 Emitting signal with from: ${fromId}, to: ${participantId}`);
         try {
           socketRef.current.emit('signal', {
             to: participantId,
             from: fromId,
             signal
           });
-          console.log(`✅✅✅ Signal emitted successfully`);
         } catch (error) {
-          console.error(`❌❌❌ Error emitting signal:`, error);
+          console.error(`❌ Error emitting signal:`, error);
           // Queue signal for retry
           signalQueueRef.current.push({
             to: participantId,
@@ -1088,7 +1037,6 @@ const useVideoCall = (meetingId, userName) => {
         }
       } else {
         // Queue signal if socket isn't ready yet (during reconnection)
-        console.warn(`⚠️ Socket not ready, queueing signal for ${participantId}`);
         signalQueueRef.current.push({
           to: participantId,
           from: null, // Will be set when socket is ready
@@ -1097,7 +1045,6 @@ const useVideoCall = (meetingId, userName) => {
         // Try to process queue after a short delay
         setTimeout(() => {
           if (socketRef.current && socketRef.current.id && signalQueueRef.current.length > 0) {
-            console.log(`📤 Processing queued signals after delay`);
             signalQueueRef.current.forEach(({ to, signal }) => {
               try {
                 socketRef.current.emit('signal', {
@@ -1115,9 +1062,6 @@ const useVideoCall = (meetingId, userName) => {
       }
     });
     
-    // CRITICAL: Log when signal handler is attached
-    console.log(`✅ Signal handler attached for ${participantId}, waiting for signals...`);
-    
     // CRITICAL: For initiator, signal should fire immediately
     // For non-initiator, signal fires after receiving offer
     // Add a timeout to detect if signals are not being generated
@@ -1126,14 +1070,7 @@ const useVideoCall = (meetingId, userName) => {
     
     const signalTimeout = setTimeout(() => {
       if (!signalGenerated && !peer.destroyed && initiator) {
-        console.warn(`⚠️⚠️⚠️ No signals generated for ${participantId} after 2 seconds!`);
-        console.warn(`  - Peer ready: ${peer.ready}`);
-        console.warn(`  - Peer destroyed: ${peer.destroyed}`);
-        console.warn(`  - Initiator: ${initiator}`);
-        console.warn(`  - Has stream: ${!!streamRef.current}`);
-        console.warn(`  - Stream active: ${streamRef.current?.active || false}`);
-        console.warn(`  - Peer signalingState: ${peer._pc?.signalingState || 'N/A'}`);
-        console.warn(`  - Peer ICE gathering state: ${peer._pc?.iceGatheringState || 'N/A'}`);
+        console.warn(`⚠️ No signals generated for ${participantId} after 2 seconds`);
         
         // CRITICAL: If we're the initiator and no signal was generated, try to force it
         if (initiator && peer._pc && peer._pc.signalingState === 'stable') {
@@ -1173,46 +1110,14 @@ const useVideoCall = (meetingId, userName) => {
     // Handle incoming stream
     peer.on('stream', (stream) => {
       const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
-      console.log(`📹📹📹📹📹📹📹📹📹 RECEIVED REMOTE STREAM FROM ${participantName} (${participantId}) 📹📹📹📹📹📹📹📹📹`);
-      console.log(`  - streamId: ${stream.id}`);
-      console.log(`  - active: ${stream.active}`);
-      console.log(`  - videoTracks: ${stream.getVideoTracks().length}`);
-      console.log(`  - audioTracks: ${stream.getAudioTracks().length}`);
-      console.log(`  - videoTrackEnabled: ${stream.getVideoTracks()[0]?.enabled}`);
-      console.log(`  - audioTrackEnabled: ${stream.getAudioTracks()[0]?.enabled}`);
-      console.log(`  - peerReady: ${peer.ready}`);
-      console.log(`  - peerDestroyed: ${peer.destroyed}`);
-      console.log(`  - peerSignalingState: ${peer.signalingState}`);
-      console.log(`  - peerIceConnectionState: ${peer._pc?.iceConnectionState || 'N/A'}`);
-      console.log(`  - My socket ID: ${socketRef.current?.id}`);
-      console.log(`  - Is host: ${isHostRef.current}`);
       
       // CRITICAL: Verify stream tracks are actually working
       const videoTrack = stream.getVideoTracks()[0];
       const audioTrack = stream.getAudioTracks()[0];
-      if (videoTrack) {
-        console.log(`  - Video track details:`, {
-          id: videoTrack.id,
-          enabled: videoTrack.enabled,
-          readyState: videoTrack.readyState,
-          muted: videoTrack.muted,
-          kind: videoTrack.kind,
-          label: videoTrack.label
-        });
-      }
+      
       if (audioTrack) {
-        console.log(`  - Audio track details:`, {
-          id: audioTrack.id,
-          enabled: audioTrack.enabled,
-          readyState: audioTrack.readyState,
-          muted: audioTrack.muted,
-          kind: audioTrack.kind,
-          label: audioTrack.label
-        });
-        
         // CRITICAL: Ensure audio track is enabled when received
         if (!audioTrack.enabled) {
-          console.log(`🔊 Enabling audio track for ${participantName} (was disabled)`);
           audioTrack.enabled = true;
         }
       } else {
@@ -1223,7 +1128,6 @@ const useVideoCall = (meetingId, userName) => {
       if (videoTrack) {
         // Listen for track enabled state changes
         const handleTrackEnabledChange = () => {
-          console.log(`🎥🎥🎥 Video track enabled state changed for ${participantName} (${participantId}): ${videoTrack.enabled}`);
           // Force a re-render by updating the stream reference
           setRemoteStreams(prev => {
             const updated = { ...prev };
@@ -1237,12 +1141,6 @@ const useVideoCall = (meetingId, userName) => {
         
         // CRITICAL: Listen for track being added (when participant enables camera after approval)
         const handleTrackAdded = (event) => {
-          console.log(`➕ Video track added for ${participantName} (${participantId}):`, {
-            trackId: event.track?.id,
-            trackKind: event.track?.kind,
-            trackEnabled: event.track?.enabled,
-            trackReadyState: event.track?.readyState
-          });
           // Force update remote streams to trigger re-render
           setRemoteStreams(prev => {
             const updated = { ...prev };
@@ -1254,15 +1152,8 @@ const useVideoCall = (meetingId, userName) => {
         };
         
         // Listen for track mute changes (when camera is turned off)
-        videoTrack.addEventListener('mute', () => {
-          console.log(`🔇 Video track muted for ${participantName} (${participantId})`);
-          handleTrackEnabledChange();
-        });
-        
-        videoTrack.addEventListener('unmute', () => {
-          console.log(`🔊 Video track unmuted for ${participantName} (${participantId})`);
-          handleTrackEnabledChange();
-        });
+        videoTrack.addEventListener('mute', handleTrackEnabledChange);
+        videoTrack.addEventListener('unmute', handleTrackEnabledChange);
         
         // CRITICAL: Listen for track being added to stream
         stream.addEventListener('addtrack', handleTrackAdded);
@@ -1272,7 +1163,6 @@ const useVideoCall = (meetingId, userName) => {
           const currentEnabled = videoTrack.enabled;
           const lastEnabled = videoTrack._lastEnabledState;
           if (currentEnabled !== lastEnabled) {
-            console.log(`🔄 Video track enabled state changed (detected via polling) for ${participantName}: ${lastEnabled} -> ${currentEnabled}`);
             videoTrack._lastEnabledState = currentEnabled;
             handleTrackEnabledChange();
           }
@@ -1290,32 +1180,19 @@ const useVideoCall = (meetingId, userName) => {
       
       // CRITICAL: Ensure stream is active before setting it
       if (stream.active) {
-        setRemoteStreams(prev => {
-          const updated = {
-            ...prev,
-            [participantId]: stream
-          };
-          console.log(`✅✅✅ Remote stream set for ${participantName} (${participantId})`);
-          console.log(`  - Total remote streams now: ${Object.keys(updated).length}`);
-          console.log(`  - Remote stream IDs: ${Object.keys(updated).join(', ')}`);
-          console.log(`  - Participants in list: ${participantsRef.current.map(p => `${p.name} (${p.id})`).join(', ')}`);
-          return updated;
-        });
+        setRemoteStreams(prev => ({
+          ...prev,
+          [participantId]: stream
+        }));
       } else {
-        console.warn(`⚠️ Stream from ${participantName} (${participantId}) is not active yet, waiting...`);
         // Wait for stream to become active
         const checkActive = setInterval(() => {
           if (stream.active) {
             clearInterval(checkActive);
-            setRemoteStreams(prev => {
-              const updated = {
-                ...prev,
-                [participantId]: stream
-              };
-              console.log(`✅✅✅ Remote stream became active for ${participantName} (${participantId})`);
-              console.log(`  - Total remote streams now: ${Object.keys(updated).length}`);
-              return updated;
-            });
+            setRemoteStreams(prev => ({
+              ...prev,
+              [participantId]: stream
+            }));
           }
         }, 100);
         
@@ -1331,14 +1208,6 @@ const useVideoCall = (meetingId, userName) => {
       
       peer._pc.ontrack = (event) => {
         const participantName = participantsRef.current.find(p => p.id === participantId)?.name || participantId;
-        console.log(`➕➕➕ TRACK ADDED TO PEER CONNECTION for ${participantName} (${participantId}) ➕➕➕`, {
-          trackId: event.track?.id,
-          trackKind: event.track?.kind,
-          trackEnabled: event.track?.enabled,
-          trackReadyState: event.track?.readyState,
-          streams: event.streams?.length || 0,
-          streamIds: event.streams?.map(s => s.id) || []
-        });
         
         // Call original handler if it exists (SimplePeer might have its own)
         if (originalOntrack) {
@@ -1357,7 +1226,6 @@ const useVideoCall = (meetingId, userName) => {
                 const existingVideoTrack = currentStream.getVideoTracks()[0];
                 if (!existingVideoTrack || existingVideoTrack.id !== event.track.id) {
                   // New video track added - add it to the existing stream
-                  console.log(`📹 New video track added to existing stream for ${participantName}`);
                   currentStream.addTrack(event.track);
                   // Force update to trigger re-render
                   const updated = { ...prev };
@@ -1601,7 +1469,7 @@ const useVideoCall = (meetingId, userName) => {
         return updated;
       });
     });
-  }, []);
+  }, [participants.length, isHost]); // CRITICAL: Watch participants.length to update quality
   
   // Update ref when createPeerConnection changes
   useEffect(() => {
@@ -1734,20 +1602,16 @@ const useVideoCall = (meetingId, userName) => {
                   .then(() => {
                     // CRITICAL: Apply bitrate constraints immediately after track replacement
                     // This prevents quality degradation after media request expires
-                    const participantCount = participantsRef.current.length + 1;
+                    const participantCount = participants.length + 1; // Use state, not ref
                     const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
                     
-                    // Ensure target bitrate is set on track
-                    if (!videoTrack._targetBitrate || videoTrack._targetBitrate < quality.videoBitrate) {
-                      videoTrack._targetBitrate = quality.videoBitrate;
-                      videoTrack._targetFrameRate = quality.frameRate;
-                    }
+                    // CRITICAL FIX: Always update bitrate, don't check if less
+                    // This ensures bitrate is REDUCED when participant count increases
+                    videoTrack._targetBitrate = quality.videoBitrate;
+                    videoTrack._targetFrameRate = quality.frameRate;
                     
                     // Apply bitrate immediately to maintain quality
                     PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
-                      .then(() => {
-                        console.log(`✅ Applied bitrate ${quality.videoBitrate / 1000} kbps after track replacement for ${participantId}`);
-                      })
                       .catch(err => console.warn(`⚠️ Could not apply bitrate after replacement:`, err));
                     
                     // Only trigger renegotiation if necessary (reduce delays)
@@ -1793,13 +1657,12 @@ const useVideoCall = (meetingId, userName) => {
                     // CRITICAL: Re-apply video bitrate after audio track replacement
                     // This prevents quality degradation when audio is toggled
                     if (videoTrack && videoSender) {
-                      const participantCount = participantsRef.current.length + 1;
+                      const participantCount = participants.length + 1; // Use state, not ref
                       const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
                       
-                      if (!videoTrack._targetBitrate || videoTrack._targetBitrate < quality.videoBitrate) {
-                        videoTrack._targetBitrate = quality.videoBitrate;
-                        videoTrack._targetFrameRate = quality.frameRate;
-                      }
+                      // CRITICAL FIX: Always update bitrate, don't check if less
+                      videoTrack._targetBitrate = quality.videoBitrate;
+                      videoTrack._targetFrameRate = quality.frameRate;
                       
                       PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
                         .catch(err => console.warn(`⚠️ Could not maintain video bitrate after audio replacement:`, err));
@@ -1842,7 +1705,7 @@ const useVideoCall = (meetingId, userName) => {
     if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
       videoTrack.enabled = true;
     }
-  }, []);
+  }, [participants.length, isHost]); // CRITICAL: Watch participants.length to update quality
 
   // Expose peersRef and updateAllPeerConnections to window for useMediaRequest to access
   useEffect(() => {
@@ -1853,16 +1716,57 @@ const useVideoCall = (meetingId, userName) => {
     };
   }, [updateAllPeerConnections]);
 
-  // CRITICAL: Periodically maintain video quality and bitrate (for host)
+  // CRITICAL: Dynamically update quality when participant count changes
+  // This prevents lag when multiple participants join
   useEffect(() => {
-    if (!localStream || !isHost) return;
+    if (!localStream) return;
+    
+    const participantCount = participants.length + 1; // Use state, not ref
+    const isHostUser = isHostRef.current;
+    const quality = PeerOptimizer.getQualitySettings(participantCount, isHostUser);
+    
+    // Update target bitrate on local video track
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      // CRITICAL FIX: Always update, don't check if less - we need to REDUCE when count increases
+      videoTrack._targetBitrate = quality.videoBitrate;
+      videoTrack._targetFrameRate = quality.frameRate;
+    }
+    
+    // Update ALL existing peer connections with new quality settings
+    Object.entries(peersRef.current).forEach(([participantId, peer]) => {
+      if (!peer || !peer._pc) return;
+      
+      try {
+        const pc = peer._pc;
+        const senders = pc.getSenders();
+        const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+        
+        if (videoSender && videoTrack) {
+          // CRITICAL: Update bitrate immediately when participant count changes
+          // This reduces bitrate when more participants join, preventing lag
+          PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
+            .catch(err => {
+              console.warn(`⚠️ Could not update bitrate for ${participantId}:`, err);
+            });
+        }
+      } catch (err) {
+        console.error(`❌ Error updating quality for ${participantId}:`, err);
+      }
+    });
+  }, [localStream, participants.length, isHost]); // CRITICAL: Watch participants.length
+
+  // CRITICAL: Periodically maintain video quality and bitrate (for ALL users, not just host)
+  useEffect(() => {
+    if (!localStream) return; // Removed isHost check - apply to everyone
     
     const maintainQuality = () => {
       // Get current participant count and host status for quality settings
-      const participantCount = participantsRef.current.length + 1;
-      const quality = PeerOptimizer.getQualitySettings(participantCount, true); // true = isHost
+      const participantCount = participants.length + 1; // Use state, not ref
+      const isHostUser = isHostRef.current;
+      const quality = PeerOptimizer.getQualitySettings(participantCount, isHostUser);
       
-      // Maintain high bitrate for host video to prevent lag after timer ends
+      // Update all peer connections with current quality
       Object.entries(peersRef.current).forEach(([participantId, peer]) => {
         if (peer && peer._pc) {
           const senders = peer._pc.getSenders();
@@ -1871,13 +1775,12 @@ const useVideoCall = (meetingId, userName) => {
           if (videoSender && localStream) {
             const videoTrack = localStream.getVideoTracks()[0];
             if (videoTrack) {
-              // Ensure target bitrate is set (in case it was lost)
-              if (!videoTrack._targetBitrate || videoTrack._targetBitrate < quality.videoBitrate) {
-                videoTrack._targetBitrate = quality.videoBitrate;
-                videoTrack._targetFrameRate = quality.frameRate;
-              }
+              // CRITICAL FIX: Always update bitrate, don't check if less
+              // This ensures bitrate is REDUCED when participant count increases
+              videoTrack._targetBitrate = quality.videoBitrate;
+              videoTrack._targetFrameRate = quality.frameRate;
               
-              // Re-apply bitrate to ensure it's maintained
+              // Re-apply bitrate to ensure it's updated
               PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId).catch(err => {
                 console.warn(`⚠️ Could not maintain bitrate for ${participantId}:`, err);
               });
@@ -1887,12 +1790,12 @@ const useVideoCall = (meetingId, userName) => {
       });
     };
     
-    // Check immediately and then every 10 seconds to maintain quality (reduced from 15s for better responsiveness)
+    // Check immediately and then every 10 seconds
     maintainQuality();
     const interval = setInterval(maintainQuality, 10000);
     
     return () => clearInterval(interval);
-  }, [localStream, isHost]);
+  }, [localStream, participants.length, isHost]); // CRITICAL: Watch participants.length
 
   return {
     // Streams

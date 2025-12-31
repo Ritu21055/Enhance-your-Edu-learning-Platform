@@ -1,0 +1,60 @@
+{
+  "meeting": {
+    "id": "QQI313",
+    "title": "Meeting QQI313",
+    "endedAt": "2025-12-31T06:11:01.850Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting transcript is extremely brief and consists of disconnected phrases from a single speaker, riya. No clear topics, actions, or decisions can be definitively identified from the provided snippets. The conversation touches upon seemingly unrelated words and short statements.",
+    "keyPoints": [],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "riya": [
+        "Mentioned 'Thunder' (11:42:49).",
+        "Spoke about 'video Bangla' (11:44:13).",
+        "Stated 'accept it out' (11:51:03).",
+        "Clarified 'except that I said' (11:51:10)."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "riya",
+        "timestamp": "11:42:49",
+        "text": "Thunder"
+      },
+      {
+        "speaker": "riya",
+        "timestamp": "11:44:13",
+        "text": "video Bangla"
+      },
+      {
+        "speaker": "riya",
+        "timestamp": "11:51:03",
+        "text": "accept it out"
+      },
+      {
+        "speaker": "riya",
+        "timestamp": "11:51:10",
+        "text": "except that I said"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-31T06:11:01.850Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-31T06:11:01.850Z"
+  }
+}
