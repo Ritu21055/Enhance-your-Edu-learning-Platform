@@ -6,13 +6,8 @@
     "status": "completed"
   },
   "notes": {
-    "summary": "The meeting transcript primarily consists of a monologue by ritu, expressing her presence and making various observations. The discussion indicates a potential issue with audio playback, specifically mentioning 'YouTube' and 'Ninja Turtle videos', and also refers to individuals named 'Mia', 'Sanjay', and 'Angie'.",
-    "keyPoints": [
-      "Ritu noted an issue with audio, stating 'audio audio but it's not talking my love YouTube'.",
-      "References were made to watching 'Ninja Turtle videos' on YouTube.",
-      "Individuals named 'Mia', 'Sanjay', and 'Angie' were mentioned in an unclear context.",
-      "Ritu initiated by confirming her presence."
-    ],
+    "summary": "This meeting discussed .",
+    "keyPoints": [],
     "actionItems": [],
     "decisions": [],
     "studyGuide": {
@@ -21,69 +16,49 @@
       "formulas": []
     },
     "participantContributions": {
-      "ritu": [
-        "Confirmed her presence ('okay I'm here').",
-        "Mentioned 'boys' and 'Vietnamese'.",
-        "Stated 'Mia was my brother'.",
-        "Reported an audio issue with YouTube ('audio audio but it's not talking my love YouTube').",
-        "Referred to 'audio of the Sanjay Angie Ninja Turtle videos'."
-      ]
+      "ritu": [],
+      "RITHIK": []
     },
     "conversationTranscript": [
       {
         "speaker": "ritu",
-        "timestamp": "12:24:33",
-        "text": "okay I'm"
+        "timestamp": "13:19:27",
+        "text": "banana"
       },
       {
         "speaker": "ritu",
-        "timestamp": "12:24:35",
-        "text": "here"
+        "timestamp": "13:20:29",
+        "text": "container"
+      },
+      {
+        "speaker": "RITHIK",
+        "timestamp": "13:22:54",
+        "text": "the"
+      },
+      {
+        "speaker": "RITHIK",
+        "timestamp": "13:24:59",
+        "text": "play"
+      },
+      {
+        "speaker": "RITHIK",
+        "timestamp": "13:26:00",
+        "text": "ABCD"
+      },
+      {
+        "speaker": "RITHIK",
+        "timestamp": "13:26:07",
+        "text": "?"
+      },
+      {
+        "speaker": "RITHIK",
+        "timestamp": "13:28:39",
+        "text": "I'm"
       },
       {
         "speaker": "ritu",
-        "timestamp": "12:24:49",
-        "text": "please"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "12:25:21",
-        "text": "boys"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "12:26:57",
-        "text": "Vietnamese"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "12:27:14",
-        "text": "Mia was my brother"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "12:27:34",
-        "text": "audio audio"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "12:27:57",
-        "text": "but it's not talking my love YouTube"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "12:28:23",
-        "text": "audio of the Sanjay"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "12:28:25",
-        "text": "Angie"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "12:28:58",
-        "text": "Ninja Turtle videos"
+        "timestamp": "13:28:34",
+        "text": "what the mehndi"
       }
     ]
   },
@@ -96,6 +71,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2025-12-31T06:45:29.572Z"
+    "notesGeneratedAt": "2025-12-31T07:47:26.546Z"
   }
 }

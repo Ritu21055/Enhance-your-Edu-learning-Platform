@@ -1,0 +1,45 @@
+{
+  "meeting": {
+    "id": "HRK345",
+    "title": "Meeting HRK345",
+    "endedAt": "2025-12-31T07:35:12.001Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "This meeting discussed .",
+    "keyPoints": [],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": []
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "13:07:56",
+        "text": "I want in a birthday"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "13:08:06",
+        "text": " cake"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-31T07:35:12.002Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-31T07:35:12.002Z"
+  }
+}

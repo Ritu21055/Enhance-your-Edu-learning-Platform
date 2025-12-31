@@ -1593,6 +1593,15 @@ const useVideoCall = (meetingId, userName) => {
               if (currentTrack.enabled !== videoTrack.enabled) {
                 currentTrack.enabled = videoTrack.enabled;
               }
+              
+              // CRITICAL: Ensure audio track remains enabled when video is toggled
+              // Video toggle should NOT affect audio
+              if (trackType === 'video' && audioTrack && audioSender) {
+                const currentAudioTrack = audioSender.track;
+                if (currentAudioTrack && currentAudioTrack.enabled !== audioTrack.enabled) {
+                  currentAudioTrack.enabled = audioTrack.enabled;
+                }
+              }
             } else {
               // Different track, replace it if connection is stable
               const shouldReplace = pc.signalingState === 'stable' && 
