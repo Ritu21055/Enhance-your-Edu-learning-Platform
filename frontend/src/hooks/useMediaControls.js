@@ -270,7 +270,7 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
     setIsVideoEnabled(newState);
     videoTrack.enabled = newState;
 
-    // Get current audio state
+    // Get current audio state - CRITICAL: Always get actual track state
     const audioTrack = localStream.getAudioTracks()[0];
     const currentAudioState = audioTrack?.enabled ?? isAudioEnabled;
 
@@ -279,7 +279,12 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
       window.updateVideoCallPeerConnections(localStream, 'video');
     }
     
-    emitMediaState(currentAudioState, newState);
+    // CRITICAL FIX: Always send explicit boolean values, never undefined
+    // This ensures audio state is properly preserved when video is toggled
+    emitMediaState(
+      currentAudioState === true, // Explicitly convert to boolean
+      newState === true            // Explicitly convert to boolean
+    );
   };
 
   // Toggle Screen Share - DOES NOT affect local video track

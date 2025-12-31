@@ -688,13 +688,20 @@ const useVideoCall = (meetingId, userName) => {
               }
             }
             
-            // Update audio tracks - strict: only enable if explicitly true
+            // Update audio tracks - CRITICAL FIX: Don't disable if audioEnabled is undefined
             const audioTracks = stream.getAudioTracks();
             audioTracks.forEach((audioTrack) => {
-              // Only enable if audioEnabled is explicitly true, otherwise disable
-              const shouldEnableAudio = audioEnabled === true;
-              if (audioTrack.enabled !== shouldEnableAudio) {
-                audioTrack.enabled = shouldEnableAudio;
+              // CRITICAL FIX: Only change audio state if explicitly set
+              // If audioEnabled is undefined, keep current state (don't disable)
+              if (audioEnabled !== undefined) {
+                const shouldEnableAudio = audioEnabled === true;
+                if (audioTrack.enabled !== shouldEnableAudio) {
+                  audioTrack.enabled = shouldEnableAudio;
+                  console.log(`🔊 Audio track ${shouldEnableAudio ? 'enabled' : 'disabled'} for ${participantId}`);
+                }
+              } else {
+                // audioEnabled is undefined - preserve current state, don't disable
+                console.log(`🔊 Audio state undefined for ${participantId}, preserving current state:`, audioTrack.enabled);
               }
             });
           }

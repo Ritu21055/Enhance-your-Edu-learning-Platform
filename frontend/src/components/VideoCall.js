@@ -544,17 +544,23 @@ const VideoCallComponent = memo(({
         }
         
         audioTracks.forEach((audioTrack) => {
-          // Strict: only enable if socket explicitly says true, otherwise disable
-          const shouldEnableAudio = socketAudioEnabled === true;
-          if (audioTrack.enabled !== shouldEnableAudio) {
-            audioTrack.enabled = shouldEnableAudio;
-            console.log(`🔊 Audio track ${shouldEnableAudio ? 'enabled' : 'disabled'} for ${participantId}:`, {
-              trackId: audioTrack.id,
-              enabled: audioTrack.enabled,
-              readyState: audioTrack.readyState,
-              socketAudioEnabled,
-              videoElementMuted: videoElement.muted
-            });
+          // CRITICAL FIX: Only change audio state if explicitly set
+          // If socketAudioEnabled is undefined, keep current state (don't disable)
+          if (socketAudioEnabled !== undefined) {
+            const shouldEnableAudio = socketAudioEnabled === true;
+            if (audioTrack.enabled !== shouldEnableAudio) {
+              audioTrack.enabled = shouldEnableAudio;
+              console.log(`🔊 Audio track ${shouldEnableAudio ? 'enabled' : 'disabled'} for ${participantId}:`, {
+                trackId: audioTrack.id,
+                enabled: audioTrack.enabled,
+                readyState: audioTrack.readyState,
+                socketAudioEnabled,
+                videoElementMuted: videoElement.muted
+              });
+            }
+          } else {
+            // socketAudioEnabled is undefined - preserve current state
+            console.log(`🔊 Audio state undefined for ${participantId}, preserving current state:`, audioTrack.enabled);
           }
         });
         
