@@ -114,9 +114,16 @@ export class PeerOptimizer {
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
-      sampleRate: 16000, // Lower for better performance
+      sampleRate: 48000, // OPTIMIZED: Increased from 16000 for better quality
       channelCount: 1,
-      latency: 0.1
+      latency: 0.01, // OPTIMIZED: Reduced from 0.1 for lower latency
+      // OPTIMIZED: Add constraints for smooth, low-latency audio
+      googEchoCancellation: true,
+      googNoiseSuppression: true,
+      googAutoGainControl: true,
+      googHighpassFilter: true,
+      googTypingNoiseDetection: true,
+      googNoiseReduction: true
     };
   }
 
@@ -205,6 +212,29 @@ export class PeerOptimizer {
       console.log(`✅ PeerOptimizer: Applied bitrate ${targetBitrate / 1000} kbps @ ${targetFrameRate} fps for ${participantId}`);
     } catch (error) {
       console.warn(`⚠️ PeerOptimizer: Could not set bitrate for ${participantId}:`, error);
+    }
+  }
+
+  /**
+   * Apply audio priority and constraints to RTCRtpSender for smooth playback
+   * OPTIMIZED: Sets high priority for audio to prevent lag
+   */
+  static async applyAudioPriority(sender, participantId) {
+    if (!sender || !sender.setParameters) return;
+
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings) {
+        params.encodings = [{}];
+      }
+      
+      // OPTIMIZED: Set audio priority to high for smooth playback
+      params.encodings[0].priority = 'high';
+      params.encodings[0].networkPriority = 'high';
+      
+      await sender.setParameters(params);
+    } catch (error) {
+      // Silent fail - audio priority is optional
     }
   }
 }
