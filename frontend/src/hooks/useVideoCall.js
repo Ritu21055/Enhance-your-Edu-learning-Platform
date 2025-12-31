@@ -663,7 +663,18 @@ const useVideoCall = (meetingId, userName) => {
                 videoElement.style.opacity = '0';
                 videoElement.style.visibility = 'hidden';
                 videoElement.style.display = 'none';
-                videoElement.pause();
+                
+                // CRITICAL: Only pause if audio is also disabled
+                // If audio is enabled, keep playing (but hidden) so audio continues
+                const audioEnabled = participantMediaStateRef.current[participantId]?.audioEnabled;
+                if (audioEnabled !== true) {
+                  videoElement.pause();
+                } else {
+                  // Audio is enabled - keep playing even though video is hidden
+                  if (videoElement.paused && stream.active) {
+                    videoElement.play().catch(() => {});
+                  }
+                }
                 
                 // Only replace with blank if explicitly disabled (not just track ended or temporarily disabled)
                 if (videoEnabled === false) {

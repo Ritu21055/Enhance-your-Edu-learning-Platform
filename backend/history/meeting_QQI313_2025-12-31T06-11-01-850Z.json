@@ -6,7 +6,7 @@
     "status": "completed"
   },
   "notes": {
-    "summary": "The meeting transcript is extremely brief and consists of disconnected phrases from a single speaker, riya. No clear topics, actions, or decisions can be definitively identified from the provided snippets. The conversation touches upon seemingly unrelated words and short statements.",
+    "summary": "This meeting discussed .",
     "keyPoints": [],
     "actionItems": [],
     "decisions": [],
@@ -16,33 +16,21 @@
       "formulas": []
     },
     "participantContributions": {
-      "riya": [
-        "Mentioned 'Thunder' (11:42:49).",
-        "Spoke about 'video Bangla' (11:44:13).",
-        "Stated 'accept it out' (11:51:03).",
-        "Clarified 'except that I said' (11:51:10)."
+      "ritu": [],
+      "VINESH MANOJ": [
+        "a b c d e f g h i j k"
       ]
     },
     "conversationTranscript": [
       {
-        "speaker": "riya",
-        "timestamp": "11:42:49",
-        "text": "Thunder"
+        "speaker": "ritu",
+        "timestamp": "15:20:22",
+        "text": "q q i p u y t"
       },
       {
-        "speaker": "riya",
-        "timestamp": "11:44:13",
-        "text": "video Bangla"
-      },
-      {
-        "speaker": "riya",
-        "timestamp": "11:51:03",
-        "text": "accept it out"
-      },
-      {
-        "speaker": "riya",
-        "timestamp": "11:51:10",
-        "text": "except that I said"
+        "speaker": "VINESH MANOJ",
+        "timestamp": "15:21:39",
+        "text": "a b c d e f g h i j k"
       }
     ]
   },
@@ -55,6 +43,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2025-12-31T06:11:01.850Z"
+    "notesGeneratedAt": "2025-12-31T09:40:33.984Z"
   }
 }
