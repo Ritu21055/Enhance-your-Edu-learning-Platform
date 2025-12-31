@@ -383,125 +383,62 @@ const VideoCallComponent = memo(({
     videoTrack.addEventListener('ended', handleTrackEnded);
 
     // Simple protection - only protect if video should be enabled
-    // CRITICAL: Use a function that reads props directly to avoid stale closures
+    // OPTIMIZED: Reduced frequency to prevent lag (was 300ms, now 2000ms)
     const checkInterval = setInterval(() => {
-      // CRITICAL: Read props directly from closure (they're in dependency array)
-      // This ensures we always have the latest state from React
-      const shouldBeEnabled = isVideoEnabled; // Use prop directly
-      const currentStream = localStream; // Use prop directly
+      const shouldBeEnabled = isVideoEnabled;
+      const currentStream = localStream;
       
-      // CRITICAL: Also check refs for debugging
-      const refValue = isVideoEnabledRef.current;
-      const streamRef = localStreamRef.current;
+      if (!videoElement || !currentStream) return;
       
-      // CRITICAL: Log when there's a mismatch between prop and ref
-      if (shouldBeEnabled !== refValue) {
-        console.warn('🎥🎥🎥 VideoCall: checkInterval - PROP/REF MISMATCH!', {
-          propValue: shouldBeEnabled,
-          refValue: refValue,
-          trackEnabled: videoTrack.enabled,
-          timestamp: Date.now()
-        });
-      }
-      
-      // CRITICAL: Ensure we have a valid video element and stream
-      if (!videoElement || !currentStream) {
-        console.warn('🎥 VideoCall: Missing video element or stream, skipping check');
-        return;
-      }
-      
-      // CRITICAL: PERMANENT FIX - Extra protection for host's video
-      // If this is the host's video, be extra aggressive about keeping it visible
-      // Check window.isHost or window.isHostRef (exposed from MeetingRoom)
       const isHostVideo = window.isHost === true || window.isHostRef?.current === true;
       
-      // Only protect if video should be enabled (respect user's choice to turn off)
       if (shouldBeEnabled) {
-        // CRITICAL: Also check if track is still live (not ended/stopped)
         const trackReady = videoTrack.readyState === 'live';
         
-        // CRITICAL: For host, if track is disabled but should be enabled, re-enable it immediately
-        if (isHostVideo && !videoTrack.enabled && shouldBeEnabled) {
-          console.warn('🎥 PERMANENT FIX: Host video track disabled but should be enabled, re-enabling immediately');
-          videoTrack.enabled = true;
-        }
-        
         if (!trackReady) {
-          console.log('🎥 VideoCall: Track not ready, hiding video', {
-            readyState: videoTrack.readyState,
-            shouldBeEnabled
-          });
-          // Track is stopped/ended, hide video
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.style.display = 'none';
           videoElement.pause();
-          return; // Don't protect if track is stopped
+          return;
         }
         
-        // CRITICAL: Check if video element is explicitly hidden (e.g., by timer expiration)
-        // If video element is hidden and display is none, don't re-enable track
-        // This prevents protection from interfering with timer-based turn-off
         const isExplicitlyHidden = videoElement.style.display === 'none' && 
                                    videoElement.style.opacity === '0' &&
                                    videoElement.style.visibility === 'hidden';
         
-        // CRITICAL: Force enable track if it's disabled (protection against accidental disabling)
-        // BUT: Only if video element is not explicitly hidden (to respect timer expiration)
         if (!videoTrack.enabled && !isExplicitlyHidden) {
-          console.warn('🎥 VideoCall: Track was disabled, re-enabling (protection)');
           videoTrack.enabled = true;
         } else if (!videoTrack.enabled && isExplicitlyHidden) {
-          // Track is disabled AND video is explicitly hidden - respect that (likely timer expiration)
-          console.log('🎥 VideoCall: Track disabled and video hidden - respecting state (likely timer expiration)');
-          return; // Don't interfere with explicit turn-off
+          return;
         }
         
-        // CRITICAL: Ensure srcObject is set and matches current stream
         if (videoElement.srcObject !== currentStream) {
-          console.warn('🎥 VideoCall: srcObject lost or changed, restoring', {
-            hasSrcObject: !!videoElement.srcObject,
-            hasCurrentStream: !!currentStream,
-            srcObjectId: videoElement.srcObject?.id,
-            currentStreamId: currentStream.id
-          });
           videoElement.srcObject = currentStream;
         }
         
-        // CRITICAL: Force video to be visible and playing if track is enabled
         if (videoTrack.enabled && trackReady) {
-          // Force visibility regardless of current state
           if (videoElement.style.opacity !== '1' || 
               videoElement.style.visibility !== 'visible' || 
               videoElement.style.display !== 'block') {
-            console.warn('🎥 VideoCall: Video was hidden, forcing visibility (protection)');
             videoElement.style.opacity = '1';
             videoElement.style.visibility = 'visible';
             videoElement.style.display = 'block';
           }
           
-          // Force play if paused
           if (videoElement.paused && videoElement.srcObject) {
-            videoElement.play().catch(err => {
-              console.warn('🎥 VideoCall: Failed to play video:', err);
-            });
+            videoElement.play().catch(() => {});
           }
         }
       } else {
-        // Video should be disabled - ensure it's hidden
-        if (videoElement.style.display !== 'none' && 
-            (videoElement.style.opacity !== '0' || videoElement.style.visibility !== 'hidden')) {
-          console.log('🎥 VideoCall: Video should be disabled, hiding it');
+        if (videoElement.style.display !== 'none') {
           videoElement.style.opacity = '0';
           videoElement.style.visibility = 'hidden';
           videoElement.style.display = 'none';
           videoElement.pause();
         }
       }
-      
-      // Update display
-      updateVideo();
-    }, 300); // Check every 300ms - more frequent to catch issues faster
+    }, 2000); // Reduced from 300ms to 2000ms to prevent lag
 
     return () => {
       clearInterval(checkInterval);
@@ -674,14 +611,11 @@ const VideoCallComponent = memo(({
     // Initial update
     updateVideoDisplays();
 
-    // CRITICAL: PERMANENT FIX - Protect host's video from disappearing
-    // Set up periodic check to catch track enabled/disabled changes
-    // This helps when tracks are disabled but socket state hasn't updated yet
+    // OPTIMIZED: Reduced frequency to prevent lag (was 500ms, now 3000ms)
+    // Only check when needed, not constantly
     const checkInterval = setInterval(() => {
       updateVideoDisplays();
       
-      // CRITICAL: Extra protection for host's video - ensure it's always visible if it should be
-      // Check if we have access to participants list to identify host
       const participantsList = window.participantsRef?.current || [];
       Object.entries(remoteStreams).forEach(([participantId, stream]) => {
         const participant = participantsList.find(p => p.id === participantId);
@@ -694,33 +628,27 @@ const VideoCallComponent = memo(({
             const mediaState = participantMediaState[participantId];
             const shouldShowVideo = mediaState?.videoEnabled !== false && videoTrack && videoTrack.readyState === 'live';
             
-            // If host's video should be visible but isn't, force it to be visible
             if (shouldShowVideo) {
               if (videoElement.style.display === 'none' || 
                   videoElement.style.opacity === '0' || 
                   videoElement.style.visibility === 'hidden') {
-                console.warn('🛡️ PERMANENT FIX: Host video was hidden, forcing visibility');
-                videoElement.style.setProperty('opacity', '1', 'important');
-                videoElement.style.setProperty('visibility', 'visible', 'important');
-                videoElement.style.setProperty('display', 'block', 'important');
+                videoElement.style.opacity = '1';
+                videoElement.style.visibility = 'visible';
+                videoElement.style.display = 'block';
                 
-                // Ensure srcObject is set
                 if (videoElement.srcObject !== stream) {
                   videoElement.srcObject = stream;
                 }
                 
-                // Force play
                 if (videoElement.paused) {
-                  videoElement.play().catch(err => {
-                    console.warn('⚠️ Failed to play host video:', err);
-                  });
+                  videoElement.play().catch(() => {});
                 }
               }
             }
           }
         }
       });
-    }, 500); // Check every 500ms
+    }, 3000); // Reduced from 500ms to 3000ms to prevent lag // Check every 500ms
     
     // Cleanup function to remove event listeners and interval
     return () => {
