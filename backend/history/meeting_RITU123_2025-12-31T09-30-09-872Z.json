@@ -1,0 +1,109 @@
+{
+  "meeting": {
+    "id": "RITU123",
+    "title": "Meeting RITU123",
+    "endedAt": "2025-12-31T09:30:09.873Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting transcript appears to capture the very early stages of a call, primarily focused on technical setup and audio checks between ritu and VINESH MANOJ. Participants exchanged fragmented ideas and keywords such as \"Georgia,\" \"skydiving Elementary,\" and \"video music,\" alongside explicit confirmation of audio functionality.",
+    "keyPoints": [
+      "Initial fragmented topics included \"Georgia\" and \"skydiving Elementary.\"",
+      "VINESH MANOJ performed audio checks by reciting parts of the alphabet.",
+      "Ritu instructed or inquired about ensuring \"audio on GC audio.\"",
+      "VINESH MANOJ confirmed their audio status with phrases like \"audio audio\" and \"am I finally.\"",
+      "Other brief mentions included \"Monday\" and \"a video music.\""
+    ],
+    "actionItems": [
+      {
+        "task": "Ensure audio is functional on GC audio",
+        "assignedTo": "TBD",
+        "deadline": "TBD"
+      }
+    ],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "Mentioned \"good answer\" at the start.",
+        "Introduced keywords like \"Georgia\" and \"skydiving Elementary.\"",
+        "Spoke phrases like \"in order to know us\" and \"I was in order.\"",
+        "Referenced \"Monday.\"",
+        "Issued an instruction/query about \"audio on GC audio.\"",
+        "Concluded with \"a video music.\""
+      ],
+      "VINESH MANOJ": [
+        "Recited parts of the alphabet: \"a b c d e f g,\" \"ABCD,\" \"EFG.\"",
+        "Confirmed audio functionality with \"audio audio.\"",
+        "Asked \"am I finally,\" likely to confirm their presence or audio."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "15:06:04",
+        "text": "Georgia"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "15:06:19",
+        "text": "skydiving Elementary"
+      },
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "15:06:42",
+        "text": "a b c d e f g"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "15:08:14",
+        "text": "Monday"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "15:08:24",
+        "text": "audio on GC audio"
+      },
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "15:08:26",
+        "text": "ABCD"
+      },
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "15:08:28",
+        "text": "EFG"
+      },
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "15:08:31",
+        "text": "audio audio"
+      },
+      {
+        "speaker": "VINESH MANOJ",
+        "timestamp": "15:09:29",
+        "text": "am I finally"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "15:13:57",
+        "text": "a video music"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-31T09:30:09.873Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-31T09:30:09.873Z"
+  }
+}

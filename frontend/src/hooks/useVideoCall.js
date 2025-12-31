@@ -1657,6 +1657,51 @@ const useVideoCall = (meetingId, userName) => {
           }
         }
         
+        // CRITICAL: When video is toggled, ALWAYS ensure audio track is properly synced
+        // This section runs even when trackType === 'video' to maintain audio
+        if (trackType === 'video' && audioTrack) {
+          if (audioSender) {
+            const currentAudioTrack = audioSender.track;
+            if (currentAudioTrack && currentAudioTrack.id === audioTrack.id) {
+              // Same track - explicitly sync enabled state
+              if (currentAudioTrack.enabled !== audioTrack.enabled) {
+                console.log(`🔊 Syncing audio track for ${participantId} during video toggle:`, {
+                  currentEnabled: currentAudioTrack.enabled,
+                  shouldBeEnabled: audioTrack.enabled
+                });
+                currentAudioTrack.enabled = audioTrack.enabled;
+              }
+            } else {
+              // Different track - replace it to ensure audio continues
+              const shouldReplace = pc.signalingState === 'stable' && 
+                                   (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+              
+              if (shouldReplace && audioTrack.enabled) {
+                console.log(`🔊 Replacing audio track for ${participantId} during video toggle`);
+                audioSender.replaceTrack(audioTrack)
+                  .then(() => {
+                    // Ensure audio stays enabled after replacement
+                    if (audioSender.track && !audioSender.track.enabled && audioTrack.enabled) {
+                      audioSender.track.enabled = true;
+                    }
+                    triggerRenegotiation(pc, participantId);
+                  })
+                  .catch(err => console.error(`❌ Failed to replace audio track for ${participantId}:`, err));
+              }
+            }
+          } else {
+            // No audio sender - add it if audio should be enabled
+            const isStable = pc.signalingState === 'stable' && 
+                            (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+            
+            if (isStable && audioTrack && audioTrack.enabled) {
+              console.log(`🔊 Adding missing audio track for ${participantId} during video toggle`);
+              pc.addTrack(audioTrack, streamToUse);
+              triggerRenegotiation(pc, participantId);
+            }
+          }
+        }
+        
         // Update audio track
         if ((trackType === 'audio' || trackType === 'both') && audioTrack) {
           if (audioSender) {
@@ -1733,9 +1778,9 @@ const useVideoCall = (meetingId, userName) => {
     }
     
     // CRITICAL: Ensure audio track remains enabled after video-only update
-    // Video toggle should NOT affect audio
-    if (trackType === 'video' && audioTrack && audioTrack.enabled) {
-      // Double-check that audio track is still enabled in all peer connections
+    // Video toggle should NOT affect audio - FORCE sync
+    if (trackType === 'video' && audioTrack) {
+      // Force sync audio track in all peer connections
       Object.entries(peersRef.current).forEach(([participantId, peer]) => {
         if (!peer || peer.destroyed || !peer._pc) return;
         
@@ -1746,9 +1791,24 @@ const useVideoCall = (meetingId, userName) => {
           
           if (audioSender && audioSender.track) {
             const currentAudioTrack = audioSender.track;
-            // Ensure audio track is enabled if it should be
-            if (currentAudioTrack.id === audioTrack.id && currentAudioTrack.enabled !== audioTrack.enabled) {
+            // CRITICAL: Force enable audio if local audio track is enabled
+            if (audioTrack.enabled) {
+              if (!currentAudioTrack.enabled) {
+                console.log(`🔊 FORCE enabling audio track for ${participantId} after video toggle`);
+                currentAudioTrack.enabled = true;
+              }
+            } else if (currentAudioTrack.id === audioTrack.id && currentAudioTrack.enabled !== audioTrack.enabled) {
               currentAudioTrack.enabled = audioTrack.enabled;
+            }
+          } else if (audioTrack && audioTrack.enabled) {
+            // Audio track exists but no sender - add it
+            const isStable = pc.signalingState === 'stable' && 
+                            (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+            
+            if (isStable) {
+              console.log(`🔊 Adding missing audio sender for ${participantId} after video toggle`);
+              pc.addTrack(audioTrack, streamToUse);
+              triggerRenegotiation(pc, participantId);
             }
           }
         } catch (error) {
