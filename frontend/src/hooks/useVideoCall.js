@@ -1002,8 +1002,8 @@ const useVideoCall = (meetingId, userName) => {
         
         // CRITICAL: Apply bitrate constraints to video sender for optimal performance
         if (videoSender && videoSender.setParameters) {
-          // CRITICAL FIX: Use CURRENT participant count, not stale ref
-          const participantCount = participants.length + 1; // Use state, not ref
+          // CRITICAL FIX: Use CURRENT participant count from ref to avoid stale state
+          const participantCount = participantsRef.current.length + 1; // Use ref, not state
           const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
           
           // Set target bitrate on track
@@ -1012,7 +1012,14 @@ const useVideoCall = (meetingId, userName) => {
             videoTrack._targetFrameRate = quality.frameRate;
           }
           
-          PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId);
+          // Mark bitrate as applied to prevent re-application (prevents lag)
+          PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
+            .then(() => {
+              if (videoTrack) {
+                videoTrack._bitrateApplied = true; // Mark as applied
+              }
+            })
+            .catch(() => {});
         }
         
         // OPTIMIZED: Apply audio priority for smooth playback
@@ -1180,6 +1187,7 @@ const useVideoCall = (meetingId, userName) => {
         stream.addEventListener('addtrack', handleTrackAdded);
         
         // Also check enabled state periodically (as a fallback)
+        // OPTIMIZED: Reduced frequency from 500ms to 2000ms to prevent unnecessary updates
         const enabledCheckInterval = setInterval(() => {
           const currentEnabled = videoTrack.enabled;
           const lastEnabled = videoTrack._lastEnabledState;
@@ -1187,7 +1195,7 @@ const useVideoCall = (meetingId, userName) => {
             videoTrack._lastEnabledState = currentEnabled;
             handleTrackEnabledChange();
           }
-        }, 500);
+        }, 2000); // Changed from 500ms to 2000ms to reduce performance impact
         
         // Store initial state
         videoTrack._lastEnabledState = videoTrack.enabled;
@@ -1635,7 +1643,7 @@ const useVideoCall = (meetingId, userName) => {
                     
                     // CRITICAL: Apply bitrate constraints immediately after track replacement
                     // This prevents quality degradation after media request expires
-                    const participantCount = participants.length + 1; // Use state, not ref
+                    const participantCount = participantsRef.current.length + 1; // Use ref, not state
                     const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
                     
                     // Ensure target bitrate is set on track
@@ -1644,9 +1652,14 @@ const useVideoCall = (meetingId, userName) => {
                       videoTrack._targetFrameRate = quality.frameRate;
                     }
                     
-                    // Apply bitrate immediately to maintain quality
-                    PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
-                      .catch(err => console.warn(`⚠️ Could not apply bitrate after replacement:`, err));
+                    // OPTIMIZED: Only apply bitrate if not already applied (prevents lag from re-application)
+                    if (!videoTrack._bitrateApplied) {
+                      PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
+                        .then(() => {
+                          videoTrack._bitrateApplied = true; // Mark as applied
+                        })
+                        .catch(err => console.warn(`⚠️ Could not apply bitrate after replacement:`, err));
+                    }
                     
                     // Only trigger renegotiation if necessary (reduce delays)
                     triggerRenegotiation(pc, participantId);
@@ -1746,7 +1759,7 @@ const useVideoCall = (meetingId, userName) => {
                     // CRITICAL: Re-apply video bitrate after audio track replacement
                     // This prevents quality degradation when audio is toggled
                     if (videoTrack && videoSender) {
-                      const participantCount = participants.length + 1; // Use state, not ref
+                      const participantCount = participantsRef.current.length + 1; // Use ref, not state
                       const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
                       
                       if (!videoTrack._targetBitrate || videoTrack._targetBitrate < quality.videoBitrate) {
@@ -1754,8 +1767,14 @@ const useVideoCall = (meetingId, userName) => {
                         videoTrack._targetFrameRate = quality.frameRate;
                       }
                       
-                      PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
-                        .catch(err => console.warn(`⚠️ Could not maintain video bitrate after audio replacement:`, err));
+                      // OPTIMIZED: Only apply bitrate if not already applied (prevents lag from re-application)
+                      if (!videoTrack._bitrateApplied) {
+                        PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
+                          .then(() => {
+                            videoTrack._bitrateApplied = true; // Mark as applied
+                          })
+                          .catch(err => console.warn(`⚠️ Could not maintain video bitrate after audio replacement:`, err));
+                      }
                     }
                     
                     triggerRenegotiation(pc, participantId);
