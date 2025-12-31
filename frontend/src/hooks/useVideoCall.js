@@ -1470,7 +1470,7 @@ const useVideoCall = (meetingId, userName) => {
         return updated;
       });
     });
-  }, [participants.length, isHost]); // CRITICAL: Watch participants.length to update quality
+  }, []);
   
   // Update ref when createPeerConnection changes
   useEffect(() => {
@@ -1606,10 +1606,11 @@ const useVideoCall = (meetingId, userName) => {
                     const participantCount = participants.length + 1; // Use state, not ref
                     const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
                     
-                    // CRITICAL FIX: Always update bitrate, don't check if less
-                    // This ensures bitrate is REDUCED when participant count increases
-                    videoTrack._targetBitrate = quality.videoBitrate;
-                    videoTrack._targetFrameRate = quality.frameRate;
+                    // Ensure target bitrate is set on track
+                    if (!videoTrack._targetBitrate || videoTrack._targetBitrate < quality.videoBitrate) {
+                      videoTrack._targetBitrate = quality.videoBitrate;
+                      videoTrack._targetFrameRate = quality.frameRate;
+                    }
                     
                     // Apply bitrate immediately to maintain quality
                     PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
@@ -1661,9 +1662,10 @@ const useVideoCall = (meetingId, userName) => {
                       const participantCount = participants.length + 1; // Use state, not ref
                       const quality = PeerOptimizer.getQualitySettings(participantCount, isHostRef.current);
                       
-                      // CRITICAL FIX: Always update bitrate, don't check if less
-                      videoTrack._targetBitrate = quality.videoBitrate;
-                      videoTrack._targetFrameRate = quality.frameRate;
+                      if (!videoTrack._targetBitrate || videoTrack._targetBitrate < quality.videoBitrate) {
+                        videoTrack._targetBitrate = quality.videoBitrate;
+                        videoTrack._targetFrameRate = quality.frameRate;
+                      }
                       
                       PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
                         .catch(err => console.warn(`⚠️ Could not maintain video bitrate after audio replacement:`, err));
@@ -1706,7 +1708,7 @@ const useVideoCall = (meetingId, userName) => {
     if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
       videoTrack.enabled = true;
     }
-  }, [participants.length, isHost]); // CRITICAL: Watch participants.length to update quality
+  }, []);
 
   // Expose peersRef and updateAllPeerConnections to window for useMediaRequest to access
   useEffect(() => {
@@ -1716,87 +1718,6 @@ const useVideoCall = (meetingId, userName) => {
       // Keep ref available
     };
   }, [updateAllPeerConnections]);
-
-  // CRITICAL: Dynamically update quality when participant count changes
-  // This prevents lag when multiple participants join
-  useEffect(() => {
-    if (!localStream) return;
-    
-    const participantCount = participants.length + 1; // Use state, not ref
-    const isHostUser = isHostRef.current;
-    const quality = PeerOptimizer.getQualitySettings(participantCount, isHostUser);
-    
-    // Update target bitrate on local video track
-    const videoTrack = localStream.getVideoTracks()[0];
-    if (videoTrack) {
-      // CRITICAL FIX: Always update, don't check if less - we need to REDUCE when count increases
-      videoTrack._targetBitrate = quality.videoBitrate;
-      videoTrack._targetFrameRate = quality.frameRate;
-    }
-    
-    // Update ALL existing peer connections with new quality settings
-    Object.entries(peersRef.current).forEach(([participantId, peer]) => {
-      if (!peer || !peer._pc) return;
-      
-      try {
-        const pc = peer._pc;
-        const senders = pc.getSenders();
-        const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-        
-        if (videoSender && videoTrack) {
-          // CRITICAL: Update bitrate immediately when participant count changes
-          // This reduces bitrate when more participants join, preventing lag
-          PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
-            .catch(err => {
-              console.warn(`⚠️ Could not update bitrate for ${participantId}:`, err);
-            });
-        }
-      } catch (err) {
-        console.error(`❌ Error updating quality for ${participantId}:`, err);
-      }
-    });
-  }, [localStream, participants.length, isHost]); // CRITICAL: Watch participants.length
-
-  // CRITICAL: Periodically maintain video quality and bitrate (for ALL users, not just host)
-  useEffect(() => {
-    if (!localStream) return; // Removed isHost check - apply to everyone
-    
-    const maintainQuality = () => {
-      // Get current participant count and host status for quality settings
-      const participantCount = participants.length + 1; // Use state, not ref
-      const isHostUser = isHostRef.current;
-      const quality = PeerOptimizer.getQualitySettings(participantCount, isHostUser);
-      
-      // Update all peer connections with current quality
-      Object.entries(peersRef.current).forEach(([participantId, peer]) => {
-        if (peer && peer._pc) {
-          const senders = peer._pc.getSenders();
-          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-          
-          if (videoSender && localStream) {
-            const videoTrack = localStream.getVideoTracks()[0];
-            if (videoTrack) {
-              // CRITICAL FIX: Always update bitrate, don't check if less
-              // This ensures bitrate is REDUCED when participant count increases
-              videoTrack._targetBitrate = quality.videoBitrate;
-              videoTrack._targetFrameRate = quality.frameRate;
-              
-              // Re-apply bitrate to ensure it's updated
-              PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId).catch(err => {
-                console.warn(`⚠️ Could not maintain bitrate for ${participantId}:`, err);
-              });
-            }
-          }
-        }
-      });
-    };
-    
-    // Check immediately and then every 10 seconds
-    maintainQuality();
-    const interval = setInterval(maintainQuality, 10000);
-    
-    return () => clearInterval(interval);
-  }, [localStream, participants.length, isHost]); // CRITICAL: Watch participants.length
 
   return {
     // Streams
