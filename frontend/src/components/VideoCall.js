@@ -559,14 +559,18 @@ const VideoCallComponent = memo(({
         });
         
         // CRITICAL: Ensure muted state is correct for audio
-        // Note: Don't force play() when video is hidden - this causes lag
-        // Audio will work if element was already playing before we hid it
-        // The audio track sync in useVideoCall.js handles the actual audio transmission
+        // Audio plays through video element, so element must be playing
         if (socketAudioEnabled === true && audioTracks.length > 0) {
           // Ensure muted state is correct
           if (videoElement.muted) {
             videoElement.muted = false;
             videoElement.volume = 1.0;
+          }
+          
+          // CRITICAL FIX: Ensure video element is playing when audio is enabled
+          // Even if video is hidden, element must play for audio to work
+          if (videoElement.paused && stream.active) {
+            videoElement.play().catch(() => {});
           }
         }
         
@@ -584,18 +588,26 @@ const VideoCallComponent = memo(({
                 currentElement.style.opacity = '0';
                 currentElement.style.visibility = 'hidden';
                 currentElement.style.display = 'none';
-                currentElement.pause();
                 
-                // Replace with blank stream to clear frame
-                try {
-                  const canvas = document.createElement('canvas');
-                  canvas.width = 1;
-                  canvas.height = 1;
-                  const blankStream = canvas.captureStream(0);
-                  currentElement.srcObject = blankStream;
-                } catch (e) {
-                  // If blank stream fails, just leave it
+                // CRITICAL FIX: Only pause if audio is also disabled
+                // Check if audio track exists and is enabled
+                const currentAudioTrack = currentStream?.getAudioTracks()?.[0];
+                const audioEnabled = currentAudioTrack?.enabled && currentAudioTrack?.readyState === 'live';
+                
+                if (!audioEnabled) {
+                  // Audio disabled - safe to pause
+                  currentElement.pause();
+                } else {
+                  // Audio enabled - keep playing (but hidden) so audio continues
+                  if (currentElement.paused && currentStream?.active) {
+                    currentElement.play().catch(() => {});
+                  }
                 }
+                
+                // CRITICAL FIX: Never replace with blank stream - it stops audio playback!
+                // Only replace if audio is also disabled (track fully ended)
+                // But even then, it's safer to just hide and keep the stream
+                // Blank stream replacement removed - it was causing audio to stop
               }
             }
           };

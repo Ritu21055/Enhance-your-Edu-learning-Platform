@@ -681,18 +681,10 @@ const useVideoCall = (meetingId, userName) => {
                   }
                 }
                 
-                // Only replace with blank if explicitly disabled (not just track ended or temporarily disabled)
-                if (videoEnabled === false) {
-                  try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 1;
-                    canvas.height = 1;
-                    const blankStream = canvas.captureStream(0);
-                    videoElement.srcObject = blankStream;
-                  } catch (e) {
-                    // If blank stream fails, just leave it as is
-                  }
-                }
+                // CRITICAL FIX: Never replace with blank stream - it stops audio playback!
+                // Audio plays through video element's srcObject, so we must keep the original stream
+                // Just hide the element, keep the stream so audio can continue
+                // Blank stream replacement removed - it was causing audio to stop when video is off
               }
             }
             
@@ -1150,6 +1142,27 @@ const useVideoCall = (meetingId, userName) => {
         }
       } else {
         console.warn(`⚠️ No audio track in stream from ${participantName}`);
+      }
+      
+      // CRITICAL FIX: Enable video track when stream is received (same as audio)
+      if (videoTrack) {
+        // CRITICAL: Ensure video track is enabled when received
+        if (!videoTrack.enabled) {
+          videoTrack.enabled = true;
+          console.log(`📹 Video track enabled for ${participantName}`);
+        }
+        
+        // CRITICAL: Initialize participantMediaState with default values if not set
+        // This ensures video shows even if socket state hasn't been received yet
+        if (!participantMediaStateRef.current[participantId]) {
+          participantMediaStateRef.current[participantId] = {
+            videoEnabled: true, // Default to enabled when stream arrives
+            audioEnabled: true
+          };
+          console.log(`📹 Initialized media state for ${participantName}: video=true, audio=true`);
+        }
+      } else {
+        console.warn(`⚠️ No video track in stream from ${participantName}`);
       }
       
       // CRITICAL: Listen for track enabled/disabled changes
