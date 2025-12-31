@@ -6,12 +6,15 @@
     "status": "completed"
   },
   "notes": {
-    "summary": "The meeting, primarily involving Riya, consisted of two brief, distinct statements. Riya initiated a prompt to 'guess a candy' and separately mentioned 'video of Hindi videos,' indicating a short and informal interaction without any clear decisions or assigned tasks.",
-    "keyPoints": [
-      "A prompt was made to 'guess a candy'.",
-      "The topic of 'video of Hindi videos' was brought up."
+    "summary": "This meeting discussed . 1 action items were identified.",
+    "keyPoints": [],
+    "actionItems": [
+      {
+        "task": "I put in my action Jay Potter",
+        "assignedTo": "TBD",
+        "deadline": "TBD"
+      }
     ],
-    "actionItems": [],
     "decisions": [],
     "studyGuide": {
       "definitions": [],
@@ -19,21 +22,35 @@
       "formulas": []
     },
     "participantContributions": {
-      "riya": [
-        "Initiated a prompt to 'guess a candy'.",
-        "Mentioned 'video of Hindi videos'."
+      "ritu": [
+        " I put in my action Jay Potter"
       ]
     },
     "conversationTranscript": [
       {
-        "speaker": "riya",
-        "timestamp": "13:50:33",
-        "text": "guess a candy"
+        "speaker": "ritu",
+        "timestamp": "16:49:02",
+        "text": "yes"
       },
       {
-        "speaker": "riya",
-        "timestamp": "13:52:29",
-        "text": "video of Hindi videos"
+        "speaker": "ritu",
+        "timestamp": "16:49:04",
+        "text": " yes"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:49:08",
+        "text": " I put in my action Jay Potter"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:49:12",
+        "text": " action Jay"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:49:19",
+        "text": "e"
       }
     ]
   },
@@ -46,6 +63,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2025-12-31T08:08:36.294Z"
+    "notesGeneratedAt": "2025-12-31T11:08:45.116Z"
   }
 }

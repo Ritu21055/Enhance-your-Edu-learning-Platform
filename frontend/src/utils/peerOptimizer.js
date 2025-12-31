@@ -11,42 +11,42 @@ export class PeerOptimizer {
    * Get optimized quality settings based on participant count
    */
   static getQualitySettings(participantCount, isHost = false) {
-    // Host gets better quality to prevent lag
+    // OPTIMIZED: Lower bitrates for real-time performance (reduced from 2Mbps to 400-500kbps)
     if (isHost) {
       if (participantCount === 1) {
         return {
-          videoWidth: 960,
-          videoHeight: 540,
-          frameRate: 30,
-          videoBitrate: 2000000 // 2 Mbps - higher for host
+          videoWidth: 640,
+          videoHeight: 480,
+          frameRate: 20, // Reduced from 30
+          videoBitrate: 500000 // 500 kbps - reduced from 2 Mbps
         };
       } else if (participantCount === 2) {
         return {
           videoWidth: 640,
           videoHeight: 480,
-          frameRate: 25,
-          videoBitrate: 1200000 // 1.2 Mbps - higher for host
+          frameRate: 18, // Reduced from 25
+          videoBitrate: 400000 // 400 kbps - reduced from 1.2 Mbps
         };
       } else if (participantCount <= 4) {
         return {
-          videoWidth: 640,
-          videoHeight: 480,
-          frameRate: 24,
-          videoBitrate: 1000000 // 1 Mbps - higher for host to prevent lag
+          videoWidth: 480,
+          videoHeight: 360,
+          frameRate: 18, // Reduced from 24
+          videoBitrate: 350000 // 350 kbps - reduced from 1 Mbps
         };
       } else if (participantCount <= 6) {
         return {
           videoWidth: 480,
           videoHeight: 360,
-          frameRate: 20,
-          videoBitrate: 800000 // 800 kbps
+          frameRate: 15,
+          videoBitrate: 300000 // 300 kbps - reduced from 800 kbps
         };
       } else {
         return {
-          videoWidth: 480,
-          videoHeight: 360,
-          frameRate: 18,
-          videoBitrate: 600000 // 600 kbps
+          videoWidth: 360,
+          videoHeight: 270,
+          frameRate: 15,
+          videoBitrate: 250000 // 250 kbps - reduced from 600 kbps
         };
       }
     }
@@ -54,40 +54,39 @@ export class PeerOptimizer {
     // Participants get standard quality
     if (participantCount === 1) {
       return {
-        videoWidth: 960,
-        videoHeight: 540,
-        frameRate: 25,
-        videoBitrate: 1500000 // 1.5 Mbps
+        videoWidth: 640,
+        videoHeight: 480,
+        frameRate: 20, // Reduced from 25
+        videoBitrate: 500000 // 500 kbps - reduced from 1.5 Mbps
       };
     } else if (participantCount === 2) {
       return {
         videoWidth: 640,
         videoHeight: 480,
-        frameRate: 24,
-        videoBitrate: 800000 // 800 kbps - increased from 600
+        frameRate: 18, // Reduced from 24
+        videoBitrate: 400000 // 400 kbps - reduced from 800 kbps
       };
     } else if (participantCount <= 4) {
-      // 3-4 participants - increased quality to prevent lag
       return {
-        videoWidth: 640,
-        videoHeight: 480,
-        frameRate: 22,
-        videoBitrate: 700000 // 700 kbps - increased from 500 to prevent lag
+        videoWidth: 480,
+        videoHeight: 360,
+        frameRate: 18, // Reduced from 22
+        videoBitrate: 350000 // 350 kbps - reduced from 700 kbps
       };
     } else if (participantCount <= 6) {
       return {
         videoWidth: 480,
         videoHeight: 360,
-        frameRate: 20,
-        videoBitrate: 600000 // 600 kbps - increased from 400
+        frameRate: 15,
+        videoBitrate: 300000 // 300 kbps - reduced from 600 kbps
       };
     } else {
       // 7+ participants - lowest quality
       return {
         videoWidth: 360,
         videoHeight: 270,
-        frameRate: 18,
-        videoBitrate: 500000 // 500 kbps - increased from 300
+        frameRate: 15,
+        videoBitrate: 250000 // 250 kbps - reduced from 500 kbps
       };
     }
   }
@@ -187,7 +186,7 @@ export class PeerOptimizer {
   static async applySenderBitrate(sender, videoTrack, participantId) {
     if (!sender || !sender.setParameters) return;
 
-    const targetBitrate = videoTrack?._targetBitrate || 500000; // Default 500 kbps
+    const targetBitrate = videoTrack?._targetBitrate || 400000; // Default 400 kbps (reduced from 500)
     const targetFrameRate = videoTrack?._targetFrameRate || 18; // Default 18 fps
 
     try {
