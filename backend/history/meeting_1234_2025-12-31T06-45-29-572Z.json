@@ -1,0 +1,101 @@
+{
+  "meeting": {
+    "id": "1234",
+    "title": "Meeting 1234",
+    "endedAt": "2025-12-31T06:45:29.572Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting transcript primarily consists of a monologue by ritu, expressing her presence and making various observations. The discussion indicates a potential issue with audio playback, specifically mentioning 'YouTube' and 'Ninja Turtle videos', and also refers to individuals named 'Mia', 'Sanjay', and 'Angie'.",
+    "keyPoints": [
+      "Ritu noted an issue with audio, stating 'audio audio but it's not talking my love YouTube'.",
+      "References were made to watching 'Ninja Turtle videos' on YouTube.",
+      "Individuals named 'Mia', 'Sanjay', and 'Angie' were mentioned in an unclear context.",
+      "Ritu initiated by confirming her presence."
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "Confirmed her presence ('okay I'm here').",
+        "Mentioned 'boys' and 'Vietnamese'.",
+        "Stated 'Mia was my brother'.",
+        "Reported an audio issue with YouTube ('audio audio but it's not talking my love YouTube').",
+        "Referred to 'audio of the Sanjay Angie Ninja Turtle videos'."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "12:24:33",
+        "text": "okay I'm"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:24:35",
+        "text": "here"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:24:49",
+        "text": "please"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:25:21",
+        "text": "boys"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:26:57",
+        "text": "Vietnamese"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:27:14",
+        "text": "Mia was my brother"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:27:34",
+        "text": "audio audio"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:27:57",
+        "text": "but it's not talking my love YouTube"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:28:23",
+        "text": "audio of the Sanjay"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:28:25",
+        "text": "Angie"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "12:28:58",
+        "text": "Ninja Turtle videos"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-31T06:45:29.572Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-31T06:45:29.572Z"
+  }
+}
