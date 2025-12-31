@@ -1,0 +1,51 @@
+{
+  "meeting": {
+    "id": "144",
+    "title": "Meeting 144",
+    "endedAt": "2025-12-31T08:08:36.294Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting, primarily involving Riya, consisted of two brief, distinct statements. Riya initiated a prompt to 'guess a candy' and separately mentioned 'video of Hindi videos,' indicating a short and informal interaction without any clear decisions or assigned tasks.",
+    "keyPoints": [
+      "A prompt was made to 'guess a candy'.",
+      "The topic of 'video of Hindi videos' was brought up."
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "riya": [
+        "Initiated a prompt to 'guess a candy'.",
+        "Mentioned 'video of Hindi videos'."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "riya",
+        "timestamp": "13:50:33",
+        "text": "guess a candy"
+      },
+      {
+        "speaker": "riya",
+        "timestamp": "13:52:29",
+        "text": "video of Hindi videos"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-31T08:08:36.294Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-31T08:08:36.294Z"
+  }
+}

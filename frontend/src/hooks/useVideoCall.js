@@ -1593,6 +1593,18 @@ const useVideoCall = (meetingId, userName) => {
               if (currentTrack.enabled !== videoTrack.enabled) {
                 currentTrack.enabled = videoTrack.enabled;
               }
+              
+              // CRITICAL: Ensure audio track remains enabled when video is toggled
+              // Video toggle should NOT affect audio
+              if (trackType === 'video' && audioTrack && audioSender) {
+                const currentAudioTrack = audioSender.track;
+                if (currentAudioTrack && currentAudioTrack.id === audioTrack.id) {
+                  // Sync audio track enabled state to ensure it stays enabled
+                  if (currentAudioTrack.enabled !== audioTrack.enabled) {
+                    currentAudioTrack.enabled = audioTrack.enabled;
+                  }
+                }
+              }
             } else {
               // Different track, replace it if connection is stable
               const shouldReplace = pc.signalingState === 'stable' && 
@@ -1601,6 +1613,17 @@ const useVideoCall = (meetingId, userName) => {
               if (shouldReplace) {
                 videoSender.replaceTrack(videoTrack)
                   .then(() => {
+                    // CRITICAL: Ensure audio track remains enabled after video track replacement
+                    if (trackType === 'video' && audioTrack && audioSender) {
+                      const currentAudioTrack = audioSender.track;
+                      if (currentAudioTrack && currentAudioTrack.id === audioTrack.id) {
+                        // Ensure audio track stays enabled
+                        if (currentAudioTrack.enabled !== audioTrack.enabled) {
+                          currentAudioTrack.enabled = audioTrack.enabled;
+                        }
+                      }
+                    }
+                    
                     // CRITICAL: Apply bitrate constraints immediately after track replacement
                     // This prevents quality degradation after media request expires
                     const participantCount = participants.length + 1; // Use state, not ref
@@ -1707,6 +1730,31 @@ const useVideoCall = (meetingId, userName) => {
     // Ensure video track is still enabled after audio-only update
     if (trackType === 'audio' && videoTrack && videoWasEnabled && !videoTrack.enabled) {
       videoTrack.enabled = true;
+    }
+    
+    // CRITICAL: Ensure audio track remains enabled after video-only update
+    // Video toggle should NOT affect audio
+    if (trackType === 'video' && audioTrack && audioTrack.enabled) {
+      // Double-check that audio track is still enabled in all peer connections
+      Object.entries(peersRef.current).forEach(([participantId, peer]) => {
+        if (!peer || peer.destroyed || !peer._pc) return;
+        
+        try {
+          const pc = peer._pc;
+          const senders = pc.getSenders();
+          const audioSender = senders.find(s => s.track?.kind === 'audio');
+          
+          if (audioSender && audioSender.track) {
+            const currentAudioTrack = audioSender.track;
+            // Ensure audio track is enabled if it should be
+            if (currentAudioTrack.id === audioTrack.id && currentAudioTrack.enabled !== audioTrack.enabled) {
+              currentAudioTrack.enabled = audioTrack.enabled;
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to verify audio track for ${participantId}:`, error);
+        }
+      });
     }
   }, []);
 

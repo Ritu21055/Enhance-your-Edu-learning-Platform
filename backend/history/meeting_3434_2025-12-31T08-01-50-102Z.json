@@ -1,0 +1,51 @@
+{
+  "meeting": {
+    "id": "3434",
+    "title": "Meeting 3434",
+    "endedAt": "2025-12-31T08:01:50.109Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "Ritu mentioned that an attorney was seeking any existing video footage and new audio recordings related to an individual named Jason.",
+    "keyPoints": [
+      "An attorney is looking for specific media.",
+      "The media includes any video of Jason.",
+      "The media also includes new audio of Jason."
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "Inquired about or stated that an attorney was looking for any video and new audio pertaining to Jason."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "13:37:14",
+        "text": "attorney I was looking at any video"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "13:37:21",
+        "text": "now audio of Jason new audio"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2025-12-31T08:01:50.109Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2025-12-31T08:01:50.109Z"
+  }
+}
