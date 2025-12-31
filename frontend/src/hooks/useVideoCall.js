@@ -1681,8 +1681,16 @@ const useVideoCall = (meetingId, userName) => {
                         .catch(err => console.warn(`⚠️ Could not apply bitrate after replacement:`, err));
                     }
                     
-                    // Only trigger renegotiation if necessary (reduce delays)
-                    triggerRenegotiation(pc, participantId);
+                    // CRITICAL FIX: Only trigger renegotiation if track was actually replaced
+                    // If same track, just enable/disable - no renegotiation needed
+                    // Renegotiation is needed for replaceTrack, but can cause lag
+                    // Use a small delay to batch renegotiations and reduce lag
+                    setTimeout(() => {
+                      if (pc.signalingState === 'stable' && 
+                          (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
+                        triggerRenegotiation(pc, participantId);
+                      }
+                    }, 100); // Small delay to batch renegotiations
                   })
                   .catch(err => console.error(`❌ Failed to replace video track for ${participantId}:`, err));
               }
@@ -1694,7 +1702,13 @@ const useVideoCall = (meetingId, userName) => {
             
             if (isStable) {
               pc.addTrack(videoTrack, streamToUse);
-              triggerRenegotiation(pc, participantId);
+              // CRITICAL FIX: Delay renegotiation to reduce lag when video is toggled ON
+              setTimeout(() => {
+                if (pc.signalingState === 'stable' && 
+                    (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
+                  triggerRenegotiation(pc, participantId);
+                }
+              }, 100); // Small delay to batch renegotiations
             }
           }
         }
@@ -1718,23 +1732,37 @@ const useVideoCall = (meetingId, userName) => {
                 PeerOptimizer.applyAudioPriority(audioSender, participantId).catch(() => {});
               }
             } else {
-              // Different track - replace it to ensure audio continues
-              const shouldReplace = pc.signalingState === 'stable' && 
-                                   (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+              // CRITICAL FIX: Don't replace audio track when video is toggled if audio is working
+              // Only replace if audio track is actually missing or ended
+              const currentAudioTrack = audioSender.track;
+              const audioTrackEnded = currentAudioTrack?.readyState === 'ended';
+              const audioTrackMissing = !currentAudioTrack;
               
-              if (shouldReplace && audioTrack.enabled) {
-                console.log(`🔊 Replacing audio track for ${participantId} during video toggle`);
-                audioSender.replaceTrack(audioTrack)
-                  .then(() => {
-                    // Ensure audio stays enabled after replacement
-                    if (audioSender.track && !audioSender.track.enabled && audioTrack.enabled) {
-                      audioSender.track.enabled = true;
-                    }
-                    // OPTIMIZED: Apply audio priority after replacement
-                    PeerOptimizer.applyAudioPriority(audioSender, participantId).catch(() => {});
-                    triggerRenegotiation(pc, participantId);
-                  })
-                  .catch(err => console.error(`❌ Failed to replace audio track for ${participantId}:`, err));
+              // Only replace if audio track is actually broken, not just different ID
+              if (audioTrackEnded || audioTrackMissing) {
+                const shouldReplace = pc.signalingState === 'stable' && 
+                                     (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+                
+                if (shouldReplace && audioTrack.enabled) {
+                  console.log(`🔊 Replacing audio track for ${participantId} during video toggle (track ended/missing)`);
+                  audioSender.replaceTrack(audioTrack)
+                    .then(() => {
+                      // Ensure audio stays enabled after replacement
+                      if (audioSender.track && !audioSender.track.enabled && audioTrack.enabled) {
+                        audioSender.track.enabled = true;
+                      }
+                      // OPTIMIZED: Apply audio priority after replacement
+                      PeerOptimizer.applyAudioPriority(audioSender, participantId).catch(() => {});
+                      triggerRenegotiation(pc, participantId);
+                    })
+                    .catch(err => console.error(`❌ Failed to replace audio track for ${participantId}:`, err));
+                }
+              } else {
+                // Audio track is fine, just sync enabled state without replacement
+                console.log(`🔊 Audio track exists and is live for ${participantId}, syncing enabled state only`);
+                if (currentAudioTrack && currentAudioTrack.enabled !== audioTrack.enabled) {
+                  currentAudioTrack.enabled = audioTrack.enabled;
+                }
               }
             }
           } else {

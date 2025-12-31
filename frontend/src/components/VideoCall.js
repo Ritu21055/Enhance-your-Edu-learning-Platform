@@ -483,7 +483,8 @@ const VideoCallComponent = memo(({
                                 (socketVideoEnabled === undefined && videoTrack && !trackEnded && videoTrack.enabled);
 
         if (shouldShowVideo) {
-          // Video should be shown - ensure actual stream is set and track is enabled
+          // CRITICAL FIX: Always restore stream when video should be shown
+          // This prevents freezing when video is toggled ON
           if (videoElement.srcObject !== stream) {
             console.log(`📹 Restoring actual stream for ${participantId}`);
             videoElement.srcObject = stream;
@@ -495,13 +496,23 @@ const VideoCallComponent = memo(({
             console.log(`📹 Re-enabled video track for ${participantId}`);
           }
 
-          // Show and play
+          // Show and play - CRITICAL: Force visibility and play to prevent freezing
           videoElement.style.opacity = '1';
           videoElement.style.visibility = 'visible';
           videoElement.style.display = 'block';
 
-          if (videoElement.paused && stream.active) {
-            videoElement.play().catch(() => {});
+          // CRITICAL FIX: Always ensure video element is playing when video is shown
+          // This prevents freezing when video is toggled ON
+          if (stream.active) {
+            if (videoElement.paused) {
+              videoElement.play().catch(() => {});
+            }
+            // Force play again after a small delay to ensure it starts
+            setTimeout(() => {
+              if (videoElement.paused && stream.active) {
+                videoElement.play().catch(() => {});
+              }
+            }, 100);
           }
         } else {
           // Video should be hidden - hide the video element IMMEDIATELY
