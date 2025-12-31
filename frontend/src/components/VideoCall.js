@@ -582,15 +582,12 @@ const VideoCallComponent = memo(({
           
           // CRITICAL: Only pause if audio is also disabled
           // If audio is enabled, keep the element playing (but hidden) so audio continues
+          // BUT: Don't call play() here - let the audio section handle it to avoid conflicts
           const shouldPause = socketAudioEnabled === false;
           if (shouldPause && !videoElement.paused) {
             videoElement.pause();
-          } else if (!shouldPause && videoElement.paused) {
-            // Audio is enabled - keep playing even though video is hidden
-            videoElement.play().catch(err => {
-              console.warn(`🔊 Failed to play audio (video hidden) for ${participantId}:`, err);
-            });
           }
+          // Note: If audio is enabled, we'll handle play() in the audio section below
 
           // DON'T replace with blank stream - this causes freezing
           // Just hide the element and pause it, keep the original stream
@@ -624,29 +621,24 @@ const VideoCallComponent = memo(({
           }
         });
         
-        // CRITICAL: Force play video element if audio is enabled (audio plays through video element)
-        // This applies even when video is hidden
+        // CRITICAL: Handle audio playback - only ONE play() call, and only when needed
         if (socketAudioEnabled === true && audioTracks.length > 0) {
-          if (videoElement.paused && stream.active) {
-            videoElement.play().catch(err => {
-              console.warn(`🔊 Failed to play audio for ${participantId}:`, err);
-            });
-          }
+          // Only play if paused AND stream is active
+          // Don't play if video is visible (it should already be playing)
+          const isVideoVisible = videoElement.style.display !== 'none' && 
+                                videoElement.style.opacity !== '0';
           
-          // Double-check muted state after play attempt
-          if (videoElement.muted) {
-            console.warn(`🔊 Video element still muted after play attempt, forcing unmute for ${participantId}`);
-            videoElement.muted = false;
-            videoElement.volume = 1.0;
-          }
-          
-          // CRITICAL: Ensure video element is not paused when audio is enabled
-          // Even if video is hidden, we need the element playing for audio
-          if (videoElement.paused) {
-            console.log(`🔊 Video hidden but audio enabled - forcing play for ${participantId}`);
+          if (!isVideoVisible && videoElement.paused && stream.active) {
+            // Video is hidden but audio is enabled - play for audio only
             videoElement.play().catch(err => {
               console.warn(`🔊 Failed to play audio (video hidden) for ${participantId}:`, err);
             });
+          }
+          
+          // Ensure muted state is correct
+          if (videoElement.muted) {
+            videoElement.muted = false;
+            videoElement.volume = 1.0;
           }
         }
         

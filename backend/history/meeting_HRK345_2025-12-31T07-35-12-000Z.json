@@ -21,13 +21,8 @@
     "conversationTranscript": [
       {
         "speaker": "ritu",
-        "timestamp": "13:07:56",
-        "text": "I want in a birthday"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "13:08:06",
-        "text": " cake"
+        "timestamp": "15:32:27",
+        "text": "45 hrk capital"
       }
     ]
   },
@@ -40,6 +35,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2025-12-31T07:35:12.002Z"
+    "notesGeneratedAt": "2025-12-31T09:54:22.574Z"
   }
 }

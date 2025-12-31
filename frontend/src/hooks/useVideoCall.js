@@ -668,9 +668,14 @@ const useVideoCall = (meetingId, userName) => {
                 // If audio is enabled, keep playing (but hidden) so audio continues
                 const audioEnabled = participantMediaStateRef.current[participantId]?.audioEnabled;
                 if (audioEnabled !== true) {
-                  videoElement.pause();
+                  // Audio disabled - safe to pause
+                  if (!videoElement.paused) {
+                    videoElement.pause();
+                  }
                 } else {
-                  // Audio is enabled - keep playing even though video is hidden
+                  // Audio enabled - keep playing but don't force play() here
+                  // The audio will continue if element is already playing
+                  // Only play if it's actually paused
                   if (videoElement.paused && stream.active) {
                     videoElement.play().catch(() => {});
                   }
