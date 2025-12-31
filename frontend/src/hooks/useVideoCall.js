@@ -1609,18 +1609,7 @@ const useVideoCall = (meetingId, userName) => {
               if (currentTrack.enabled !== videoTrack.enabled) {
                 currentTrack.enabled = videoTrack.enabled;
               }
-              
-              // CRITICAL: Ensure audio track remains enabled when video is toggled
-              // Video toggle should NOT affect audio
-              if (trackType === 'video' && audioTrack && audioSender) {
-                const currentAudioTrack = audioSender.track;
-                if (currentAudioTrack && currentAudioTrack.id === audioTrack.id) {
-                  // Sync audio track enabled state to ensure it stays enabled
-                  if (currentAudioTrack.enabled !== audioTrack.enabled) {
-                    currentAudioTrack.enabled = audioTrack.enabled;
-                  }
-                }
-              }
+              // Note: Audio sync is handled in separate section below (lines 1676-1720) to avoid duplication
             } else {
               // Different track, replace it if connection is stable
               const shouldReplace = pc.signalingState === 'stable' && 
@@ -1794,9 +1783,11 @@ const useVideoCall = (meetingId, userName) => {
     }
     
     // CRITICAL: Ensure audio track remains enabled after video-only update
-    // Video toggle should NOT affect audio - FORCE sync
-    if (trackType === 'video' && audioTrack) {
-      // Force sync audio track in all peer connections
+    // Video toggle should NOT affect audio
+    // Note: Audio sync is already handled in the loop above (lines 1676-1720)
+    // This is just a final safety check - simplified to avoid duplication
+    if (trackType === 'video' && audioTrack && audioTrack.enabled) {
+      // Quick final check - only if audio track is enabled
       Object.entries(peersRef.current).forEach(([participantId, peer]) => {
         if (!peer || peer.destroyed || !peer._pc) return;
         
@@ -1805,30 +1796,14 @@ const useVideoCall = (meetingId, userName) => {
           const senders = pc.getSenders();
           const audioSender = senders.find(s => s.track?.kind === 'audio');
           
-          if (audioSender && audioSender.track) {
-            const currentAudioTrack = audioSender.track;
-            // CRITICAL: Force enable audio if local audio track is enabled
-            if (audioTrack.enabled) {
-              if (!currentAudioTrack.enabled) {
-                console.log(`🔊 FORCE enabling audio track for ${participantId} after video toggle`);
-                currentAudioTrack.enabled = true;
-              }
-            } else if (currentAudioTrack.id === audioTrack.id && currentAudioTrack.enabled !== audioTrack.enabled) {
-              currentAudioTrack.enabled = audioTrack.enabled;
-            }
-          } else if (audioTrack && audioTrack.enabled) {
-            // Audio track exists but no sender - add it
-            const isStable = pc.signalingState === 'stable' && 
-                            (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
-            
-            if (isStable) {
-              console.log(`🔊 Adding missing audio sender for ${participantId} after video toggle`);
-              pc.addTrack(audioTrack, streamToUse);
-              triggerRenegotiation(pc, participantId);
+          if (audioSender?.track && audioSender.track.id === audioTrack.id) {
+            // Final safety check - ensure enabled
+            if (!audioSender.track.enabled && audioTrack.enabled) {
+              audioSender.track.enabled = true;
             }
           }
         } catch (error) {
-          console.warn(`Failed to verify audio track for ${participantId}:`, error);
+          // Silent fail - already handled above
         }
       });
     }

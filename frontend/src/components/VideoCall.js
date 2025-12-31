@@ -621,20 +621,11 @@ const VideoCallComponent = memo(({
           }
         });
         
-        // CRITICAL: Handle audio playback - only ONE play() call, and only when needed
+        // CRITICAL: Ensure muted state is correct for audio
+        // Note: Don't force play() when video is hidden - this causes lag
+        // Audio will work if element was already playing before we hid it
+        // The audio track sync in useVideoCall.js handles the actual audio transmission
         if (socketAudioEnabled === true && audioTracks.length > 0) {
-          // Only play if paused AND stream is active
-          // Don't play if video is visible (it should already be playing)
-          const isVideoVisible = videoElement.style.display !== 'none' && 
-                                videoElement.style.opacity !== '0';
-          
-          if (!isVideoVisible && videoElement.paused && stream.active) {
-            // Video is hidden but audio is enabled - play for audio only
-            videoElement.play().catch(err => {
-              console.warn(`🔊 Failed to play audio (video hidden) for ${participantId}:`, err);
-            });
-          }
-          
           // Ensure muted state is correct
           if (videoElement.muted) {
             videoElement.muted = false;
