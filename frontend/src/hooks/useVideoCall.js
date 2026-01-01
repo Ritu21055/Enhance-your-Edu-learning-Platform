@@ -532,12 +532,23 @@ const useVideoCall = (meetingId, userName) => {
             }
           };
           
+          // CRITICAL FIX: Add delay based on existing connections to prevent network congestion
+          const existingConnectionsCount = Object.keys(peersRef.current).length;
+          const delayForNewConnection = existingConnectionsCount > 0 
+            ? Math.min(500 + (existingConnectionsCount * 200), 1500) // 500ms base + 200ms per existing connection, max 1500ms
+            : 0;
+          
           if (streamReady) {
-            // Stream is ready, create immediately
-            createConnection();
+            if (delayForNewConnection > 0) {
+              console.log(`⏸️ Delaying new connection by ${delayForNewConnection}ms (${existingConnectionsCount} existing connections)`);
+              setTimeout(createConnection, delayForNewConnection);
+            } else {
+              // Stream is ready, create immediately (first connection)
+              createConnection();
+            }
           } else {
             // Stream not ready, wait a bit
-            setTimeout(createConnection, 200);
+            setTimeout(createConnection, Math.max(200, delayForNewConnection));
           }
         };
         
@@ -561,8 +572,49 @@ const useVideoCall = (meetingId, userName) => {
           return;
         }
         
-        // For normal (non-reconnection) case, create connection immediately
-        createConnectionForParticipant();
+        // For normal (non-reconnection) case, create connection with delay
+        // CRITICAL FIX: Re-optimize existing connections before creating new one
+        const existingConnectionsCount = Object.keys(peersRef.current).length;
+        
+        if (existingConnectionsCount > 0) {
+          // Re-optimize all existing connections first
+          console.log(`🔄 Re-optimizing ${existingConnectionsCount} existing connections for new participant...`);
+          const newParticipantCount = participantsRef.current.length + 1; // +1 for self
+          
+          Object.keys(peersRef.current).forEach((existingParticipantId) => {
+            const existingPeer = peersRef.current[existingParticipantId];
+            if (existingPeer && existingPeer._pc) {
+              const senders = existingPeer._pc.getSenders();
+              const videoSender = senders.find(s => s.track?.kind === 'video');
+              const videoTrack = videoSender?.track;
+              
+              if (videoSender && videoTrack) {
+                const quality = PeerOptimizer.getQualitySettings(newParticipantCount, isHostRef.current);
+                
+                // Update target bitrate on track
+                videoTrack._targetBitrate = quality.videoBitrate;
+                videoTrack._targetFrameRate = quality.frameRate;
+                videoTrack._bitrateApplied = false; // Allow re-application
+                
+                // Re-apply bitrate constraints
+                PeerOptimizer.applySenderBitrate(videoSender, videoTrack, existingParticipantId)
+                  .then(() => {
+                    videoTrack._bitrateApplied = true;
+                    console.log(`✅ Re-optimized connection to ${existingParticipantId}: ${quality.videoBitrate / 1000}kbps @ ${quality.frameRate}fps`);
+                  })
+                  .catch(err => console.warn(`⚠️ Could not re-optimize connection to ${existingParticipantId}:`, err));
+              }
+            }
+          });
+          
+          // Wait a bit for re-optimization to complete before creating new connection
+          setTimeout(() => {
+            createConnectionForParticipant();
+          }, 300);
+        } else {
+          // No existing connections, create immediately
+          createConnectionForParticipant();
+        }
       }
     });
 
@@ -1012,13 +1064,20 @@ const useVideoCall = (meetingId, userName) => {
           }
           
           // Mark bitrate as applied to prevent re-application (prevents lag)
-          PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
-            .then(() => {
-              if (videoTrack) {
-                videoTrack._bitrateApplied = true; // Mark as applied
-              }
-            })
-            .catch(() => {});
+          // BUT: Reset flag if participant count has changed significantly
+          const shouldReapply = !videoTrack?._bitrateApplied || 
+                               (videoTrack?._lastBitrateParticipantCount !== participantCount);
+          
+          if (shouldReapply) {
+            PeerOptimizer.applySenderBitrate(videoSender, videoTrack, participantId)
+              .then(() => {
+                if (videoTrack) {
+                  videoTrack._bitrateApplied = true;
+                  videoTrack._lastBitrateParticipantCount = participantCount; // Track when it was applied
+                }
+              })
+              .catch(() => {});
+          }
         }
         
         // OPTIMIZED: Apply audio priority for smooth playback

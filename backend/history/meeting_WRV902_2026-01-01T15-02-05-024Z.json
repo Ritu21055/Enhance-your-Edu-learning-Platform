@@ -1,0 +1,71 @@
+{
+  "meeting": {
+    "id": "WRV902",
+    "title": "Meeting WRV902",
+    "endedAt": "2026-01-01T15:02:05.024Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting was a brief exchange focused on sharing access credentials. Ritu provided a password \"111\" and subsequently shared another number, \"902\", which RRR acknowledged.",
+    "keyPoints": [
+      "Ritu provided a password '111'.",
+      "RRR successfully acknowledged the initial password.",
+      "Ritu shared an additional number, '902'."
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "Shared the password '111'.",
+        "Provided an additional number '902'."
+      ],
+      "RRR": [
+        "Acknowledged receipt of the password '111' with 'Perfect.'.",
+        "Responded to the number '902' with 'Uh.'."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "20:42:59",
+        "text": "Hi join the password 111"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:43:21",
+        "text": "password"
+      },
+      {
+        "speaker": "RRR",
+        "timestamp": "20:43:40",
+        "text": "Perfect."
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:44:28",
+        "text": "902"
+      },
+      {
+        "speaker": "RRR",
+        "timestamp": "20:46:43",
+        "text": "Uh."
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2026-01-01T15:02:05.024Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2026-01-01T15:02:05.024Z"
+  }
+}
