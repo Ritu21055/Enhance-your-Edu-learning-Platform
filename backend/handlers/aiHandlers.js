@@ -391,7 +391,7 @@ export default function registerAIHandlers(socket, io) {
       } catch (error) {
         console.error('❌ Question generation failed:', error);
       }
-    }, 120000); // Check every 120 seconds (2 minutes) - gives more time for substantial conversation
+    }, 240000); // Check every 240 seconds (4 minutes) - gives more time for substantial conversation
     
     // Store timer for cleanup
     llmService.questionGenerationTimer.set(meetingId, questionTimer);
