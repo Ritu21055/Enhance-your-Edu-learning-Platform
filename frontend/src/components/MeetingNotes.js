@@ -29,7 +29,8 @@ import {
   School,
   Person,
   Chat,
-  Download
+  Download,
+  PictureAsPdf
 } from '@mui/icons-material';
 
 const MeetingNotes = ({ notes, loading = false, error = null }) => {
@@ -39,19 +40,176 @@ const MeetingNotes = ({ notes, loading = false, error = null }) => {
     setExpanded(isExpanded ? panel : false);
   };
 
-  const handleDownload = () => {
+  const handleDownload = (format = 'pdf') => {
     if (!notes) return;
 
-    const notesText = formatNotesAsText(notes);
-    const blob = new Blob([notesText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `meeting-notes-${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (format === 'pdf') {
+      handleDownloadPDF();
+    } else {
+      const notesText = formatNotesAsText(notes);
+      const blob = new Blob([notesText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `meeting-notes-${new Date().toISOString().split('T')[0]}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    // Use browser print API directly (no jspdf dependency)
+    handleDownloadPDFViaPrint();
+  };
+
+  const handleDownloadPDFViaPrint = () => {
+    // Create a printable HTML document
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to download PDF');
+      return;
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Meeting Notes</title>
+          <style>
+            @media print {
+              @page {
+                margin: 1in;
+              }
+            }
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            h1 {
+              text-align: center;
+              color: #333;
+              border-bottom: 3px solid #333;
+              padding-bottom: 10px;
+            }
+            h2 {
+              color: #555;
+              margin-top: 30px;
+              border-bottom: 2px solid #ddd;
+              padding-bottom: 5px;
+            }
+            ul {
+              margin: 10px 0;
+              padding-left: 30px;
+            }
+            li {
+              margin: 5px 0;
+            }
+            .transcript-entry {
+              margin: 10px 0;
+              padding: 10px;
+              background: #f5f5f5;
+              border-left: 3px solid #333;
+            }
+            .timestamp {
+              font-weight: bold;
+              color: #666;
+            }
+            .speaker {
+              font-weight: bold;
+              color: #333;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>MEETING NOTES</h1>
+          
+          ${notes.summary ? `<h2>SUMMARY</h2><p>${notes.summary}</p>` : ''}
+          
+          ${notes.keyPoints && notes.keyPoints.length > 0 ? `
+            <h2>KEY POINTS</h2>
+            <ul>
+              ${notes.keyPoints.map((point, index) => `<li>${point}</li>`).join('')}
+            </ul>
+          ` : ''}
+          
+          ${notes.actionItems && notes.actionItems.length > 0 ? `
+            <h2>ACTION ITEMS</h2>
+            <ul>
+              ${notes.actionItems.map((item, index) => {
+                const itemText = typeof item === 'string' ? item : item.task;
+                const assigned = typeof item === 'object' && item.assignedTo ? ` (Assigned to: ${item.assignedTo})` : '';
+                const deadline = typeof item === 'object' && item.deadline ? ` (Deadline: ${item.deadline})` : '';
+                return `<li>${itemText}${assigned}${deadline}</li>`;
+              }).join('')}
+            </ul>
+          ` : ''}
+          
+          ${notes.decisions && notes.decisions.length > 0 ? `
+            <h2>DECISIONS</h2>
+            <ul>
+              ${notes.decisions.map((decision, index) => `<li>${decision}</li>`).join('')}
+            </ul>
+          ` : ''}
+          
+          ${notes.studyGuide ? `
+            ${notes.studyGuide.definitions && notes.studyGuide.definitions.length > 0 ? `
+              <h2>DEFINITIONS</h2>
+              <ul>
+                ${notes.studyGuide.definitions.map((def, index) => `<li>${def}</li>`).join('')}
+              </ul>
+            ` : ''}
+            ${notes.studyGuide.examples && notes.studyGuide.examples.length > 0 ? `
+              <h2>EXAMPLES</h2>
+              <ul>
+                ${notes.studyGuide.examples.map((ex, index) => `<li>${ex}</li>`).join('')}
+              </ul>
+            ` : ''}
+            ${notes.studyGuide.formulas && notes.studyGuide.formulas.length > 0 ? `
+              <h2>FORMULAS</h2>
+              <ul>
+                ${notes.studyGuide.formulas.map((formula, index) => `<li>${formula}</li>`).join('')}
+              </ul>
+            ` : ''}
+          ` : ''}
+          
+          ${notes.participantContributions && Object.keys(notes.participantContributions).length > 0 ? `
+            <h2>PARTICIPANT CONTRIBUTIONS</h2>
+            ${Object.entries(notes.participantContributions).map(([name, contributions]) => `
+              <h3>${name}</h3>
+              <ul>
+                ${contributions.map((contribution, index) => `<li>${contribution}</li>`).join('')}
+              </ul>
+            `).join('')}
+          ` : ''}
+          
+          ${notes.conversationTranscript && notes.conversationTranscript.length > 0 ? `
+            <h2>CONVERSATION TRANSCRIPT</h2>
+            ${notes.conversationTranscript.map((entry) => `
+              <div class="transcript-entry">
+                <span class="timestamp">[${entry.timestamp}]</span>
+                <span class="speaker"> ${entry.speaker}:</span>
+                <p>${entry.text}</p>
+              </div>
+            `).join('')}
+          ` : ''}
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Wait for content to load, then trigger print dialog (which can save as PDF)
+    setTimeout(() => {
+      printWindow.print();
+      // Optionally close after print
+      // printWindow.close();
+    }, 250);
   };
 
   const formatNotesAsText = (notes) => {
@@ -186,14 +344,25 @@ const MeetingNotes = ({ notes, loading = false, error = null }) => {
         <Typography variant="h4" component="h2" gutterBottom>
           Meeting Notes
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Download />}
-          onClick={handleDownload}
-          sx={{ mb: 2 }}
-        >
-          Download Notes
-        </Button>
+        <Box display="flex" gap={1}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<PictureAsPdf />}
+            onClick={() => handleDownload('pdf')}
+            sx={{ mb: 2 }}
+          >
+            Download PDF
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Download />}
+            onClick={() => handleDownload('text')}
+            sx={{ mb: 2 }}
+          >
+            Download Text
+          </Button>
+        </Box>
       </Box>
 
       {/* Summary */}

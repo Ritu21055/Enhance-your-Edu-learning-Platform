@@ -34,34 +34,48 @@ export const llmGenerators = {
     const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
     
     let participantStateContext = '';
+    // Separate participants with emotions (video ON) and without emotions (video OFF)
+    const participantsWithVideoOn = allParticipantsWithEmotions.filter(p => p.emotion !== 'unknown');
+    const participantsWithVideoOff = allParticipantsWithEmotions.filter(p => p.emotion === 'unknown');
+    
     if (allParticipantsWithEmotions.length > 0) {
-      const emotionDetails = allParticipantsWithEmotions.map(p => `${p.name}: ${p.emotion}`).join(', ');
-      
       let emotionSummary = [];
-      if (emotionCategories.negative && emotionCategories.negative.length > 0) {
-        const negativeNames = emotionCategories.negative.map(p => p.name).join(', ');
-        const negativeEmotions = emotionCategories.negative.map(p => p.emotion).join(', ');
-        emotionSummary.push(`- Negative emotions (${negativeEmotions}): ${negativeNames}`);
+      
+      // Participants with video ON (emotions detected)
+      if (participantsWithVideoOn.length > 0) {
+        if (emotionCategories.negative && emotionCategories.negative.length > 0) {
+          const negativeNames = emotionCategories.negative.map(p => p.name).join(', ');
+          const negativeEmotions = emotionCategories.negative.map(p => p.emotion).join(', ');
+          emotionSummary.push(`- Negative emotions (${negativeEmotions}): ${negativeNames}`);
+        }
+        if (emotionCategories.positive && emotionCategories.positive.length > 0) {
+          const positiveNames = emotionCategories.positive.map(p => p.name).join(', ');
+          const positiveEmotions = emotionCategories.positive.map(p => p.emotion).join(', ');
+          emotionSummary.push(`- Positive emotions (${positiveEmotions}): ${positiveNames}`);
+        }
+        if (emotionCategories.neutral && emotionCategories.neutral.length > 0) {
+          const neutralNames = emotionCategories.neutral.map(p => p.name).join(', ');
+          emotionSummary.push(`- Neutral emotions: ${neutralNames}`);
+        }
       }
-      if (emotionCategories.positive && emotionCategories.positive.length > 0) {
-        const positiveNames = emotionCategories.positive.map(p => p.name).join(', ');
-        const positiveEmotions = emotionCategories.positive.map(p => p.emotion).join(', ');
-        emotionSummary.push(`- Positive emotions (${positiveEmotions}): ${positiveNames}`);
+      
+      // Participants with video OFF (no emotions detected, but still in meeting)
+      if (participantsWithVideoOff.length > 0) {
+        const videoOffNames = participantsWithVideoOff.map(p => p.name).join(', ');
+        emotionSummary.push(`- Participants with video OFF (no emotion data): ${videoOffNames}`);
       }
-      if (emotionCategories.neutral && emotionCategories.neutral.length > 0) {
-        const neutralNames = emotionCategories.neutral.map(p => p.name).join(', ');
-        emotionSummary.push(`- Neutral emotions: ${neutralNames}`);
-      }
+      
+      const allParticipantNames = allParticipantsWithEmotions.map(p => p.name).join(', ');
       
       participantStateContext = `\n\nPARTICIPANT STATE (IMPORTANT):
 ${emotionSummary.join('\n')}
-- All participant emotions: ${emotionDetails}
+- All participants in meeting: ${allParticipantNames}
 - Generate questions that:
-  * For negative emotions (confused, sad, fear, angry): Help clarify or address concerns. ALWAYS include participant name.
-  * For positive emotions (happy, surprised, excited): Build on their engagement or excitement. ALWAYS include participant name.
-  * For neutral emotions: Maintain engagement or check understanding. ALWAYS include participant name.
-- CRITICAL: When generating questions based on participant emotions, ALWAYS start with their name and mix the conversation topic with their emotional state
-- Consider the overall emotional state when generating the question`;
+  * For participants with emotions (video ON): Use their emotion to personalize the question. ALWAYS include participant name. Example: "Rahul, [topic] ke baare mein aapke kya concerns hain?" (if confused) or "Riya, [topic] ke kaunse aspects aapko exciting lagte hain?" (if happy)
+  * For participants with video OFF: Generate topic-related questions using their name. Example: "Amit, [topic] ke baare mein aapke kya thoughts hain?" or "Priya, [topic] ko kaise implement karenge?"
+  * CRITICAL: When generating questions, ALWAYS start with participant name, followed by a comma, then the topic-related question
+  * Mix the conversation topic with participant engagement (emotion if available, or general engagement if video off)
+  * Use the actual participant names from the list above`;
     }
     
     const prompt = `You are an intelligent meeting facilitator. Analyze this conversation and generate ONE highly relevant follow-up question that will advance the discussion.
@@ -80,30 +94,41 @@ ANALYSIS:
 CRITICAL REQUIREMENTS:
 1. The question MUST be DIRECTLY related to what was discussed in the conversation above
 2. The question MUST reference specific topics, points, or issues mentioned in the conversation
-3. ${allParticipantsWithEmotions.length > 0 ? `Consider participant emotions when generating questions. ALWAYS include the participant's actual name when the question is directed at them, regardless of their emotion type:
-   - For negative emotions (confused, sad, fear, angry): Generate questions that help clarify or address concerns. ALWAYS start with participant name. Example: "Rahul, would you like to clarify your question about [topic]?" or "Amit, do you have any concerns about [topic]?"
-   - For positive emotions (happy, surprised, excited): Generate questions that build on their engagement or excitement. ALWAYS start with participant name. Example: "Riya, what aspects of [topic] are you most excited about?" or "Priya, how do you feel about this approach?"
-   - For neutral emotions: Generate questions that maintain engagement or check understanding. ALWAYS start with participant name. Example: "Sneha, how do you feel about this approach? Any questions?" or "Karan, what are your thoughts on [topic]?"
-   - Available participant names: ${allParticipantsWithEmotions.map(p => p.name).join(', ')}
-   - CRITICAL: When generating a question based on a participant's emotion AND the conversation context, ALWAYS start the question with their name followed by a comma. Mix the conversation topic with their emotional state to create a personalized question.` : ''}
+3. ${allParticipantsWithEmotions.length > 0 ? `MANDATORY: ALWAYS include a participant's actual name at the start of the question, followed by a comma, then the topic-related question.
+
+   Available participants: ${allParticipantsWithEmotions.map(p => `${p.name} (${p.emotion === 'unknown' ? 'video off' : p.emotion})`).join(', ')}
+   
+   - For participants with emotions (video ON): Use their emotion to personalize. 
+     * Confused/sad/fear/angry: "Rahul, [topic] ke baare mein aapke kya concerns hain?" or "Amit, [topic] ko clarify karna chahenge?"
+     * Happy/surprised/excited: "Riya, [topic] ke kaunse aspects aapko sabse zyada exciting lagte hain?" or "Priya, [topic] ke baare mein aapka kya experience raha?"
+     * Neutral: "Sneha, [topic] ke baare mein aapke kya thoughts hain?" or "Karan, [topic] ko kaise implement karenge?"
+   
+   - For participants with video OFF: Generate topic-related questions using their name.
+     * Example: "Rahul, [topic] ke baare mein aapke kya thoughts hain?" or "Amit, [topic] ko kaise implement karenge?"
+     * Always start with participant name, then ask about the conversation topic
+   
+   CRITICAL: The question MUST combine:
+   - Participant's name (from the list above) - ALWAYS at the start
+   - The actual topic discussed in the conversation
+   - Their emotional state (if video ON) or general engagement (if video OFF)
+   
+   DO NOT generate questions without participant names when participants exist.` : '4. Generate a general question related to the conversation topic.'}
 4. DO NOT generate generic questions that could apply to any meeting
 5. DO NOT generate questions about topics NOT mentioned in the conversation
-6. If the conversation is unclear or too short, DO NOT generate a question
-7. The question should build on the LAST 2-3 sentences or main points discussed
-8. Use the same language as the conversation (${detectedLanguage}). If the conversation is in Hinglish (mixed Hindi-English), generate questions in Hinglish maintaining the same mix.
-9. Keep it concise (one sentence, maximum 20 words)
+6. The question must reference specific topics, points, or issues from the conversation
+7. Use the same language as the conversation (${detectedLanguage}). If the conversation is in Hinglish (mixed Hindi-English), generate questions in Hinglish maintaining the same mix.
+8. Keep it concise (one sentence, maximum 20 words)
 
 EXAMPLES OF GOOD QUESTIONS:
-- If conversation mentions "budget", ask: "What is the total budget allocated for this project?"
+${allParticipantsWithEmotions.length > 0 ? `- If conversation mentions "budget" and participant "Rahul" has confused emotion: "Rahul, budget allocation ke baare mein aapko kuch clarify karna hai?"
+- If conversation mentions "timeline" and participant "Riya" has happy emotion: "Riya, timeline ke kaunse aspects aapko sabse zyada exciting lagte hain?"
+- If conversation mentions "team" and participant "Amit" has video OFF: "Amit, team mein kaun responsible hoga is task ke liye?"
+- If conversation mentions "deadline" and participant "Priya" has neutral emotion: "Priya, deadline ke baare mein aapke kya thoughts hain?"
+- If conversation mentions "project" and participant "Sneha" has video OFF: "Sneha, project ko kaise implement karenge?"
+- If conversation mentions "budget" and participant "Karan" has surprised emotion: "Karan, budget ke baare mein aapko kya surprising laga?"
+- If conversation mentions "timeline" and participant "Anjali" has video OFF: "Anjali, timeline ke baare mein aapke kya concerns hain?"` : `- If conversation mentions "budget", ask: "What is the total budget allocated for this project?"
 - If conversation mentions "timeline", ask: "When do we need to complete this by?"
-- If conversation mentions "team", ask: "Who will be responsible for this task?"
-${allParticipantsWithEmotions.length > 0 ? `- If participant "Rahul" shows confused emotion: "Rahul, would you like me to clarify the budget allocation for this project?"
-- If participant "Riya" shows happy emotion: "Riya, what aspects of the timeline are you most excited about?"
-- If participant "Amit" shows sad emotion: "Amit, do you have any concerns about the project deadline?"
-- If participant "Priya" shows neutral emotion: "Priya, how do you feel about this approach? Any questions?"
-- If participant "Sneha" shows angry emotion: "Sneha, what specific issues would you like us to address regarding [topic]?"
-- If participant "Karan" shows surprised emotion: "Karan, what surprised you most about [topic]?"
-- If participant "Anjali" shows fear emotion: "Anjali, what concerns do you have about [topic]?"` : ''}
+- If conversation mentions "team", ask: "Who will be responsible for this task?"`}
 
 EXAMPLES OF BAD QUESTIONS (DO NOT GENERATE THESE):
 - "Are there any dependencies we need to consider?" (too generic, not specific to conversation)

@@ -62,22 +62,41 @@ class LLMService {
     try {
       console.log('🤖 LLM: Starting initialization...');
       await this.initializeLLM();
-      console.log('🤖 LLM initialization completed:', this.llmType);
       
-      // Test Gemini if it's being used
+      // CRITICAL: Wait a bit for .env to load and recheckApiKey to complete
+      // This ensures Gemini is initialized if API key becomes available
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Re-check API key one more time in case .env was loaded after initial check
+      // BUT only if Gemini is not already initialized
+      if (process.env.GEMINI_API_KEY && this.llmType !== 'gemini') {
+        console.log('🔄 Re-checking Gemini API key after .env load...');
+        await this.recheckApiKey();
+        // Wait a bit more for recheckApiKey to complete
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      // CRITICAL: Final check - if Gemini is now initialized, don't proceed with Ollama
       if (this.llmType === 'gemini') {
-        console.log('🤖 LLM: Testing Gemini connection...');
-        const testResult = await this.testGeminiConnection();
-        if (testResult) {
-          console.log('✅ Gemini is working correctly');
-        } else {
-          console.log('⚠️ Gemini test failed, but will continue with fallback');
-        }
+        console.log('🤖 LLM initialization completed: gemini');
+        // REMOVED: Test call - it wastes API quota
+        // Gemini will be tested during actual question generation
+        console.log('✅ Gemini initialized and ready for question generation');
+        return; // Exit early if Gemini is initialized
+      }
+      
+      // Only log completion if not Gemini (Ollama or rule-based)
+      // But only if we haven't already logged it
+      if (this.llmType !== 'gemini') {
+        console.log('🤖 LLM initialization completed:', this.llmType);
       }
     } catch (error) {
       console.error('❌ LLM initialization failed:', error);
-      this.llmType = 'rule-based';
-      console.log('🤖 Falling back to rule-based question generation');
+      // Only set to rule-based if Gemini is not already initialized
+      if (this.llmType !== 'gemini') {
+        this.llmType = 'rule-based';
+        console.log('🤖 Falling back to rule-based question generation');
+      }
     }
   }
 
@@ -90,19 +109,11 @@ class LLMService {
       await this.initializeLLM();
       console.log(`🤖 LLM re-initialization completed for meeting ${meetingId}:`, this.llmType);
       
-      // Test Gemini if it's being used
+      // REMOVED: Test call - it wastes API quota
+      // Gemini will be tested during actual question generation
       if (this.llmType === 'gemini') {
-        console.log(`🤖 Testing Gemini connection for meeting ${meetingId}...`);
-        const testResult = await this.testGeminiConnection();
-        if (testResult) {
-          console.log(`✅ Gemini is working correctly for meeting ${meetingId}`);
-          return true;
-        } else {
-          console.log(`⚠️ Gemini test failed for meeting ${meetingId}, but keeping Gemini enabled`);
-          // Keep Gemini enabled even if test fails - it might work during actual use
-          console.log(`🤖 Gemini will be retried during question generation for meeting ${meetingId}`);
-          return true; // Return true to enable AI features, Gemini will be retried
-        }
+        console.log(`✅ Gemini initialized for meeting ${meetingId} - ready for question generation`);
+        return true;
       }
       
       // If not Gemini, still return true to enable basic AI features
@@ -210,17 +221,27 @@ class LLMService {
       console.log('🔄 GEMINI_API_KEY found in environment, reinitializing...');
       this.geminiApiKey = newApiKey;
       // Reinitialize LLM if API key is now available
-      await this.initializeLLM(); // FIX: Changed from initializeLLMAsync() to initializeLLM()
+      await this.initializeLLM();
+      // CRITICAL: Log final LLM type after reinitialization
+      console.log(`🤖 LLM reinitialization completed: ${this.llmType}`);
     } else if (newApiKey && this.geminiApiKey !== newApiKey) {
       // Also reinitialize if API key changed
       console.log('🔄 GEMINI_API_KEY updated, reinitializing...');
       this.geminiApiKey = newApiKey;
       await this.initializeLLM();
+      // CRITICAL: Log final LLM type after reinitialization
+      console.log(`🤖 LLM reinitialization completed: ${this.llmType}`);
     }
   }
 
   // Initialize LLM with fallback options
   async initializeLLM() {
+    // CRITICAL: If Gemini is already successfully initialized, don't reinitialize
+    if (this.llmType === 'gemini' && this.geminiClient && this.geminiApiKey) {
+      console.log('✅ Gemini already initialized, skipping reinitialization');
+      return;
+    }
+    
     // Re-check API key in case .env was loaded after constructor
     if (!this.geminiApiKey) {
       this.geminiApiKey = process.env.GEMINI_API_KEY || null;
@@ -232,38 +253,76 @@ class LLMService {
     // Option 1: Google Gemini 2.5 Flash (PRIORITY - always use if available)
     if (this.geminiApiKey) {
       try {
-        // Only reinitialize if not already set or if client is null
+        // Initialize Gemini client
         if (!this.geminiClient) {
           this.geminiClient = new GoogleGenerativeAI(this.geminiApiKey);
+          console.log('✅ Gemini client initialized');
+        }
+        
+        // Set model - try gemini-2.5-flash first, fallback to gemini-1.5-flash
+        try {
           const model = this.geminiClient.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
           this.geminiModel = 'models/gemini-2.5-flash';
+          this.llmType = 'gemini';
+          console.log('🤖 Using Google Gemini 2.5 Flash for question generation');
+          
+          // CRITICAL: Return immediately - don't check Ollama if Gemini is available
+          return;
+        } catch (modelError) {
+          console.error('🤖 Gemini 2.5 Flash model initialization failed:', modelError.message);
+          // Try fallback model
+          try {
+            const model = this.geminiClient.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            this.geminiModel = 'gemini-1.5-flash';
+            this.llmType = 'gemini';
+            console.log('🤖 Using Google Gemini 1.5 Flash (fallback) for question generation');
+            return;
+          } catch (fallbackError) {
+            console.error('🤖 Gemini fallback model also failed:', fallbackError.message);
+            throw fallbackError;
+          }
         }
-        this.llmType = 'gemini'; // FIX: Always set to gemini if API key exists
-        console.log('🤖 Using Google Gemini 2.5 Flash for question generation');
-        return; // FIX: Return early, don't check Ollama if Gemini is available
       } catch (error) {
         console.error('🤖 Gemini initialization failed:', error.message);
-        // Fall through to Ollama only if Gemini fails
+        // Don't fall through immediately - if Gemini API key exists, we should prioritize it
+        // Only fall to Ollama if Gemini completely fails
+        console.log('⚠️ Gemini failed, will try Ollama as fallback');
       }
     }
 
     // Option 2: Ollama (local LLM) - only if Gemini is not available
-    try {
-      const ollamaAvailable = await this.checkOllamaAvailability();
-      if (ollamaAvailable) {
-        this.ollamaEnabled = true;
-        this.llmType = 'ollama';
-        console.log(`🤖 Using Ollama (${this.ollamaModel}) for question generation`);
-        return;
+    // CRITICAL: Only check Ollama if Gemini is not available or failed
+    // Double-check: Make sure Gemini is really not available before checking Ollama
+    if (this.llmType !== 'gemini' && (!this.geminiApiKey || !this.geminiClient)) {
+      try {
+        const ollamaAvailable = await this.checkOllamaAvailability();
+        if (ollamaAvailable && this.llmType !== 'gemini') {
+          // Final check: Make sure Gemini wasn't initialized while we were checking Ollama
+          if (this.llmType === 'gemini') {
+            console.log('✅ Gemini was initialized during Ollama check, skipping Ollama');
+            return;
+          }
+          this.ollamaEnabled = true;
+          this.llmType = 'ollama';
+          console.log(`🤖 Using Ollama (${this.ollamaModel}) for question generation`);
+          return;
+        }
+      } catch (error) {
+        console.error('🤖 Ollama initialization failed:', error.message);
+        // Fall through to rule-based
       }
-    } catch (error) {
-      console.error('🤖 Ollama initialization failed:', error.message);
-      // Fall through to rule-based
+    } else if (this.llmType === 'gemini') {
+      // Gemini is already initialized, skip Ollama
+      console.log('✅ Gemini already initialized, skipping Ollama check');
+      return;
     }
 
     // Option 3: Fallback to rule-based (always available)
-    this.llmType = 'rule-based';
-    console.log('🤖 Using rule-based question generation (fallback)');
+    // Only use rule-based if neither Gemini nor Ollama is available
+    if (this.llmType !== 'gemini' && this.llmType !== 'ollama') {
+      this.llmType = 'rule-based';
+      console.log('🤖 Using rule-based question generation (fallback)');
+    }
   }
 
 

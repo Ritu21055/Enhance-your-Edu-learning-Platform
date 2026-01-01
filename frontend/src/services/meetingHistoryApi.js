@@ -224,8 +224,13 @@ export const deleteMeetingHistory = async (meetingId) => {
 export const deleteAllMeetingHistories = async () => {
   try {
     const API_BASE_URL = getApiBaseUrl();
+    console.log('🗑️ DeleteAllMeetingHistories: API URL:', `${API_BASE_URL}/api/meetings/history/all`);
+    
     const response = await fetch(`${API_BASE_URL}/api/meetings/history/all`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      }
     });
     
     if (!response.ok) {
@@ -242,17 +247,32 @@ export const deleteAllMeetingHistories = async () => {
     }
     
     const data = await response.json();
+    console.log('🗑️ DeleteAllMeetingHistories: Success:', data);
     return {
       success: data.success !== false, // Default to true if not specified
       deletedCount: data.deletedCount || 0,
       message: data.message || 'All meetings deleted successfully'
     };
   } catch (error) {
-    console.error('Error deleting all meeting histories:', error);
+    console.error('❌ Error deleting all meeting histories:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    });
+    
+    // Provide more helpful error messages
+    let userMessage = 'Failed to delete all meetings';
+    if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+      userMessage = 'Failed to connect to server. Please make sure the backend server is running.';
+    } else if (error.message) {
+      userMessage = error.message;
+    }
+    
     return {
       success: false,
       deletedCount: 0,
-      message: error.message || 'Failed to delete all meetings'
+      message: userMessage
     };
   }
 };

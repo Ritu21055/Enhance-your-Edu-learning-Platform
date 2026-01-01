@@ -181,24 +181,24 @@ export default function registerAIHandlers(socket, io) {
           context: recentContext.substring(0, 100) + '...'
         });
         
-        // Get facial expression sentiment data FIRST (before validation)
-        // This allows question generation based on emotions even with low conversation
+        // Get ALL participants from meeting (not just those with emotions)
+        const meeting = activeMeetings.get(meetingId);
+        const allParticipants = meeting?.participants || [];
+        const hostId = meeting?.hostId;
+
+        // Get facial expression sentiment data (for participants with video ON)
         const meetingSentimentData = sentimentData.get(meetingId);
         const allParticipantsWithEmotions = [];
         const participantEmotions = {};
         const participantNames = {};
 
+        // First, collect participants WITH emotions (video ON)
         if (meetingSentimentData && meetingSentimentData.participants) {
-          const meeting = activeMeetings.get(meetingId);
-          
-          // Get host ID to exclude from participant emotions
-          const hostId = meeting?.hostId;
-          
           meetingSentimentData.participants.forEach((data, participantId) => {
             // EXCLUDE HOST - only count actual participants' emotions
             if (participantId === hostId) {
               console.log('🚫 Skipping host emotions for question generation');
-              return; // Skip host emotions
+              return;
             }
             
             participantEmotions[participantId] = data.emotion;
@@ -211,7 +211,7 @@ export default function registerAIHandlers(socket, io) {
               }
             }
             
-            // Collect ONLY actual participants with their emotions (not host)
+            // Collect participants with emotions (video ON)
             allParticipantsWithEmotions.push({
               id: participantId,
               name: participantNames[participantId] || 'a participant',
@@ -221,68 +221,94 @@ export default function registerAIHandlers(socket, io) {
           });
         }
 
-        // Check if we have participant emotions (excluding host)
+        // CRITICAL: Also include participants WITHOUT emotions (video OFF)
+        // These participants should still get topic-related questions
+        const participantsWithoutEmotions = allParticipants
+          .filter(p => p.id !== hostId) // Exclude host
+          .filter(p => !participantEmotions[p.id]) // Only those without emotions (video off)
+          .map(p => ({
+            id: p.id,
+            name: p.name,
+            emotion: 'unknown', // Video off, emotion unknown
+            timestamp: Date.now()
+          }));
+
+        // Combine both: participants with emotions (video ON) and without emotions (video OFF)
+        const allParticipantsForQuestions = [
+          ...allParticipantsWithEmotions,
+          ...participantsWithoutEmotions
+        ];
+
+        // Check if we have any participants (with or without emotions)
+        const hasAnyParticipants = allParticipantsForQuestions.length > 0;
         const hasParticipantEmotions = allParticipantsWithEmotions.length > 0;
         
-        console.log('🤖 Emotion check:', {
-          totalEmotions: meetingSentimentData?.participants?.size || 0,
-          participantEmotions: allParticipantsWithEmotions.length,
-          hasParticipantEmotions
+        console.log('🤖 Participant check:', {
+          totalParticipants: allParticipants.length,
+          participantsWithEmotions: allParticipantsWithEmotions.length,
+          participantsWithoutEmotions: participantsWithoutEmotions.length,
+          totalForQuestions: allParticipantsForQuestions.length,
+          hasParticipantEmotions,
+          hasAnyParticipants,
+          participantsList: allParticipantsForQuestions.map(p => `${p.name} (${p.emotion === 'unknown' ? 'video off' : p.emotion})`)
         });
 
         // Progressive validation based on conversation length
         const contextLength = recentContext.length;
 
-        // Very early conversation (< 200 chars): Only allow if emotions are present
-        if (contextLength < 200) {
-          if (!hasParticipantEmotions) {
-            console.log('📝 Skipping question generation - very low conversation and no emotions (need at least 200 chars)');
-            return;
-          }
-          // If emotions present, allow (will be handled by shouldGenerateQuestionIntelligently)
-          console.log('📝 Low conversation but emotions present - will generate based on emotions');
-        } 
-        // Early conversation (200-500 chars): Relaxed requirements
-        else if (contextLength < 500) {
-          const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
-          const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
-          
-          // Relaxed: at least 30 words and 15 unique words
-          if (meaningfulWords < 30 || uniqueWords.size < 15) {
-            // If emotions present, even more relaxed (20 words, 10 unique)
-            if (hasParticipantEmotions && meaningfulWords >= 20 && uniqueWords.size >= 10) {
-              console.log('📝 Early conversation with emotions - relaxed requirements met');
-            } else if (!hasParticipantEmotions) {
-              console.log('📝 Skipping question generation - insufficient meaningful words (need at least 30 words, 15 unique)');
-              return;
-            } else {
-              console.log('📝 Skipping question generation - insufficient meaningful words even with emotions');
-              return;
-            }
-          }
+        // CRITICAL: Require substantial conversation (500+ chars, 50+ words)
+        // Face expressions sirf tab use karein jab conversation substantial ho
+        if (contextLength < 500) {
+          console.log('📝 Skipping question generation - conversation not substantial enough (need at least 500 chars)');
+          return; // Don't generate questions even with emotions if conversation is too short
         }
-        // Medium conversation (500-1000 chars): Moderate requirements
-        else if (contextLength < 1000) {
+
+        // Early conversation (500-1000 chars): Require substantial content
+        if (contextLength < 1000) {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
           const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // Moderate: at least 50 words, 20 unique words, 3 sentences
+          // CRITICAL: Require at least 50 words, 20 unique words, 3 sentences
+          // Even with emotions, need substantial conversation
           if (meaningfulWords < 50 || uniqueWords.size < 20 || sentences.length < 3) {
             console.log('📝 Skipping question generation - insufficient conversation quality (need at least 50 words, 20 unique, 3 sentences)');
             return;
           }
+          
+          // Now check if we have participants (with or without emotions)
+          if (!hasAnyParticipants) {
+            console.log('📝 Conversation substantial but no participants found');
+            return;
+          }
+          
+          if (hasParticipantEmotions) {
+            console.log('📝 Conversation substantial with participant emotions - will generate personalized question');
+          } else {
+            console.log('📝 Conversation substantial but no emotions (video off) - will generate topic-related question for participants');
+          }
         }
-        // Substantial conversation (1000+ chars): Stricter requirements
+        // Medium conversation (1000+ chars): Good quality
         else {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
           const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // Stricter: at least 60 words, 25 unique words, 5 sentences
+          // Require at least 60 words, 25 unique words, 5 sentences
           if (meaningfulWords < 60 || uniqueWords.size < 25 || sentences.length < 5) {
             console.log('📝 Skipping question generation - insufficient conversation quality (need at least 60 words, 25 unique, 5 sentences)');
             return;
+          }
+          
+          if (!hasAnyParticipants) {
+            console.log('📝 Conversation substantial but no participants found');
+            return;
+          }
+          
+          if (hasParticipantEmotions) {
+            console.log('📝 Substantial conversation with participant emotions - will generate personalized question');
+          } else {
+            console.log('📝 Substantial conversation but no emotions (video off) - will generate topic-related question');
           }
         }
 
@@ -292,34 +318,55 @@ export default function registerAIHandlers(socket, io) {
           return;
         }
 
-        // Categorize emotions for better context
+        // Categorize emotions for better context (only for participants with emotions)
         const emotionCategories = {
           positive: allParticipantsWithEmotions.filter(p => ['happy', 'surprised', 'excited'].includes(p.emotion)),
           negative: allParticipantsWithEmotions.filter(p => ['confused', 'sad', 'fear', 'angry', 'disgusted'].includes(p.emotion)),
           neutral: allParticipantsWithEmotions.filter(p => ['neutral', 'calm'].includes(p.emotion))
         };
         
-        console.log('🤖 Question generation with sentiment context:', {
+        console.log('🤖 Question generation with participant context:', {
           meetingId,
-          totalParticipants: allParticipantsWithEmotions.length,
+          participantsWithEmotions: allParticipantsWithEmotions.length,
+          participantsWithoutEmotions: participantsWithoutEmotions.length,
+          totalParticipants: allParticipantsForQuestions.length,
           positive: emotionCategories.positive.length,
           negative: emotionCategories.negative.length,
           neutral: emotionCategories.neutral.length,
-          emotions: allParticipantsWithEmotions.map(p => `${p.name}: ${p.emotion}`)
+          allParticipants: allParticipantsForQuestions.map(p => `${p.name} (${p.emotion === 'unknown' ? 'video off' : p.emotion})`)
         });
         
-        // Generate follow-up question with ALL facial sentiment context
+        // CRITICAL: Pass ALL participants (with and without emotions) for question generation
+        // This ensures participants with video off also get topic-related questions
         const questionResult = await llmService.generateFollowUpQuestion(
           recentContext, 
           meetingId,
-          allParticipantsWithEmotions, // Pass ALL participants with emotions
-          participantEmotions, // Pass all participant emotions
+          allParticipantsForQuestions, // Pass ALL participants (video ON + video OFF)
+          participantEmotions, // Pass emotions (only for video ON participants)
           participantNames, // Pass participant names
           emotionCategories // Pass emotion categories
         );
         
         // CRITICAL: Only send question if it's not empty and is meaningful
         if (questionResult && questionResult.question && questionResult.question.trim().length > 10) {
+          const questionText = questionResult.question.trim();
+          
+          // CRITICAL: Validate that question includes participant name if participants exist
+          if (hasAnyParticipants && allParticipantsForQuestions.length > 0) {
+            const participantNames = allParticipantsForQuestions.map(p => p.name);
+            const hasParticipantName = participantNames.some(name => 
+              questionText.toLowerCase().startsWith(name.toLowerCase()) || 
+              questionText.toLowerCase().includes(name.toLowerCase() + ',')
+            );
+            
+            if (!hasParticipantName) {
+              console.log('⚠️ Question generated without participant name despite participants existing. Skipping.');
+              return; // Don't send question if it doesn't include participant name
+            }
+            
+            console.log('✅ Question includes participant name:', questionText);
+          }
+          
           // Update last question time
           llmService.updateLastQuestionTime(meetingId);
           
@@ -344,7 +391,7 @@ export default function registerAIHandlers(socket, io) {
       } catch (error) {
         console.error('❌ Question generation failed:', error);
       }
-    }, 60000); // Check every 60 seconds - reduced frequency
+    }, 120000); // Check every 120 seconds (2 minutes) - gives more time for substantial conversation
     
     // Store timer for cleanup
     llmService.questionGenerationTimer.set(meetingId, questionTimer);

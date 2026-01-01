@@ -31,7 +31,10 @@ import {
   AccessTime,
   PlayArrow,
   Star,
-  Description
+  Description,
+  PictureAsPdf,
+  CheckCircle,
+  Cancel
 } from '@mui/icons-material';
 import '../css/MeetingsHistory.css';
 import { getMeetings, getMeetingStats, clearAllMeetings } from '../services/meetingsService';
@@ -47,6 +50,7 @@ const MeetingsHistory = () => {
   const [selectedMeetingNotes, setSelectedMeetingNotes] = useState(null);
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesError, setNotesError] = useState(null);
+  const [notesAvailability, setNotesAvailability] = useState(new Map()); // meetingId -> hasNotes
 
   // Load meetings data from backend API
   useEffect(() => {
@@ -62,15 +66,34 @@ const MeetingsHistory = () => {
             const meeting = history.meeting;
             const highlightReel = history.highlightReel;
             
-            // Format date and time
-            const createdAt = new Date(meeting.createdAt);
-            const endedAt = meeting.endedAt ? new Date(meeting.endedAt) : createdAt;
+            // Format date and time - handle invalid dates
+            let createdAt;
+            let dateString = meeting.createdAt;
+            let timeString = 'Time not available';
+            
+            if (meeting.createdAt) {
+              try {
+                createdAt = new Date(meeting.createdAt);
+                // Check if date is valid
+                if (!isNaN(createdAt.getTime())) {
+                  timeString = createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                } else {
+                  console.warn('Invalid createdAt date:', meeting.createdAt);
+                  dateString = meeting.createdAt; // Keep original string
+                }
+              } catch (error) {
+                console.error('Error parsing createdAt:', error, meeting.createdAt);
+                dateString = meeting.createdAt || 'Date not available';
+              }
+            } else {
+              dateString = 'Date not available';
+            }
             
             return {
               id: meeting.id,
               title: meeting.title || `Meeting ${meeting.id}`,
-              date: meeting.createdAt,
-              time: createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+              date: dateString,
+              time: timeString,
               duration: Math.round((meeting.duration || 0) / 1000 / 60), // Convert from ms to minutes
               participants: meeting.participants?.length || 0,
               status: meeting.status || 'completed',
@@ -88,6 +111,27 @@ const MeetingsHistory = () => {
           
           setMeetings(meetingsData);
           console.log(`✅ Loaded ${meetingsData.length} meetings from backend`);
+          
+          // Check notes availability in background (non-blocking)
+          // Don't wait for this - load meetings first, then update notes status
+          (async () => {
+            const availabilityMap = new Map();
+            // Check notes in parallel for faster loading
+            const notesChecks = meetingsData.map(async (meeting) => {
+              try {
+                const notes = await getMeetingNotes(meeting.id);
+                return { id: meeting.id, hasNotes: !!notes };
+              } catch (error) {
+                return { id: meeting.id, hasNotes: false };
+              }
+            });
+            
+            const results = await Promise.all(notesChecks);
+            results.forEach(({ id, hasNotes }) => {
+              availabilityMap.set(id, hasNotes);
+            });
+            setNotesAvailability(availabilityMap);
+          })();
         } else {
           // Fallback to local meetings if backend has no data
           const localMeetings = getMeetings();
@@ -144,11 +188,19 @@ const MeetingsHistory = () => {
       } else {
         console.error('❌ Failed to delete all meetings:', result.message);
         // Show more detailed error message
-        alert(`Failed to delete all meetings.\n\nError: ${result.message}\n\nPlease check the console for more details.`);
+        const errorMsg = result.message || 'Unknown error occurred';
+        alert(`Failed to delete all meetings.\n\nError: ${errorMsg}\n\nPlease check:\n1. Backend server is running\n2. Network connection is active\n3. Console for more details.`);
       }
     } catch (error) {
       console.error('❌ Error deleting all meetings:', error);
-      alert(`Error deleting all meetings.\n\n${error.message}\n\nPlease check the console for more details.`);
+      const errorMsg = error.message || 'Unknown error occurred';
+      let userMessage = `Error deleting all meetings.\n\n${errorMsg}`;
+      
+      if (errorMsg.includes('Failed to fetch') || error.name === 'TypeError') {
+        userMessage = `Failed to connect to server.\n\nPlease make sure:\n1. Backend server is running on port 5000\n2. Check the backend URL in network config\n3. Check console for more details.`;
+      }
+      
+      alert(`${userMessage}\n\nPlease check the console for more details.`);
     } finally {
       setLoading(false);
     }
@@ -164,13 +216,34 @@ const MeetingsHistory = () => {
         const meetingsData = histories.map(history => {
           const meeting = history.meeting;
           const highlightReel = history.highlightReel;
-          const createdAt = new Date(meeting.createdAt);
+          
+          // Format date and time - handle invalid dates
+          let dateString = meeting.createdAt;
+          let timeString = 'Time not available';
+          
+          if (meeting.createdAt) {
+            try {
+              const createdAt = new Date(meeting.createdAt);
+              // Check if date is valid
+              if (!isNaN(createdAt.getTime())) {
+                timeString = createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+              } else {
+                console.warn('Invalid createdAt date:', meeting.createdAt);
+                dateString = meeting.createdAt; // Keep original string
+              }
+            } catch (error) {
+              console.error('Error parsing createdAt:', error, meeting.createdAt);
+              dateString = meeting.createdAt || 'Date not available';
+            }
+          } else {
+            dateString = 'Date not available';
+          }
           
           return {
             id: meeting.id,
             title: meeting.title || `Meeting ${meeting.id}`,
-            date: meeting.createdAt,
-            time: createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            date: dateString,
+            time: timeString,
             duration: Math.round((meeting.duration || 0) / 1000 / 60),
             participants: meeting.participants?.length || 0,
             status: meeting.status || 'completed',
@@ -188,6 +261,26 @@ const MeetingsHistory = () => {
         
         setMeetings(meetingsData);
         setHighlightReels(new Map());
+        
+        // Check notes availability in background (non-blocking)
+        (async () => {
+          const availabilityMap = new Map();
+          // Check notes in parallel for faster loading
+          const notesChecks = meetingsData.map(async (meeting) => {
+            try {
+              const notes = await getMeetingNotes(meeting.id);
+              return { id: meeting.id, hasNotes: !!notes };
+            } catch (error) {
+              return { id: meeting.id, hasNotes: false };
+            }
+          });
+          
+          const results = await Promise.all(notesChecks);
+          results.forEach(({ id, hasNotes }) => {
+            availabilityMap.set(id, hasNotes);
+          });
+          setNotesAvailability(availabilityMap);
+        })();
       } else {
         // Fallback to local meetings
         const localMeetings = getMeetings();
@@ -232,13 +325,29 @@ const MeetingsHistory = () => {
   };
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    if (!dateString) {
+      return 'Date not available';
+    }
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date string:', dateString);
+        return 'Invalid Date';
+      }
+      
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString);
+      return 'Invalid Date';
+    }
   };
 
   const handleViewNotes = async (meetingId) => {
@@ -423,7 +532,7 @@ const MeetingsHistory = () => {
                     <TableCell>Duration</TableCell>
                     <TableCell>Participants</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>Highlights</TableCell>
+                    <TableCell>Notes</TableCell>
                     <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -469,60 +578,44 @@ const MeetingsHistory = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        {meeting.highlightReel ? (
-                          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                        <Box display="flex" alignItems="center" gap={1}>
+                          {notesAvailability.get(meeting.id) ? (
                             <Chip
-                              icon={<Star />}
-                              label={`${meeting.highlightReel.highlightCount || meeting.highlights || 0} highlights`}
-                              color="primary"
+                              icon={<CheckCircle />}
+                              label="Available"
+                              color="success"
                               size="small"
-                              className="highlights-chip"
-                            />
-                            <Button
-                              size="small"
-                              variant="contained"
-                              color="primary"
-                              startIcon={<PlayArrow />}
-                              onClick={() => {
-                                const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://192.168.0.108:5000';
-                                // Construct URL: use provided URL or construct from filename/path
-                                let reelUrl = meeting.highlightReel.url;
-                                if (!reelUrl.startsWith('http')) {
-                                  // Relative URL - prepend API base URL
-                                  reelUrl = `${API_BASE_URL}${reelUrl}`;
-                                } else if (meeting.highlightReel.filename) {
-                                  // Construct from filename
-                                  reelUrl = `${API_BASE_URL}/output/${meeting.highlightReel.filename}`;
-                                } else if (meeting.highlightReel.path) {
-                                  // Extract filename from path
-                                  const filename = meeting.highlightReel.path.split(/[/\\]/).pop();
-                                  reelUrl = `${API_BASE_URL}/output/${filename}`;
-                                }
-                                console.log('🎬 Opening highlight reel:', reelUrl);
-                                window.open(reelUrl, '_blank');
+                              sx={{ 
+                                fontWeight: 600,
+                                backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                                color: '#4caf50',
+                                border: '1px solid #4caf50'
                               }}
-                            >
-                              Play Reel
-                            </Button>
-                          </Box>
-                        ) : meeting.highlights > 0 ? (
-                          <Chip
-                            icon={<Star />}
-                            label={`${meeting.highlights} highlights (processing)`}
-                            size="small"
-                            color="warning"
-                            variant="outlined"
-                            className="highlights-chip"
-                          />
-                        ) : (
-                          <Chip
-                            icon={<Star />}
-                            label="No Highlights"
-                            size="small"
-                            variant="outlined"
-                            className="no-highlights-chip"
-                          />
-                        )}
+                            />
+                          ) : notesAvailability.get(meeting.id) === false ? (
+                            <Chip
+                              icon={<Cancel />}
+                              label="Not Available"
+                              color="default"
+                              size="small"
+                              sx={{ 
+                                fontWeight: 500,
+                                backgroundColor: 'rgba(158, 158, 158, 0.2)',
+                                color: '#9e9e9e'
+                              }}
+                            />
+                          ) : (
+                            <Chip
+                              label="Checking..."
+                              size="small"
+                              sx={{ 
+                                fontWeight: 500,
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                color: 'rgba(255, 255, 255, 0.7)'
+                              }}
+                            />
+                          )}
+                        </Box>
                       </TableCell>
                       <TableCell>
                         <Box display="flex" gap={1} flexWrap="wrap">
@@ -532,6 +625,7 @@ const MeetingsHistory = () => {
                             onClick={() => handleViewNotes(meeting.id)}
                             className="view-notes-button"
                             startIcon={<Description />}
+                            disabled={notesAvailability.get(meeting.id) === false}
                           >
                             View Notes
                           </Button>
