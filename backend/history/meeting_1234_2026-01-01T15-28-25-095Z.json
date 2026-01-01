@@ -1,0 +1,58 @@
+{
+  "meeting": {
+    "id": "1234",
+    "title": "Meeting 1234",
+    "endedAt": "2026-01-01T15:28:25.095Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting transcript captures a very brief and initial communication by Rithik. Rithik initiated contact, seemingly addressed someone named 'Sajan', and then provided an affirmative response.",
+    "keyPoints": [
+      "Rithik initiated the communication.",
+      "Rithik addressed someone using the name 'Sajan'.",
+      "Rithik gave an affirmative response."
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "rithik": [
+        "Initiated the communication with 'Hello'.",
+        "Addressed someone by saying 'Sajan na'.",
+        "Provided an affirmative response 'Haan'."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "rithik",
+        "timestamp": "21:05:51",
+        "text": "Hello."
+      },
+      {
+        "speaker": "rithik",
+        "timestamp": "21:05:57",
+        "text": "Sajan na."
+      },
+      {
+        "speaker": "rithik",
+        "timestamp": "21:11:18",
+        "text": "Haan."
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2026-01-01T15:28:25.095Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2026-01-01T15:28:25.096Z"
+  }
+}

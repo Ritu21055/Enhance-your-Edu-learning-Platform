@@ -288,17 +288,11 @@ export const useMediaRequest = (socket, meetingId, isHost, localStream) => {
         console.log('✅ Media state change emitted to socket');
       }
 
-      // CRITICAL: Use updateAllPeerConnections to properly handle track updates
-      // This function uses replaceTrack instead of addTrack, preventing multiple renegotiations
-      if (window.updateAllPeerConnections && localStream) {
-        console.log('🔄 Calling updateAllPeerConnections to update tracks properly');
-        setTimeout(() => {
-          // Use the proper updateAllPeerConnections function which handles track replacement correctly
-          // It uses replaceTrack() for existing senders and addTrack() only when necessary
-          window.updateAllPeerConnections(localStream, 'both');
-          console.log('✅ updateAllPeerConnections called for audio and video');
-        }, 300); // Small delay to ensure tracks are ready
-      }
+      // CRITICAL FIX: Don't call updateAllPeerConnections here - it triggers renegotiation for ALL connections
+      // This causes other participants to disconnect. The track enabling is already done above (lines 239-274)
+      // which only enables existing tracks without renegotiation, which is safe.
+      // Renegotiation is only needed when tracks are replaced or added, not when just enabling existing tracks.
+      console.log('✅ Tracks enabled in all peer connections (no renegotiation triggered to prevent disconnections)');
     }, 200); // Increased delay to ensure tracks are ready
 
     // Force video element to play if available

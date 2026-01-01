@@ -24,8 +24,8 @@ export class PeerOptimizer {
         return {
           videoWidth: 640,
           videoHeight: 480,
-          frameRate: 18, // Reduced from 25
-          videoBitrate: 400000 // 400 kbps - reduced from 1.2 Mbps
+          frameRate: 15, // Reduced from 18 to 15 for smoother performance
+          videoBitrate: 350000 // 350 kbps - reduced from 400 kbps
         };
       } else if (participantCount <= 4) {
         return {
@@ -63,8 +63,8 @@ export class PeerOptimizer {
       return {
         videoWidth: 640,
         videoHeight: 480,
-        frameRate: 18, // Reduced from 24
-        videoBitrate: 400000 // 400 kbps - reduced from 800 kbps
+        frameRate: 15, // Reduced from 18 to 15 for smoother performance
+        videoBitrate: 350000 // 350 kbps - reduced from 400 kbps
       };
     } else if (participantCount <= 4) {
       return {

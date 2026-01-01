@@ -915,7 +915,11 @@ const useVideoCall = (meetingId, userName) => {
         streamRef.current = null;
       }
       
-      newSocket.disconnect();
+      // CRITICAL FIX: Remove all event listeners before disconnecting to prevent duplicates
+      if (newSocket) {
+        newSocket.removeAllListeners(); // Remove all event listeners first
+        newSocket.disconnect(); // Then disconnect
+      }
     };
   }, [meetingId, userName]);
 
@@ -1749,7 +1753,7 @@ const useVideoCall = (meetingId, userName) => {
                           (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
                         triggerRenegotiation(pc, participantId);
                       }
-                    }, 100); // Small delay to batch renegotiations
+                    }, 200); // Increased from 100ms to 200ms to batch renegotiations
                   })
                   .catch(err => console.error(`❌ Failed to replace video track for ${participantId}:`, err));
               }
@@ -1767,7 +1771,7 @@ const useVideoCall = (meetingId, userName) => {
                     (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
                   triggerRenegotiation(pc, participantId);
                 }
-              }, 100); // Small delay to batch renegotiations
+              }, 200); // Increased from 100ms to 200ms to batch renegotiations
             }
           }
         }
