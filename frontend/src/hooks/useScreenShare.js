@@ -274,32 +274,8 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
     });
 
     // CRITICAL FIX: Handle new participant joining during active screen share
-    // When a new participant joins, if screen sharing is active, create peer connection for them
-    socket.on('participant-joined', (data) => {
-      const { participant } = data;
-      if (!participant || participant.id === socket?.id) {
-        return; // Skip self
-      }
-
-      console.log('🖥️ Screen Share: New participant joined during screen share check', {
-        participantId: participant.id,
-        participantName: participant.name,
-        isScreenSharing: isScreenSharingRef.current,
-        hasStream: !!screenShareStreamRef.current
-      });
-
-      // If we're currently sharing screen, create peer connection for new participant
-      if (isScreenSharingRef.current && screenShareStreamRef.current) {
-        // Check if peer already exists
-        if (!screenSharePeersRef.current[participant.id]) {
-          console.log('🖥️ Screen Share: Creating peer connection for newly joined participant', participant.name);
-          // Create peer as initiator (we're sharing, they're receiving)
-          createScreenSharePeer(participant.id);
-        } else {
-          console.log('🖥️ Screen Share: Peer connection already exists for', participant.name);
-        }
-      }
-    });
+    // This will be set up in a separate useEffect after createScreenSharePeer is defined
+    // See below for the participant-joined handler
 
     return () => {
       console.log('🖥️ Screen Share: Cleaning up socket events');
@@ -308,11 +284,10 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
         socket.off('screen-share-stop');
         socket.off('screen-share-signal');
         socket.off('screen-share-request');
-        socket.off('participant-joined');
         socket.off('test-screen-share');
       }
     };
-  }, [socket, createScreenSharePeer]);
+  }, [socket]); // Removed createScreenSharePeer from deps - it's defined later and uses refs
 
   // Create screen share peer connection
   const createScreenSharePeer = useCallback((participantId, signal = null) => {
@@ -492,6 +467,49 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
     screenSharePeersRef.current[participantId] = peer;
     setScreenSharePeer(peer);
   }, [socket, meetingId, userName, isHost]);
+
+  // CRITICAL FIX: Set up participant-joined handler AFTER createScreenSharePeer is defined
+  // This solves the hoisting issue where useEffect tries to access it before it's defined
+  useEffect(() => {
+    if (!socket || !socket.on) {
+      return;
+    }
+
+    // Handle new participant joining during active screen share
+    const handleParticipantJoined = (data) => {
+      const { participant } = data;
+      if (!participant || participant.id === socket?.id) {
+        return; // Skip self
+      }
+
+      console.log('🖥️ Screen Share: New participant joined during screen share check', {
+        participantId: participant.id,
+        participantName: participant.name,
+        isScreenSharing: isScreenSharingRef.current,
+        hasStream: !!screenShareStreamRef.current
+      });
+
+      // If we're currently sharing screen, create peer connection for new participant
+      if (isScreenSharingRef.current && screenShareStreamRef.current) {
+        // Check if peer already exists
+        if (!screenSharePeersRef.current[participant.id]) {
+          console.log('🖥️ Screen Share: Creating peer connection for newly joined participant', participant.name);
+          // Create peer as initiator (we're sharing, they're receiving)
+          createScreenSharePeer(participant.id);
+        } else {
+          console.log('🖥️ Screen Share: Peer connection already exists for', participant.name);
+        }
+      }
+    };
+
+    socket.on('participant-joined', handleParticipantJoined);
+
+    return () => {
+      if (socket && socket.off) {
+        socket.off('participant-joined', handleParticipantJoined);
+      }
+    };
+  }, [socket, createScreenSharePeer]);
 
   // Handle screen share signal
   const handleScreenShareSignal = useCallback((data) => {
