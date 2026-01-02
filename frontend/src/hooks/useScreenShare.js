@@ -144,6 +144,9 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
         if (!isScreenSharingRef.current && !screenSharePeersRef.current[data.participant.id]) {
           console.log('🖥️ Screen Share: Received screen-share-start, waiting for signal from', data.participant.name);
           // Don't create peer here - wait for signal from sharer
+          // The sharer will create peer as initiator and send us a signal
+        } else if (!isScreenSharingRef.current && screenSharePeersRef.current[data.participant.id]) {
+          console.log('🖥️ Screen Share: Peer already exists for', data.participant.name, '- waiting for signal');
         }
       } else if (Array.isArray(data) && data.length > 0) {
         // Handle case where data is wrapped in an array
@@ -494,11 +497,22 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
         // Check if peer already exists
         if (!screenSharePeersRef.current[participant.id]) {
           console.log('🖥️ Screen Share: Creating peer connection for newly joined participant', participant.name);
-          // Create peer as initiator (we're sharing, they're receiving)
-          createScreenSharePeer(participant.id);
+          // CRITICAL FIX: Add small delay to ensure participant is fully connected
+          setTimeout(() => {
+            // Double-check that peer doesn't exist and we're still sharing
+            if (!screenSharePeersRef.current[participant.id] && isScreenSharingRef.current && screenShareStreamRef.current) {
+              console.log('🖥️ Screen Share: Creating peer connection for newly joined participant', participant.name, '(delayed)');
+              // Create peer as initiator (we're sharing, they're receiving)
+              createScreenSharePeer(participant.id);
+            } else {
+              console.log('🖥️ Screen Share: Skipping peer creation - peer exists or screen share stopped');
+            }
+          }, 300); // 300ms delay to ensure participant is ready
         } else {
           console.log('🖥️ Screen Share: Peer connection already exists for', participant.name);
         }
+      } else {
+        console.log('🖥️ Screen Share: Not sharing screen, skipping peer creation for', participant.name);
       }
     };
 
@@ -566,8 +580,11 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
       return;
     }
     
-    // Just log that we're ready to receive
+    // CRITICAL FIX: If we're NOT sharing and receive a request, we should be ready to receive
+    // The sharer will send us a signal, and we'll create peer as non-initiator
+    // But we need to make sure we're listening for the signal
     console.log('🖥️ Screen Share: Ready to receive screen share from', from);
+    console.log('🖥️ Screen Share: Will create peer as non-initiator when signal arrives from', from);
   }, []);
 
   // Start screen sharing
@@ -887,11 +904,15 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
       const otherParticipants = participants.filter(p => p.id !== socket?.id);
       console.log('🖥️ Screen Share: Other participants to connect to:', otherParticipants.map(p => ({ id: p.id, name: p.name })));
       
-      otherParticipants.forEach(participant => {
+      // CRITICAL FIX: Add delay between peer creations to prevent network congestion
+      otherParticipants.forEach((participant, index) => {
         // Only create if peer doesn't exist yet
         if (!screenSharePeersRef.current[participant.id]) {
-          console.log(`🖥️ Screen Share: Proactively creating peer connection for ${participant.name} (${participant.id})`);
-          createScreenSharePeer(participant.id);
+          const delay = index * 200; // 200ms delay between each peer creation
+          setTimeout(() => {
+            console.log(`🖥️ Screen Share: Proactively creating peer connection for ${participant.name} (${participant.id}) after ${delay}ms delay`);
+            createScreenSharePeer(participant.id);
+          }, delay);
         } else {
           console.log(`🖥️ Screen Share: Peer connection already exists for ${participant.name} (${participant.id})`);
         }
