@@ -128,7 +128,23 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
       // Check if data and participant exist before adding
       if (data && data.participant) {
         console.log('🖥️ Screen Share: Adding participant to screen share list', data.participant);
-        setScreenShareParticipants(prev => [...prev, data.participant]);
+        setScreenShareParticipants(prev => {
+          // Prevent duplicates
+          const exists = prev.find(p => p && p.id === data.participant.id);
+          if (exists) {
+            console.log('🖥️ Screen Share: Participant already in list, skipping');
+            return prev;
+          }
+          return [...prev, data.participant];
+        });
+        
+        // CRITICAL FIX: If we receive screen-share-start and we're NOT sharing,
+        // we should wait for the signal from the sharer (they will create peer as initiator)
+        // But if we already have a peer, don't create another one
+        if (!isScreenSharingRef.current && !screenSharePeersRef.current[data.participant.id]) {
+          console.log('🖥️ Screen Share: Received screen-share-start, waiting for signal from', data.participant.name);
+          // Don't create peer here - wait for signal from sharer
+        }
       } else if (Array.isArray(data) && data.length > 0) {
         // Handle case where data is wrapped in an array
         console.log('🖥️ Screen Share: Data is array, checking first element', data[0]);
@@ -257,6 +273,34 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
       }
     });
 
+    // CRITICAL FIX: Handle new participant joining during active screen share
+    // When a new participant joins, if screen sharing is active, create peer connection for them
+    socket.on('participant-joined', (data) => {
+      const { participant } = data;
+      if (!participant || participant.id === socket?.id) {
+        return; // Skip self
+      }
+
+      console.log('🖥️ Screen Share: New participant joined during screen share check', {
+        participantId: participant.id,
+        participantName: participant.name,
+        isScreenSharing: isScreenSharingRef.current,
+        hasStream: !!screenShareStreamRef.current
+      });
+
+      // If we're currently sharing screen, create peer connection for new participant
+      if (isScreenSharingRef.current && screenShareStreamRef.current) {
+        // Check if peer already exists
+        if (!screenSharePeersRef.current[participant.id]) {
+          console.log('🖥️ Screen Share: Creating peer connection for newly joined participant', participant.name);
+          // Create peer as initiator (we're sharing, they're receiving)
+          createScreenSharePeer(participant.id);
+        } else {
+          console.log('🖥️ Screen Share: Peer connection already exists for', participant.name);
+        }
+      }
+    });
+
     return () => {
       console.log('🖥️ Screen Share: Cleaning up socket events');
       if (socket && socket.off) {
@@ -264,15 +308,30 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
         socket.off('screen-share-stop');
         socket.off('screen-share-signal');
         socket.off('screen-share-request');
+        socket.off('participant-joined');
         socket.off('test-screen-share');
       }
     };
-  }, [socket]);
+  }, [socket, createScreenSharePeer]);
 
   // Create screen share peer connection
   const createScreenSharePeer = useCallback((participantId, signal = null) => {
     console.log('🖥️ Screen Share: Creating peer for', participantId, 'with signal:', !!signal, 'isHost:', isHost, 'mySocketId:', socket?.id);
     console.log('🖥️ Screen Share: isScreenSharingRef.current:', isScreenSharingRef.current);
+    
+    // CRITICAL FIX: Prevent duplicate peer connections
+    if (screenSharePeersRef.current[participantId] && !screenSharePeersRef.current[participantId].destroyed) {
+      console.log('🖥️ Screen Share: Peer already exists for', participantId, '- not creating duplicate');
+      // If we have a signal and peer exists, try to signal it
+      if (signal) {
+        try {
+          screenSharePeersRef.current[participantId].signal(signal);
+        } catch (error) {
+          console.error('🖥️ Screen Share: Error signaling existing peer:', error);
+        }
+      }
+      return;
+    }
     
     // CRITICAL: The person sharing screen should be initiator
     // - If we're sharing (isScreenSharingRef.current is true) AND no signal provided, we're the initiator
@@ -379,8 +438,28 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
     if (isScreenSharingRef.current && screenShareStreamRef.current) {
       console.log('🖥️ Screen Share: Adding screen stream to new peer for', participantId, 'BEFORE signaling');
       try {
+        // CRITICAL FIX: Ensure stream has active tracks before adding
+        const videoTracks = screenShareStreamRef.current.getVideoTracks();
+        const audioTracks = screenShareStreamRef.current.getAudioTracks();
+        
+        if (videoTracks.length === 0) {
+          console.error('🖥️ Screen Share: Screen stream has no video tracks!');
+          return;
+        }
+        
+        // Verify video track is enabled
+        if (videoTracks[0] && !videoTracks[0].enabled) {
+          console.warn('🖥️ Screen Share: Video track is disabled, enabling it');
+          videoTracks[0].enabled = true;
+        }
+        
         peer.addStream(screenShareStreamRef.current);
-        console.log('🖥️ Screen Share: Successfully added stream to new peer');
+        console.log('🖥️ Screen Share: Successfully added stream to new peer', {
+          videoTracks: videoTracks.length,
+          audioTracks: audioTracks.length,
+          videoTrackEnabled: videoTracks[0]?.enabled,
+          videoTrackReady: videoTracks[0]?.readyState
+        });
       } catch (error) {
         console.error('🖥️ Screen Share: Error adding stream to new peer:', error);
       }
