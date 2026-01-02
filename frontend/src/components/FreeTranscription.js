@@ -115,7 +115,40 @@ const FreeTranscription = ({
 
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
-      setError(`Speech recognition error: ${event.error}`);
+      
+      // CRITICAL FIX: Handle network errors gracefully
+      if (event.error === 'network') {
+        // Network error - don't auto-restart to avoid infinite loop
+        shouldAutoRestartRef.current = false;
+        setError('Network error: Speech recognition service unavailable. Please check your internet connection and try again.');
+        setIsListening(false);
+        console.warn('🎤 Network error detected - auto-restart disabled to prevent infinite loop');
+      } else if (event.error === 'no-speech') {
+        // No speech detected - this is normal, just restart
+        console.log('🎤 No speech detected, will retry...');
+        setError(null); // Clear error for no-speech
+        // Allow auto-restart for no-speech
+      } else if (event.error === 'aborted') {
+        // User or system aborted - don't show error
+        console.log('🎤 Speech recognition aborted');
+        setError(null);
+        shouldAutoRestartRef.current = false;
+      } else if (event.error === 'audio-capture') {
+        // Microphone not available
+        setError('Microphone not available. Please check your microphone permissions and try again.');
+        shouldAutoRestartRef.current = false;
+        setIsListening(false);
+      } else if (event.error === 'not-allowed') {
+        // Permission denied
+        setError('Microphone permission denied. Please allow microphone access and refresh the page.');
+        shouldAutoRestartRef.current = false;
+        setIsListening(false);
+      } else {
+        // Other errors - show but allow retry
+        setError(`Speech recognition error: ${event.error}. Will retry automatically.`);
+        // Allow auto-restart for other errors (except network)
+      }
+      
       setIsListening(false);
     };
 
