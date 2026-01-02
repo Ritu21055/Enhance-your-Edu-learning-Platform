@@ -39,6 +39,21 @@ const useVideoCall = (meetingId, userName) => {
 
   // Initialize Socket Connection
   useEffect(() => {
+    // CRITICAL FIX: Prevent duplicate socket creation
+    // If socket already exists and is connected, don't create a new one
+    if (socketRef.current && socketRef.current.connected) {
+      console.log('⏭️ Socket already exists and is connected, skipping creation');
+      return;
+    }
+    
+    // Clean up any existing socket before creating a new one
+    if (socketRef.current) {
+      console.log('🧹 Cleaning up existing socket before creating new one');
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    
     const newSocket = io(getBackendUrl());
     socketRef.current = newSocket;
     setSocket(newSocket);
@@ -916,9 +931,15 @@ const useVideoCall = (meetingId, userName) => {
       }
       
       // CRITICAL FIX: Remove all event listeners before disconnecting to prevent duplicates
-      if (newSocket) {
-        newSocket.removeAllListeners(); // Remove all event listeners first
-        newSocket.disconnect(); // Then disconnect
+      // Use both newSocket (from closure) and socketRef.current to ensure cleanup
+      const socketToCleanup = newSocket || socketRef.current;
+      if (socketToCleanup) {
+        socketToCleanup.removeAllListeners(); // Remove all event listeners first
+        socketToCleanup.disconnect(); // Then disconnect
+        // Clear the ref
+        if (socketRef.current === socketToCleanup) {
+          socketRef.current = null;
+        }
       }
     };
   }, [meetingId, userName]);
