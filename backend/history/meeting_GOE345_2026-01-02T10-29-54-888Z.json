@@ -1,0 +1,95 @@
+{
+  "meeting": {
+    "id": "GOE345",
+    "title": "Meeting GOE345",
+    "endedAt": "2026-01-02T10:29:54.889Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting appears to be in its initial stages, primarily involving one participant, Ritu. Ritu provided a meeting code and attempted to identify or address other participants, Jordan and Morena Century. The conversation was fragmented with no clear agenda or discussion topics.",
+    "keyPoints": [
+      "A meeting code was provided: GOE345345.",
+      "Reference was made to 'Jordan 3111'.",
+      "'Morena Century' was identified or mentioned.",
+      "A command 'Stop' was issued."
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "Provided what appears to be a meeting code: 'g o e 3 4 5 3 4 5'.",
+        "Mentioned 'Jordan 3 1 1 1'.",
+        "Issued a command: 'Stop'.",
+        "Identified or referenced 'Morena century'."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "16:06:28",
+        "text": "the meeting code right"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:06:43",
+        "text": "g o e 3 4 5 3 4 5"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:06:47",
+        "text": "345"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:07:10",
+        "text": "draw anything from"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:07:14",
+        "text": "1111"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:08:17",
+        "text": "Jordan 3 1 1 1"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:08:21",
+        "text": "Stop"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:08:31",
+        "text": "that"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:09:05",
+        "text": "then this is Morena century"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:12:25",
+        "text": "donut"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2026-01-02T10:29:54.889Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2026-01-02T10:29:54.889Z"
+  }
+}

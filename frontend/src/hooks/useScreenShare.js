@@ -381,23 +381,38 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
         kind: videoTrack.kind
       });
       
+      // CRITICAL FIX: Wait for track to be in 'live' state before setting stream
+      const setupStream = () => {
+        if (videoTrack.readyState === 'live' && videoTrack.enabled) {
+          console.log('🖥️ Screen Share: Video track is ready, setting remote screen stream');
+          setRemoteScreenStream(stream);
+          
+          // Force a re-render to ensure UI updates
+          setTimeout(() => {
+            console.log('🖥️ Screen Share: Verifying remote stream after set:', {
+              streamActive: stream.active,
+              videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
+              videoTrackReady: stream.getVideoTracks()[0]?.readyState
+            });
+          }, 100);
+        } else {
+          console.warn('🖥️ Screen Share: Video track not ready yet, waiting...', {
+            readyState: videoTrack.readyState,
+            enabled: videoTrack.enabled
+          });
+          // Retry after 200ms
+          setTimeout(setupStream, 200);
+        }
+      };
+      
       // CRITICAL: Ensure video track is enabled
       if (!videoTrack.enabled) {
         console.warn('🖥️ Screen Share: Video track is disabled, enabling it');
         videoTrack.enabled = true;
       }
       
-      console.log('🖥️ Screen Share: Setting remote screen stream');
-      setRemoteScreenStream(stream);
-      
-      // Force a re-render to ensure UI updates
-      setTimeout(() => {
-        console.log('🖥️ Screen Share: Verifying remote stream after set:', {
-          streamActive: stream.active,
-          videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
-          videoTrackReady: stream.getVideoTracks()[0]?.readyState
-        });
-      }, 100);
+      // Start setup process
+      setupStream();
     });
 
     // Handle connection
@@ -425,10 +440,42 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
           return;
         }
         
-        // Verify video track is enabled
-        if (videoTracks[0] && !videoTracks[0].enabled) {
-          console.warn('🖥️ Screen Share: Video track is disabled, enabling it');
-          videoTracks[0].enabled = true;
+        // Verify video track is enabled and ready
+        const videoTrack = videoTracks[0];
+        if (videoTrack) {
+          if (!videoTrack.enabled) {
+            console.warn('🖥️ Screen Share: Video track is disabled, enabling it');
+            videoTrack.enabled = true;
+          }
+          
+          // CRITICAL FIX: Wait for track to be ready if not already
+          if (videoTrack.readyState !== 'live') {
+            console.warn('🖥️ Screen Share: Video track not ready, waiting...', {
+              readyState: videoTrack.readyState
+            });
+            // Wait for track to be ready before adding to peer
+            const checkReady = setInterval(() => {
+              if (videoTrack.readyState === 'live') {
+                clearInterval(checkReady);
+                console.log('🖥️ Screen Share: Video track is now ready, adding stream');
+                try {
+                  peer.addStream(screenShareStreamRef.current);
+                  console.log('🖥️ Screen Share: Successfully added stream to new peer (after wait)', {
+                    videoTracks: videoTracks.length,
+                    audioTracks: audioTracks.length,
+                    videoTrackEnabled: videoTrack.enabled,
+                    videoTrackReady: videoTrack.readyState
+                  });
+                } catch (err) {
+                  console.error('🖥️ Screen Share: Error adding stream after wait:', err);
+                }
+              }
+            }, 100);
+            
+            // Cleanup after 5 seconds
+            setTimeout(() => clearInterval(checkReady), 5000);
+            return; // Don't add stream yet
+          }
         }
         
         peer.addStream(screenShareStreamRef.current);

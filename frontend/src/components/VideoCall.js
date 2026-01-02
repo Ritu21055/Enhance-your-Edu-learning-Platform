@@ -1065,9 +1065,24 @@ const VideoCallComponent = memo(({
                     }
                     
                     audioTracks.forEach((audioTrack) => {
-                      // Simple logic: Enable audio unless socket explicitly says false
-                      // If socketAudioEnabled is undefined, enable audio (default behavior)
-                      const shouldEnableAudio = socketAudioEnabled !== false;
+                      // CRITICAL FIX: Check actual track state if socketAudioEnabled is undefined
+                      // If socketAudioEnabled is undefined, it means we don't have state info yet
+                      // In this case, check the actual track enabled state and don't force enable
+                      let shouldEnableAudio;
+                      
+                      if (socketAudioEnabled === undefined) {
+                        // CRITICAL: If state is undefined, check actual track state
+                        // Don't force enable - respect the current track state
+                        shouldEnableAudio = audioTrack.enabled;
+                        console.log(`🔊 Audio state undefined for ${participantId}, using current track state:`, shouldEnableAudio);
+                      } else if (socketAudioEnabled === false) {
+                        // Explicitly disabled
+                        shouldEnableAudio = false;
+                      } else {
+                        // Explicitly enabled or true
+                        shouldEnableAudio = true;
+                      }
+                      
                       if (!audioTrack.enabled && shouldEnableAudio) {
                         audioTrack.enabled = true;
                         console.log(`🔊 Audio track enabled for ${participantId}:`, {
