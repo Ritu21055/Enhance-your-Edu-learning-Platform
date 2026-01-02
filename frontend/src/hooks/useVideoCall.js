@@ -36,6 +36,7 @@ const useVideoCall = (meetingId, userName) => {
   const earlySignalQueueRef = useRef([]); // Queue signals that arrive before media is ready
   const reconnectingUsersRef = useRef(new Set()); // Track users currently reconnecting
   const participantMediaStateRef = useRef({}); // Track video/audio enabled state for each participant
+  const socketListenersRegisteredRef = useRef(false); // Track if socket listeners are already registered
 
   // Initialize Socket Connection
   useEffect(() => {
@@ -336,6 +337,9 @@ const useVideoCall = (meetingId, userName) => {
       hostIdRef.current = hostId; // Update hostId ref
     });
 
+    // CRITICAL FIX: Remove existing listener first to prevent duplicate event handlers
+    newSocket.off('participant-joined');
+    
     // Handle new participant joining (only approved participants)
     newSocket.on('participant-joined', async (data) => {
       const { participant, meeting } = data;
@@ -1353,21 +1357,34 @@ const useVideoCall = (meetingId, userName) => {
             const currentStream = prev[participantId];
             const trackKind = event.track.kind;
           
-            if (trackKind === 'video') {
-              if (currentStream) {
-                // Stream exists, check if this track is already in it
+            // CRITICAL FIX: If stream already exists and is active, don't create duplicate
+            if (currentStream && currentStream.active) {
+              // Stream exists and is active - just add track if needed
+              if (trackKind === 'video') {
                 const existingVideoTrack = currentStream.getVideoTracks()[0];
                 if (!existingVideoTrack || existingVideoTrack.id !== event.track.id) {
                   // New video track added - add it to the existing stream
                   currentStream.addTrack(event.track);
-                  // Force update to trigger re-render
-                  const updated = { ...prev };
-                  if (updated[participantId]) {
-                    updated[participantId] = currentStream; // Trigger re-render
-                  }
-                  return updated;
+                  // Return same object reference to trigger re-render
+                  return { ...prev };
                 }
-              } else if (event.streams && event.streams.length > 0) {
+              } else if (trackKind === 'audio') {
+                const existingAudioTracks = currentStream.getAudioTracks();
+                const trackExists = existingAudioTracks.some(t => t.id === event.track.id);
+                if (!trackExists) {
+                  currentStream.addTrack(event.track);
+                  if (!event.track.enabled) {
+                    event.track.enabled = true;
+                  }
+                  return { ...prev };
+                }
+              }
+              return prev; // No change needed
+            }
+          
+            // Only create new stream if it doesn't exist
+            if (trackKind === 'video') {
+              if (event.streams && event.streams.length > 0) {
                 // New stream with video track
                 const newStream = event.streams[0];
                 console.log(`📹 New stream received with video track for ${participantName}`);
@@ -1385,28 +1402,8 @@ const useVideoCall = (meetingId, userName) => {
                 };
               }
             } else if (trackKind === 'audio') {
-              // Handle audio track addition
-              if (currentStream) {
-                // Stream exists, check if this track is already in it
-                const existingAudioTracks = currentStream.getAudioTracks();
-                const trackExists = existingAudioTracks.some(t => t.id === event.track.id);
-                if (!trackExists) {
-                  // New audio track added - add it to the existing stream
-                  console.log(`🔊 New audio track added to existing stream for ${participantName}`);
-                  currentStream.addTrack(event.track);
-                  // Ensure audio track is enabled
-                  if (!event.track.enabled) {
-                    event.track.enabled = true;
-                    console.log(`🔊 Enabled audio track for ${participantName}`);
-                  }
-                  // Force update to trigger re-render
-                  const updated = { ...prev };
-                  if (updated[participantId]) {
-                    updated[participantId] = currentStream; // Trigger re-render
-                  }
-                  return updated;
-                }
-              } else if (event.streams && event.streams.length > 0) {
+              // Handle audio track addition - only if stream doesn't exist
+              if (event.streams && event.streams.length > 0) {
                 // New stream with audio track
                 const newStream = event.streams[0];
                 console.log(`🔊 New stream received with audio track for ${participantName}`);
@@ -1442,44 +1439,9 @@ const useVideoCall = (meetingId, userName) => {
         }
       };
       
-      // Also monitor receivers for new tracks (fallback)
-      const checkReceivers = setInterval(() => {
-        if (peer._pc && !peer.destroyed) {
-          const receivers = peer._pc.getReceivers();
-          const videoReceiver = receivers.find(r => r.track && r.track.kind === 'video');
-          if (videoReceiver && videoReceiver.track) {
-            setRemoteStreams(prev => {
-              const currentStream = prev[participantId];
-              const existingVideoTrack = currentStream?.getVideoTracks()[0];
-              if (!existingVideoTrack || existingVideoTrack.id !== videoReceiver.track.id) {
-                console.log(`📹 Detected new video track via receiver polling for ${participantId}`);
-                if (currentStream) {
-                  currentStream.addTrack(videoReceiver.track);
-                  const updated = { ...prev };
-                  if (updated[participantId]) {
-                    updated[participantId] = currentStream;
-                  }
-                  return updated;
-                } else {
-                  const newStream = new MediaStream([videoReceiver.track]);
-                  return {
-                    ...prev,
-                    [participantId]: newStream
-                  };
-                }
-              }
-              return prev;
-            });
-          }
-        } else {
-          clearInterval(checkReceivers);
-        }
-      }, 1000);
-      
-      // Clean up interval when peer is destroyed
-      peer.on('close', () => {
-        clearInterval(checkReceivers);
-      });
+      // CRITICAL FIX: Removed polling interval (checkReceivers) - it causes duplicate streams
+      // The ontrack event handler is sufficient and more reliable
+      // Multiple polling intervals from different peer connections were creating duplicate streams
     }
     
     // Handle connection established
