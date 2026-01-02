@@ -154,69 +154,155 @@ const ScreenShareViewer = ({
         return;
       }
       
-      // CRITICAL: Ensure video track is enabled
-      if (!videoTrack.enabled) {
-        console.warn('🖥️ ScreenShareViewer: Video track is disabled, enabling it');
-        videoTrack.enabled = true;
-      }
-      
-      // CRITICAL: Ensure video element is visible and ready
-      videoElement.style.opacity = '1';
-      videoElement.style.visibility = 'visible';
-      videoElement.style.display = 'block';
-      videoElement.style.zIndex = '1';
-      
-      // Set the stream
-      if (videoElement.srcObject !== remoteScreenStream) {
-        console.log('🖥️ ScreenShareViewer: Setting srcObject for remote screen stream');
-        videoElement.srcObject = remoteScreenStream;
-      }
-      
-      // Play video with retry mechanism
-      const playVideo = () => {
-        if (videoElement && remoteScreenStream && remoteScreenStream.active && videoTrack?.enabled) {
-          // Ensure srcObject is set
-          if (videoElement.srcObject !== remoteScreenStream) {
-            videoElement.srcObject = remoteScreenStream;
-          }
-          
-          videoElement.play().then(() => {
-            console.log('🖥️ ScreenShareViewer: Remote screen stream playing successfully');
-          }).catch(err => {
-            console.warn('🖥️ ScreenShareViewer: Remote video play error (will retry):', err);
-            setTimeout(playVideo, 300); // Retry playing
-          });
-        } else {
-          console.warn('🖥️ ScreenShareViewer: Remote stream not ready, retrying...', {
-            streamActive: remoteScreenStream?.active,
-            trackEnabled: videoTrack?.enabled,
-            trackReady: videoTrack?.readyState,
-            hasElement: !!videoElement
-          });
-          setTimeout(playVideo, 300); // Retry if not ready
+      // CRITICAL FIX: Force enable video track and wait for it to be truly live
+      const setupVideo = () => {
+        // Ensure video track is enabled
+        if (!videoTrack.enabled) {
+          console.warn('🖥️ ScreenShareViewer: Video track is disabled, enabling it');
+          videoTrack.enabled = true;
         }
+        
+        // CRITICAL: Wait for track to be in 'live' state with actual frames
+        if (videoTrack.readyState !== 'live') {
+          console.warn('🖥️ ScreenShareViewer: Video track not live yet, waiting...', {
+            readyState: videoTrack.readyState
+          });
+          setTimeout(setupVideo, 200);
+          return;
+        }
+        
+        // CRITICAL: Ensure video element is visible and ready
+        videoElement.style.opacity = '1';
+        videoElement.style.visibility = 'visible';
+        videoElement.style.display = 'block';
+        videoElement.style.zIndex = '1';
+        videoElement.style.backgroundColor = '#000';
+        videoElement.style.width = '100%';
+        videoElement.style.height = '100%';
+        
+        // CRITICAL FIX: Always set srcObject (even if same) to force update
+        console.log('🖥️ ScreenShareViewer: Force setting srcObject for remote screen stream');
+        videoElement.srcObject = remoteScreenStream;
+        
+        // CRITICAL: Ensure video element attributes
+        videoElement.muted = isMuted;
+        videoElement.playsInline = true;
+        videoElement.autoplay = true;
+        
+        // Play video with retry mechanism
+        const playVideo = () => {
+          if (videoElement && remoteScreenStream && remoteScreenStream.active && videoTrack?.enabled && videoTrack?.readyState === 'live') {
+            // CRITICAL FIX: Double-check srcObject is set
+            if (videoElement.srcObject !== remoteScreenStream) {
+              console.warn('🖥️ ScreenShareViewer: srcObject lost, restoring');
+              videoElement.srcObject = remoteScreenStream;
+            }
+            
+            // CRITICAL FIX: Check if video has actual frames
+            const checkVideoReady = () => {
+              const hasVideoWidth = videoElement.videoWidth > 0;
+              const hasVideoHeight = videoElement.videoHeight > 0;
+              
+              if (hasVideoWidth && hasVideoHeight) {
+                console.log('🖥️✅ ScreenShareViewer: Video has frames!', {
+                  width: videoElement.videoWidth,
+                  height: videoElement.videoHeight,
+                  readyState: videoElement.readyState
+                });
+              } else {
+                console.warn('🖥️ ScreenShareViewer: Video has no frames yet, retrying...', {
+                  videoWidth: videoElement.videoWidth,
+                  videoHeight: videoElement.videoHeight,
+                  readyState: videoElement.readyState
+                });
+                // Retry after 200ms
+                setTimeout(checkVideoReady, 200);
+              }
+            };
+            
+            videoElement.play().then(() => {
+              console.log('🖥️✅ ScreenShareViewer: Remote screen stream playing successfully');
+              // Check if video has frames after play
+              setTimeout(checkVideoReady, 100);
+            }).catch(err => {
+              console.warn('🖥️ ScreenShareViewer: Remote video play error (will retry):', err);
+              setTimeout(playVideo, 300); // Retry playing
+            });
+          } else {
+            console.warn('🖥️ ScreenShareViewer: Remote stream not ready, retrying...', {
+              streamActive: remoteScreenStream?.active,
+              trackEnabled: videoTrack?.enabled,
+              trackReady: videoTrack?.readyState,
+              hasElement: !!videoElement
+            });
+            setTimeout(playVideo, 300); // Retry if not ready
+          }
+        };
+        
+        // Start playing immediately and also retry
+        playVideo();
+        setTimeout(playVideo, 100);
+        setTimeout(playVideo, 500);
+        setTimeout(playVideo, 1000);
       };
       
-      // Start playing immediately and also retry
-      playVideo();
+      // Start setup
+      setupVideo();
       
       // Also listen for track enabled/disabled events
       const handleTrackEnabled = () => {
         console.log('🖥️ ScreenShareViewer: Video track enabled event');
-        playVideo();
+        if (videoTrack.enabled) {
+          setupVideo();
+        }
       };
       
       const handleTrackDisabled = () => {
-        console.warn('🖥️ ScreenShareViewer: Video track disabled event');
+        console.warn('🖥️ ScreenShareViewer: Video track disabled event - re-enabling');
+        if (!videoTrack.enabled) {
+          videoTrack.enabled = true;
+          setTimeout(setupVideo, 100);
+        }
+      };
+      
+      // Listen for track readyState changes
+      const handleTrackReadyStateChange = () => {
+        console.log('🖥️ ScreenShareViewer: Video track readyState changed:', videoTrack.readyState);
+        if (videoTrack.readyState === 'live') {
+          setupVideo();
+        }
       };
       
       videoTrack.addEventListener('enabled', handleTrackEnabled);
       videoTrack.addEventListener('disabled', handleTrackDisabled);
+      videoTrack.addEventListener('ended', handleTrackReadyStateChange);
+      
+      // Also listen to video element events
+      const handleLoadedMetadata = () => {
+        console.log('🖥️ ScreenShareViewer: Video metadata loaded', {
+          videoWidth: videoElement.videoWidth,
+          videoHeight: videoElement.videoHeight
+        });
+        if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+          console.log('🖥️✅ ScreenShareViewer: Video has frames!');
+        }
+      };
+      
+      const handleLoadedData = () => {
+        console.log('🖥️ ScreenShareViewer: Video data loaded');
+        videoElement.play().catch(err => console.warn('Play error:', err));
+      };
+      
+      videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+      videoElement.addEventListener('loadeddata', handleLoadedData);
       
       // Cleanup
       return () => {
         videoTrack.removeEventListener('enabled', handleTrackEnabled);
         videoTrack.removeEventListener('disabled', handleTrackDisabled);
+        videoTrack.removeEventListener('ended', handleTrackReadyStateChange);
+        videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        videoElement.removeEventListener('loadeddata', handleLoadedData);
       };
     } else {
       console.log('🖥️ ScreenShareViewer: No remote screen stream or video element', {
@@ -224,7 +310,7 @@ const ScreenShareViewer = ({
         hasElement: !!remoteVideoRef.current
       });
     }
-  }, [remoteScreenStream]);
+  }, [remoteScreenStream, isMuted]);
 
   // Handle fullscreen toggle
   const toggleFullscreen = () => {
