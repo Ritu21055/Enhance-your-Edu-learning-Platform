@@ -203,18 +203,41 @@ export default function registerAIHandlers(socket, io) {
             
             participantEmotions[participantId] = data.emotion;
             
-            // Get participant name
-            if (meeting && meeting.participants) {
+            // CRITICAL FIX: Get participant name - try multiple sources
+            let participantName = null;
+            
+            // First try: from participantNames map (if already set)
+            if (participantNames[participantId]) {
+              participantName = participantNames[participantId];
+            }
+            // Second try: from meeting.participants
+            else if (meeting && meeting.participants) {
               const participant = meeting.participants.find(p => p.id === participantId);
-              if (participant) {
-                participantNames[participantId] = participant.name;
+              if (participant && participant.name) {
+                participantName = participant.name.replace(' (Host)', '').trim();
+                participantNames[participantId] = participantName; // Cache it
               }
+            }
+            
+            // CRITICAL FIX: If still no name, try to get from allParticipants array
+            if (!participantName && allParticipants) {
+              const participant = allParticipants.find(p => p.id === participantId);
+              if (participant && participant.name) {
+                participantName = participant.name.replace(' (Host)', '').trim();
+                participantNames[participantId] = participantName; // Cache it
+              }
+            }
+            
+            // CRITICAL FIX: Only use participant ID prefix as last resort, log warning
+            if (!participantName) {
+              console.warn(`⚠️ Could not find participant name for ${participantId}, using ID prefix`);
+              participantName = `Participant ${participantId.slice(0, 8)}`; // Use participant ID prefix instead of 'a participant'
             }
             
             // Collect participants with emotions (video ON)
             allParticipantsWithEmotions.push({
               id: participantId,
-              name: participantNames[participantId] || 'a participant',
+              name: participantName, // Use the properly fetched name
               emotion: data.emotion,
               timestamp: data.timestamp
             });
@@ -226,12 +249,31 @@ export default function registerAIHandlers(socket, io) {
         const participantsWithoutEmotions = allParticipants
           .filter(p => p.id !== hostId) // Exclude host
           .filter(p => !participantEmotions[p.id]) // Only those without emotions (video off)
-          .map(p => ({
-            id: p.id,
-            name: p.name,
-            emotion: 'unknown', // Video off, emotion unknown
-            timestamp: Date.now()
-          }));
+          .map(p => {
+            // CRITICAL FIX: Ensure participant name is properly set
+            let participantName = p.name;
+            
+            // Remove " (Host)" suffix if present
+            if (participantName) {
+              participantName = participantName.replace(' (Host)', '').trim();
+            }
+            
+            // If no name, use participant ID prefix instead of 'a participant'
+            if (!participantName || participantName === '') {
+              console.warn(`⚠️ Participant ${p.id} has no name, using ID prefix`);
+              participantName = `Participant ${p.id.slice(0, 8)}`;
+            }
+            
+            // Cache the name in participantNames map
+            participantNames[p.id] = participantName;
+            
+            return {
+              id: p.id,
+              name: participantName, // Use properly formatted name
+              emotion: 'unknown', // Video off, emotion unknown
+              timestamp: Date.now()
+            };
+          });
 
         // Combine both: participants with emotions (video ON) and without emotions (video OFF)
         const allParticipantsForQuestions = [
@@ -391,7 +433,7 @@ export default function registerAIHandlers(socket, io) {
       } catch (error) {
         console.error('❌ Question generation failed:', error);
       }
-    }, 240000); // Check every 240 seconds (4 minutes) - gives more time for substantial conversation
+     }, 180000); // Check every 180 seconds (3 minutes) - gives more time for substantial conversation
     
     // Store timer for cleanup
     llmService.questionGenerationTimer.set(meetingId, questionTimer);
