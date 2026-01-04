@@ -2,7 +2,6 @@
 // This service handles audio transcription and question generation
 // Main orchestration and state management - generation logic is in llmGenerators.js
 
-import speech from '@google-cloud/speech';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { llmGenerators } from './llmGenerators.js';
 
@@ -10,7 +9,7 @@ import { llmGenerators } from './llmGenerators.js';
 
 class LLMService {
   constructor() {
-    this.transcriptionBuffer = new Map(); // meetingId -> audio chunks
+    // REMOVED: transcriptionBuffer - no longer needed (using Web Speech API on client side)
     this.transcriptHistory = new Map(); // meetingId -> transcript history
     this.questionGenerationTimer = new Map(); // meetingId -> timer
     this.lastQuestionTime = new Map(); // meetingId -> timestamp
@@ -45,8 +44,8 @@ class LLMService {
     // Debug: Log Ollama configuration
     console.log(`🔧 Ollama configured: ${this.ollamaUrl} (model: ${this.ollamaModel})`);
     
-    // Initialize Speech-to-Text client
-    this.initializeSpeechClient();
+    // REMOVED: Google Cloud Speech-to-Text initialization
+    // Transcription is now handled by Web Speech API (FreeTranscription component) on the client side
     
     // Bind generator methods from llmGenerators.js to this instance
     Object.keys(llmGenerators).forEach(methodName => {
@@ -194,25 +193,8 @@ class LLMService {
     };
   }
 
-  // Initialize Google Cloud Speech-to-Text client
-  initializeSpeechClient() {
-    try {
-      // Check if Google Cloud credentials are available
-      if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CLOUD_PROJECT) {
-        this.speechClient = new speech.SpeechClient();
-        this.speechEnabled = true;
-        console.log('🎤 Google Cloud Speech-to-Text initialized');
-      } else {
-        this.speechClient = null;
-        this.speechEnabled = false;
-        console.log('🎤 Google Cloud Speech-to-Text not configured (using mock transcription)');
-      }
-    } catch (error) {
-      console.error('❌ Failed to initialize Speech-to-Text:', error.message);
-      this.speechClient = null;
-      this.speechEnabled = false;
-    }
-  }
+  // REMOVED: Google Cloud Speech-to-Text initialization
+  // Transcription is now handled by Web Speech API (FreeTranscription component) on the client side
 
   // Re-check API key from environment (useful after .env is loaded)
   async recheckApiKey() {
@@ -326,96 +308,9 @@ class LLMService {
   }
 
 
-  // Real-time audio transcription using Google Cloud Speech-to-Text
-  async getTranscription(audioStream, meetingId) {
-    try {
-      console.log('🎤 Processing audio for transcription...', { meetingId, audioSize: audioStream.length });
-      
-      if (this.speechEnabled && this.speechClient) {
-        // Use real Google Cloud Speech-to-Text
-        return await this.transcribeWithGoogleCloud(audioStream, meetingId);
-      } else {
-        // Fallback to mock transcription
-        return await this.mockTranscription(audioStream, meetingId);
-      }
-      
-    } catch (error) {
-      console.error('❌ Transcription failed:', error);
-      // Fallback to mock transcription on error
-      return await this.mockTranscription(audioStream, meetingId);
-    }
-  }
-
-  // Real Google Cloud Speech-to-Text transcription
-  async transcribeWithGoogleCloud(audioStream, meetingId) {
-    try {
-      const request = {
-        audio: {
-          content: audioStream.toString('base64'),
-        },
-        config: {
-          encoding: 'WEBM_OPUS',
-          sampleRateHertz: 48000,
-          languageCode: 'en-US',
-          enableAutomaticPunctuation: true,
-          enableSpeakerDiarization: true,
-          diarizationSpeakerCount: 2,
-          model: 'latest_long',
-        },
-      };
-
-      const [response] = await this.speechClient.recognize(request);
-      const transcription = response.results
-        .map(result => result.alternatives[0].transcript)
-        .join('\n');
-
-      if (transcription) {
-        console.log('📝 Google Cloud transcription:', transcription);
-        return {
-          transcript: transcription,
-          confidence: response.results[0]?.alternatives[0]?.confidence || 0.8,
-          timestamp: Date.now(),
-          source: 'google-cloud'
-        };
-      } else {
-        throw new Error('No transcription result');
-      }
-    } catch (error) {
-      console.error('❌ Google Cloud transcription failed:', error);
-      throw error;
-    }
-  }
-
-  // Mock transcription fallback
-  async mockTranscription(audioStream, meetingId) {
-    // Simulate transcription processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Placeholder transcription - in production, this would call the actual STT API
-    const mockTranscriptions = [
-      "Let's discuss the quarterly results",
-      "I think we need to focus on user engagement",
-      "The new feature implementation looks promising",
-      "We should consider the budget implications",
-      "What are your thoughts on the timeline?",
-      "I'm concerned about the technical challenges",
-      "The team has been working hard on this project",
-      "We need to prioritize the most important features",
-      "Let's schedule a follow-up meeting next week",
-      "I'd like to hear more about the implementation details"
-    ];
-    
-    // Return a random mock transcription for demonstration
-    const randomTranscript = mockTranscriptions[Math.floor(Math.random() * mockTranscriptions.length)];
-    
-    console.log('📝 Mock transcription:', randomTranscript);
-    return {
-      transcript: randomTranscript,
-      confidence: 0.85,
-      timestamp: Date.now(),
-      source: 'mock'
-    };
-  }
+  // REMOVED: Google Cloud Speech-to-Text transcription methods
+  // Transcription is now handled by Web Speech API (FreeTranscription component) on the client side
+  // The transcript_update event is used instead of audio_data
 
   // Generate follow-up questions using available LLM
   // Generate follow-up question - Priority: 1. Gemini (fastest) -> 2. Ollama (if Gemini quota exhausted) -> 3. Rule-based (always available)

@@ -108,40 +108,9 @@ export default function registerAIHandlers(socket, io) {
     checkFatigue(meetingId, io);
   });
 
-  // AI-Driven Smart Follow-up Question Generation - Audio Data Handler
-  socket.on('audio_data', async (data) => {
-    try {
-      console.log('🎤 Received audio data:', { meetingId: data.meetingId, chunkIndex: data.chunkIndex });
-      
-      // REMOVED: Recording feature - mediaRecorder no longer exists
-      // mediaRecorder.processAudioChunk(data.meetingId, socket.id, data.audioChunk, data.timestamp);
-      
-      // Process audio for transcription
-      const transcriptionResult = await llmService.getTranscription(data.audioChunk, data.meetingId);
-      
-      if (transcriptionResult && transcriptionResult.transcript) {
-        // Add to transcript history
-        llmService.addToTranscriptHistory(data.meetingId, transcriptionResult.transcript);
-        
-        // Send transcription result back to client
-        socket.emit('transcription_result', {
-          meetingId: data.meetingId,
-          transcript: transcriptionResult.transcript,
-          confidence: transcriptionResult.confidence,
-          timestamp: transcriptionResult.timestamp
-        });
-        
-        console.log('📝 Sent transcription result:', transcriptionResult.transcript);
-      }
-      
-    } catch (error) {
-      console.error('❌ Audio processing failed:', error);
-      socket.emit('transcription_error', {
-        meetingId: data.meetingId,
-        error: error.message
-      });
-    }
-  });
+  // REMOVED: Google Cloud Speech-to-Text audio_data handler
+  // Transcription is now handled by Web Speech API (FreeTranscription component) on the client side
+  // The transcript_update event is used instead of audio_data
 
   // AI-Driven Smart Follow-up Question Generation - Question Generation Timer
   socket.on('start_question_generation', (data) => {

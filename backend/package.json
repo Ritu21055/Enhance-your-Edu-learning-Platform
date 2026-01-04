@@ -17,7 +17,6 @@
   "author": "WebNexus Team",
   "license": "MIT",
   "dependencies": {
-    "@google-cloud/speech": "^6.0.0",
     "@google/generative-ai": "^0.2.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
