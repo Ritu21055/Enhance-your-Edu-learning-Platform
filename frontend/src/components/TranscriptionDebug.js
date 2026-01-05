@@ -47,17 +47,34 @@ const TranscriptionDebug = ({
   // Listen to socket events for transcript updates (from FreeTranscription)
   // This ensures we get transcripts even if recognition handler is overwritten
   useEffect(() => {
-    if (!socket || !meetingId || !participantId) {
+    if (!socket || !meetingId) {
       console.log('⚠️ DEBUG: Socket listener not set up:', { hasSocket: !!socket, meetingId, participantId });
       return;
     }
 
-    console.log('✅ DEBUG: Setting up socket listener for transcript updates');
+    console.log('✅ DEBUG: Setting up socket listener for transcript updates', { meetingId, participantId, socketId: socket?.id });
 
     const handleTranscriptUpdate = (data) => {
       console.log('📥 DEBUG: Received transcript_update event:', data);
-      if (data.meetingId === meetingId && data.participantId === participantId) {
-        console.log('✅ DEBUG: Transcript matches - updating display:', data.transcript);
+      
+      // Check if meeting ID matches
+      if (data.meetingId !== meetingId) {
+        console.log('⚠️ DEBUG: Meeting ID mismatch:', {
+          received: data.meetingId,
+          expected: meetingId
+        });
+        return;
+      }
+      
+      // If participantId is provided, only show transcripts for that participant
+      // Otherwise, show all transcripts for the meeting (useful for debugging)
+      const shouldShow = !participantId || data.participantId === participantId || data.participantId === socket?.id;
+      
+      if (shouldShow) {
+        console.log('✅ DEBUG: Transcript matches - updating display:', data.transcript, {
+          participantId: data.participantId,
+          participantName: data.participantName
+        });
         setTranscript(prev => {
           const newTranscript = prev + ' ' + data.transcript;
           console.log('📝 DEBUG: Updated transcript:', newTranscript);
@@ -66,11 +83,10 @@ const TranscriptionDebug = ({
         setConfidence(data.confidence || 0);
         setTranscriptCount(prev => prev + 1);
       } else {
-        console.log('⚠️ DEBUG: Transcript mismatch:', {
-          receivedMeetingId: data.meetingId,
-          expectedMeetingId: meetingId,
+        console.log('⚠️ DEBUG: Participant ID mismatch:', {
           receivedParticipantId: data.participantId,
-          expectedParticipantId: participantId
+          expectedParticipantId: participantId,
+          socketId: socket?.id
         });
       }
     };
