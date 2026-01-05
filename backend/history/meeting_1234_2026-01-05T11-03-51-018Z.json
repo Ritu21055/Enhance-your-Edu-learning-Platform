@@ -6,42 +6,34 @@
     "status": "completed"
   },
   "notes": {
-    "summary": "The meeting, involving only Ritu, focused on clarifying the deadline for an \"exam order.\" Ritu initially mentioned the exam order was due \"3 days later\" but immediately corrected or clarified this to be \"today.\"",
+    "summary": "The meeting was extremely brief, with the sole participant stating that there is no New Year program. A seemingly unrelated phrase, 'two hours near me,' was also mentioned without further context.",
     "keyPoints": [
-      "The 'exam order' needs to be processed or submitted.",
-      "The deadline for the 'exam order' has been confirmed as today, overriding any previous understanding of '3 days later'."
+      "No New Year program is planned.",
+      "A reference was made to 'two hours near me,' though its significance is unclear from the transcript."
     ],
-    "actionItems": [
-      {
-        "task": "Process/Submit the exam order",
-        "assignedTo": "TBD",
-        "deadline": "today"
-      }
-    ],
-    "decisions": [
-      "The deadline for the exam order is today."
-    ],
+    "actionItems": [],
+    "decisions": [],
     "studyGuide": {
       "definitions": [],
       "examples": [],
       "formulas": []
     },
     "participantContributions": {
-      "ritu": [
-        "Clarified that an 'exam order' is due '3 days later'.",
-        "Corrected or re-emphasized that the 'exam order' is due 'today'."
+      "123": [
+        "Indicated there is no New Year program.",
+        "Mentioned 'two hours near me'."
       ]
     },
     "conversationTranscript": [
       {
-        "speaker": "ritu",
-        "timestamp": "20:11:04",
-        "text": "exam order 3 days later"
+        "speaker": "123",
+        "timestamp": "20:36:44",
+        "text": "no New Year program"
       },
       {
-        "speaker": "ritu",
-        "timestamp": "20:11:04",
-        "text": "today"
+        "speaker": "123",
+        "timestamp": "20:37:16",
+        "text": "two hours near me"
       }
     ]
   },
@@ -54,6 +46,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2026-01-05T14:26:37.543Z"
+    "notesGeneratedAt": "2026-01-05T14:53:04.764Z"
   }
 }

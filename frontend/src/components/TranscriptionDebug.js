@@ -112,18 +112,23 @@ const TranscriptionDebug = ({
       console.log('⚠️ DEBUG: Using existing recognition instance from FreeTranscription');
       recognition = window.recognition;
       
-      // CRITICAL: Preserve the original handler and add our own
+      // CRITICAL: Store original handler before modifying
       const originalOnResult = recognition.onresult;
       
-      // Set up listeners on existing instance
+      // Set up listeners on existing instance - wrap the original handler
       recognition.onresult = (event) => {
+        console.log('🎤 DEBUG: Recognition onresult triggered', { resultIndex: event.resultIndex, resultsLength: event.results.length });
+        
         // Call original handler first (FreeTranscription's handler)
-        if (originalOnResult) {
+        if (originalOnResult && typeof originalOnResult === 'function') {
           try {
             originalOnResult.call(recognition, event);
+            console.log('✅ DEBUG: Original handler called successfully');
           } catch (e) {
             console.error('⚠️ DEBUG: Error calling original handler:', e);
           }
+        } else {
+          console.log('⚠️ DEBUG: No original handler to call');
         }
         
         // Then add our own logic for display
@@ -138,17 +143,24 @@ const TranscriptionDebug = ({
             final += transcript;
             setConfidence(conf);
             setTranscriptCount(prev => prev + 1);
+            console.log('✅ DEBUG: Final transcript received:', final);
           } else {
             interim += transcript;
           }
         }
 
         if (final) {
-          setTranscript(prev => prev + ' ' + final);
-          console.log('📤 DEBUG: Received transcript from shared instance:', final);
+          setTranscript(prev => {
+            const newTranscript = prev + ' ' + final;
+            console.log('📝 DEBUG: Updated transcript in TranscriptionDebug:', newTranscript);
+            return newTranscript;
+          });
         }
         
-        setInterimTranscript(interim);
+        if (interim) {
+          setInterimTranscript(interim);
+          console.log('📝 DEBUG: Interim transcript:', interim);
+        }
       };
       
       recognition.onstart = () => {
