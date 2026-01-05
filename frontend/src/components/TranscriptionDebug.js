@@ -48,16 +48,91 @@ const TranscriptionDebug = ({
   useEffect(() => {
     if (!isSupported) return;
 
-    // CRITICAL: Check if another recognition instance is already running
-    // If FreeTranscription is using window.recognition, we need to use a different approach
+    // CRITICAL: Use existing recognition instance if available (from FreeTranscription)
+    // This avoids conflicts and allows sharing the same recognition instance
+    let recognition = null;
+    
     if (window.recognition && window.recognition.readyState !== 0) {
-      console.log('⚠️ DEBUG: Another recognition instance is running. Will use shared instance.');
-      // Don't create new instance, will handle separately
+      console.log('⚠️ DEBUG: Using existing recognition instance from FreeTranscription');
+      recognition = window.recognition;
+      // Set up listeners on existing instance
+      recognition.onresult = (event) => {
+        let interim = '';
+        let final = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          const conf = event.results[i][0].confidence;
+          
+          if (event.results[i].isFinal) {
+            final += transcript;
+            setConfidence(conf);
+            setTranscriptCount(prev => prev + 1);
+          } else {
+            interim += transcript;
+          }
+        }
+
+        if (final) {
+          setTranscript(prev => prev + ' ' + final);
+          console.log('📤 DEBUG: Received transcript from shared instance:', final);
+        }
+        
+        setInterimTranscript(interim);
+      };
+      
+      recognition.onstart = () => {
+        console.log('🎤 DEBUG: Shared transcription started');
+        setIsListening(true);
+        setError(null);
+      };
+      
+      recognition.onerror = (event) => {
+        console.error('🎤 DEBUG: Shared recognition error:', event.error);
+        
+        // Handle network error - retry with delay
+        if (event.error === 'network') {
+          setError('Network error: Retrying...');
+          setIsListening(false);
+          setTimeout(() => {
+            if (shouldAutoRestartRef.current && recognitionRef.current) {
+              try {
+                console.log('🎤 DEBUG: Retrying after network error...');
+                recognitionRef.current.start();
+              } catch (e) {
+                console.log('⚠️ DEBUG: Network retry failed:', e.message);
+                setError('Network error: Please check your internet connection');
+                shouldAutoRestartRef.current = false;
+              }
+            }
+          }, 2000);
+          return;
+        }
+        
+        // Handle aborted error
+        if (event.error === 'aborted') {
+          console.log('🎤 DEBUG: Recognition aborted');
+          setError(null);
+          setIsListening(false);
+          return;
+        }
+        
+        setError(`Error: ${event.error}`);
+        setIsListening(false);
+      };
+      
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+      
+      recognitionRef.current = recognition;
+      setIsListening(recognition.readyState === 1); // 1 = listening
       return;
     }
 
+    // Create new instance if no existing one
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
+    recognition = new SpeechRecognition();
     
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -112,6 +187,26 @@ const TranscriptionDebug = ({
     recognition.onerror = (event) => {
       console.error('🎤 DEBUG: Speech recognition error:', event.error);
       
+      // CRITICAL FIX: Handle network error - retry with delay
+      if (event.error === 'network') {
+        setError('Network error: Retrying...');
+        setIsListening(false);
+        // Retry after delay
+        setTimeout(() => {
+          if (shouldAutoRestartRef.current && recognitionRef.current) {
+            try {
+              console.log('🎤 DEBUG: Retrying after network error...');
+              recognitionRef.current.start();
+            } catch (e) {
+              console.log('⚠️ DEBUG: Network retry failed:', e.message);
+              setError('Network error: Please check your internet connection');
+              shouldAutoRestartRef.current = false;
+            }
+          }
+        }, 2000); // Wait 2 seconds before retry
+        return;
+      }
+      
       // CRITICAL FIX: Handle aborted error better - it's usually due to multiple instances
       if (event.error === 'aborted') {
         console.log('🎤 DEBUG: Recognition aborted - likely due to multiple instances. Will retry...');
@@ -134,10 +229,7 @@ const TranscriptionDebug = ({
       
       setError(`Error: ${event.error}`);
       
-      if (event.error === 'network') {
-        shouldAutoRestartRef.current = false;
-        setIsListening(false);
-      } else if (event.error === 'no-speech') {
+      if (event.error === 'no-speech') {
         // Normal, will retry - don't show error
         setError(null);
       } else if (event.error === 'audio-capture') {
