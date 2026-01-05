@@ -44,6 +44,46 @@ const TranscriptionDebug = ({
     }
   }, []);
 
+  // Listen to socket events for transcript updates (from FreeTranscription)
+  // This ensures we get transcripts even if recognition handler is overwritten
+  useEffect(() => {
+    if (!socket || !meetingId || !participantId) {
+      console.log('⚠️ DEBUG: Socket listener not set up:', { hasSocket: !!socket, meetingId, participantId });
+      return;
+    }
+
+    console.log('✅ DEBUG: Setting up socket listener for transcript updates');
+
+    const handleTranscriptUpdate = (data) => {
+      console.log('📥 DEBUG: Received transcript_update event:', data);
+      if (data.meetingId === meetingId && data.participantId === participantId) {
+        console.log('✅ DEBUG: Transcript matches - updating display:', data.transcript);
+        setTranscript(prev => {
+          const newTranscript = prev + ' ' + data.transcript;
+          console.log('📝 DEBUG: Updated transcript:', newTranscript);
+          return newTranscript;
+        });
+        setConfidence(data.confidence || 0);
+        setTranscriptCount(prev => prev + 1);
+      } else {
+        console.log('⚠️ DEBUG: Transcript mismatch:', {
+          receivedMeetingId: data.meetingId,
+          expectedMeetingId: meetingId,
+          receivedParticipantId: data.participantId,
+          expectedParticipantId: participantId
+        });
+      }
+    };
+
+    socket.on('transcript_update', handleTranscriptUpdate);
+    console.log('✅ DEBUG: Socket listener registered for transcript_update');
+
+    return () => {
+      console.log('🧹 DEBUG: Cleaning up socket listener');
+      socket.off('transcript_update', handleTranscriptUpdate);
+    };
+  }, [socket, meetingId, participantId]);
+
   // Initialize speech recognition
   useEffect(() => {
     if (!isSupported) return;
@@ -55,8 +95,22 @@ const TranscriptionDebug = ({
     if (window.recognition && window.recognition.readyState !== 0) {
       console.log('⚠️ DEBUG: Using existing recognition instance from FreeTranscription');
       recognition = window.recognition;
+      
+      // CRITICAL: Preserve the original handler and add our own
+      const originalOnResult = recognition.onresult;
+      
       // Set up listeners on existing instance
       recognition.onresult = (event) => {
+        // Call original handler first (FreeTranscription's handler)
+        if (originalOnResult) {
+          try {
+            originalOnResult.call(recognition, event);
+          } catch (e) {
+            console.error('⚠️ DEBUG: Error calling original handler:', e);
+          }
+        }
+        
+        // Then add our own logic for display
         let interim = '';
         let final = '';
 
