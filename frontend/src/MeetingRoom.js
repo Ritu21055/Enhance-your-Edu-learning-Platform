@@ -35,8 +35,8 @@ import MediaRequestNotification from './components/MediaRequestNotification';
 // import RecordingNotification from './components/RecordingNotification'; // REMOVED: Recording feature
 import QuestionSuggestion from './components/QuestionSuggestion';
 
-// Import AI Follow-up Question Generation hook
-import useAudioTranscription from './hooks/useAudioTranscription';
+// REMOVED: useAudioTranscription - Now using Web Speech API (FreeTranscription) instead
+// import useAudioTranscription from './hooks/useAudioTranscription';
 
 // Import Media Recorder hook
 // import useMediaRecorder from './hooks/useMediaRecorder'; // REMOVED: Recording feature
@@ -307,16 +307,9 @@ const MeetingRoom = () => {
     };
   }, [socket, isHost]);
 
-  // AI Follow-up Question Generation - Audio Transcription (needed for handleStartQuestionGeneration)
-  const {
-    isRecording: isTranscriptionRecording,
-    transcript,
-    isTranscribing,
-    error: transcriptionError,
-    startRecording: startTranscriptionRecording,
-    stopRecording: stopTranscriptionRecording,
-    clearTranscript
-  } = useAudioTranscription(socket, meetingId);
+  // REMOVED: useAudioTranscription - Now using Web Speech API (FreeTranscription) instead
+  // The FreeTranscription component automatically sends transcript_update events to the backend
+  // No need for separate audio transcription hook
 
   // AI Follow-up Question Generation - Control functions (defined early to avoid initialization errors)
   const handleStartQuestionGeneration = useCallback(() => {
@@ -329,14 +322,10 @@ const MeetingRoom = () => {
       socket.emit('start_question_generation', { meetingId });
       setIsQuestionGenerationActive(true);
       
-      // Start audio transcription for BOTH host AND participants
-      // This ensures conversation-specific questions work regardless of video state:
-      // - Host with audio only ✅
-      // - Host with audio + video ✅
-      // - Participant with audio only ✅
-      // - Participant with audio + video ✅
-      console.log('🤖 Starting audio transcription for conversation-specific question generation...');
-      startTranscriptionRecording();
+      // REMOVED: startTranscriptionRecording() - Now using Web Speech API (FreeTranscription)
+      // The FreeTranscription component automatically sends transcript_update events to the backend
+      // No need to manually start audio transcription
+      console.log('🤖 AI question generation started - using Web Speech API for transcription');
     } else {
       console.error('🤖 Cannot start AI question generation:', {
         hasSocket: !!socket,
@@ -345,7 +334,7 @@ const MeetingRoom = () => {
         isHost
       });
     }
-  }, [socket, meetingId, isHost, startTranscriptionRecording]);
+  }, [socket, meetingId, isHost]);
 
   const handleStopQuestionGeneration = useCallback(() => {
     if (socket && meetingId) {
@@ -353,10 +342,10 @@ const MeetingRoom = () => {
       socket.emit('stop_question_generation', { meetingId });
       setIsQuestionGenerationActive(false);
       
-      // Stop audio transcription
-      stopTranscriptionRecording();
+      // REMOVED: stopTranscriptionRecording() - Now using Web Speech API (FreeTranscription)
+      // The FreeTranscription component handles its own lifecycle
     }
-  }, [socket, meetingId, stopTranscriptionRecording]);
+  }, [socket, meetingId]);
 
   // AI Follow-up Question Generation - Listen for follow-up suggestions (host only)
   useEffect(() => {

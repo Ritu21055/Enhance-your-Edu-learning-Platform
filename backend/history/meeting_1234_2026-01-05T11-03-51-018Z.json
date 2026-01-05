@@ -6,12 +6,21 @@
     "status": "completed"
   },
   "notes": {
-    "summary": "The meeting transcript is extremely brief, with only one utterance from Ritu mentioning 'another project below'. This suggests a reference to an additional project or an item to be considered.",
+    "summary": "The meeting, involving only Ritu, focused on clarifying the deadline for an \"exam order.\" Ritu initially mentioned the exam order was due \"3 days later\" but immediately corrected or clarified this to be \"today.\"",
     "keyPoints": [
-      "Ritu mentioned 'another project below'."
+      "The 'exam order' needs to be processed or submitted.",
+      "The deadline for the 'exam order' has been confirmed as today, overriding any previous understanding of '3 days later'."
     ],
-    "actionItems": [],
-    "decisions": [],
+    "actionItems": [
+      {
+        "task": "Process/Submit the exam order",
+        "assignedTo": "TBD",
+        "deadline": "today"
+      }
+    ],
+    "decisions": [
+      "The deadline for the exam order is today."
+    ],
     "studyGuide": {
       "definitions": [],
       "examples": [],
@@ -19,14 +28,20 @@
     },
     "participantContributions": {
       "ritu": [
-        "another project below"
+        "Clarified that an 'exam order' is due '3 days later'.",
+        "Corrected or re-emphasized that the 'exam order' is due 'today'."
       ]
     },
     "conversationTranscript": [
       {
         "speaker": "ritu",
-        "timestamp": "16:51:30",
-        "text": "another project below"
+        "timestamp": "20:11:04",
+        "text": "exam order 3 days later"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:11:04",
+        "text": "today"
       }
     ]
   },
@@ -39,6 +54,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2026-01-05T11:12:14.361Z"
+    "notesGeneratedAt": "2026-01-05T14:26:37.543Z"
   }
 }

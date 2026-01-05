@@ -6,11 +6,8 @@
     "status": "completed"
   },
   "notes": {
-    "summary": "The meeting was exceptionally brief, focusing on two distinct mentions by Ritu: \"birthday\" and \"Luella\". The exact context or purpose of these mentions remains unclear from the provided transcript, but they likely refer to an event or an individual.",
-    "keyPoints": [
-      "A 'birthday' was mentioned.",
-      "The name 'Luella' was mentioned."
-    ],
+    "summary": "This meeting discussed .",
+    "keyPoints": [],
     "actionItems": [],
     "decisions": [],
     "studyGuide": {
@@ -19,21 +16,13 @@
       "formulas": []
     },
     "participantContributions": {
-      "ritu": [
-        "Mentioned 'birthday'.",
-        "Mentioned 'Luella'."
-      ]
+      "ritu": []
     },
     "conversationTranscript": [
       {
         "speaker": "ritu",
-        "timestamp": "19:56:52",
-        "text": "birthday"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "19:57:00",
-        "text": "Luella"
+        "timestamp": "20:13:05",
+        "text": "made it bad"
       }
     ]
   },
@@ -46,6 +35,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2026-01-05T14:12:59.132Z"
+    "notesGeneratedAt": "2026-01-05T14:28:34.764Z"
   }
 }
