@@ -55,7 +55,7 @@ const TranscriptionDebug = ({
     console.log('✅ DEBUG: Setting up socket listener for transcript updates', { meetingId, participantId, socketId: socket?.id });
 
     const handleTranscriptUpdate = (data) => {
-      console.log('📥 DEBUG: Received transcript_update event:', data);
+      console.log('📥 DEBUG: Received transcript_update event in TranscriptionDebug:', data);
       
       // Check if meeting ID matches
       if (data.meetingId !== meetingId) {
@@ -71,13 +71,14 @@ const TranscriptionDebug = ({
       const shouldShow = !participantId || data.participantId === participantId || data.participantId === socket?.id;
       
       if (shouldShow) {
-        console.log('✅ DEBUG: Transcript matches - updating display:', data.transcript, {
+        console.log('✅ DEBUG: Transcript matches - updating display in TranscriptionDebug:', data.transcript, {
           participantId: data.participantId,
-          participantName: data.participantName
+          participantName: data.participantName,
+          socketId: socket?.id
         });
         setTranscript(prev => {
           const newTranscript = prev + ' ' + data.transcript;
-          console.log('📝 DEBUG: Updated transcript:', newTranscript);
+          console.log('📝 DEBUG: Updated transcript in TranscriptionDebug via socket:', newTranscript);
           return newTranscript;
         });
         setConfidence(data.confidence || 0);
@@ -86,10 +87,18 @@ const TranscriptionDebug = ({
         console.log('⚠️ DEBUG: Participant ID mismatch:', {
           receivedParticipantId: data.participantId,
           expectedParticipantId: participantId,
-          socketId: socket?.id
+          socketId: socket?.id,
+          shouldShow
         });
       }
     };
+    
+    // Test socket connection
+    console.log('🔍 DEBUG: Testing socket connection for transcript events:', {
+      socketId: socket?.id,
+      connected: socket?.connected,
+      hasOn: typeof socket?.on === 'function'
+    });
 
     socket.on('transcript_update', handleTranscriptUpdate);
     console.log('✅ DEBUG: Socket listener registered for transcript_update');
@@ -115,23 +124,15 @@ const TranscriptionDebug = ({
       // CRITICAL: Store original handler before modifying
       const originalOnResult = recognition.onresult;
       
-      // Set up listeners on existing instance - wrap the original handler
-      recognition.onresult = (event) => {
-        console.log('🎤 DEBUG: Recognition onresult triggered', { resultIndex: event.resultIndex, resultsLength: event.results.length });
+      // Create a wrapper function that will always call our handler
+      const ourHandler = (event) => {
+        console.log('🎤 DEBUG: Recognition onresult triggered in TranscriptionDebug', { 
+          resultIndex: event.resultIndex, 
+          resultsLength: event.results.length,
+          timestamp: Date.now()
+        });
         
-        // Call original handler first (FreeTranscription's handler)
-        if (originalOnResult && typeof originalOnResult === 'function') {
-          try {
-            originalOnResult.call(recognition, event);
-            console.log('✅ DEBUG: Original handler called successfully');
-          } catch (e) {
-            console.error('⚠️ DEBUG: Error calling original handler:', e);
-          }
-        } else {
-          console.log('⚠️ DEBUG: No original handler to call');
-        }
-        
-        // Then add our own logic for display
+        // Process transcripts for our display
         let interim = '';
         let final = '';
 
@@ -143,7 +144,7 @@ const TranscriptionDebug = ({
             final += transcript;
             setConfidence(conf);
             setTranscriptCount(prev => prev + 1);
-            console.log('✅ DEBUG: Final transcript received:', final);
+            console.log('✅ DEBUG: Final transcript received in TranscriptionDebug:', final);
           } else {
             interim += transcript;
           }
@@ -159,14 +160,58 @@ const TranscriptionDebug = ({
         
         if (interim) {
           setInterimTranscript(interim);
-          console.log('📝 DEBUG: Interim transcript:', interim);
+          console.log('📝 DEBUG: Interim transcript in TranscriptionDebug:', interim);
         }
       };
       
+      // Set up listeners on existing instance - wrap the original handler
+      recognition.onresult = (event) => {
+        // Call original handler first (FreeTranscription's handler)
+        if (originalOnResult && typeof originalOnResult === 'function') {
+          try {
+            originalOnResult.call(recognition, event);
+            console.log('✅ DEBUG: Original handler called successfully');
+          } catch (e) {
+            console.error('⚠️ DEBUG: Error calling original handler:', e);
+          }
+        } else {
+          console.log('⚠️ DEBUG: No original handler to call');
+        }
+        
+        // Always call our handler
+        ourHandler(event);
+      };
+      
+      // Store our handler reference for potential re-attachment
+      recognitionRef.current = recognition;
+      window.transcriptionDebugHandler = ourHandler;
+      
+      // Set up periodic check to ensure handler stays attached
+      const handlerCheckInterval = setInterval(() => {
+        if (window.recognition && window.recognition.onresult) {
+          const currentHandler = window.recognition.onresult.toString();
+          const ourHandlerStr = ourHandler.toString();
+          // Check if our handler is in the chain
+          if (!currentHandler.includes('TranscriptionDebug') && !currentHandler.includes('ourHandler')) {
+            console.log('⚠️ DEBUG: Handler was overwritten, re-attaching...');
+            const currentOnResult = window.recognition.onresult;
+            window.recognition.onresult = (event) => {
+              if (currentOnResult) currentOnResult.call(window.recognition, event);
+              ourHandler(event);
+            };
+          }
+        }
+      }, 2000); // Check every 2 seconds
+      
       recognition.onstart = () => {
-        console.log('🎤 DEBUG: Shared transcription started');
+        console.log('🎤 DEBUG: Shared transcription started in TranscriptionDebug');
         setIsListening(true);
         setError(null);
+      };
+      
+      // Cleanup interval on unmount
+      return () => {
+        clearInterval(handlerCheckInterval);
       };
       
       recognition.onerror = (event) => {
