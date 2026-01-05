@@ -6,9 +6,10 @@
     "status": "completed"
   },
   "notes": {
-    "summary": "This was an extremely brief meeting where a single phrase, \"for the perfect garden,\" was mentioned. The context or purpose of this phrase was not elaborated upon.",
+    "summary": "The meeting was exceptionally brief, focusing on two distinct mentions by Ritu: \"birthday\" and \"Luella\". The exact context or purpose of these mentions remains unclear from the provided transcript, but they likely refer to an event or an individual.",
     "keyPoints": [
-      "The phrase \"for the perfect garden\" was stated."
+      "A 'birthday' was mentioned.",
+      "The name 'Luella' was mentioned."
     ],
     "actionItems": [],
     "decisions": [],
@@ -19,14 +20,20 @@
     },
     "participantContributions": {
       "ritu": [
-        "Stated the phrase \"for the perfect garden\"."
+        "Mentioned 'birthday'.",
+        "Mentioned 'Luella'."
       ]
     },
     "conversationTranscript": [
       {
         "speaker": "ritu",
-        "timestamp": "16:19:36",
-        "text": "for the perfect garden"
+        "timestamp": "19:56:52",
+        "text": "birthday"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "19:57:00",
+        "text": "Luella"
       }
     ]
   },
@@ -39,6 +46,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2026-01-05T10:37:58.283Z"
+    "notesGeneratedAt": "2026-01-05T14:12:59.132Z"
   }
 }

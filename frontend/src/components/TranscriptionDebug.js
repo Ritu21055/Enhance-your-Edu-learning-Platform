@@ -48,6 +48,14 @@ const TranscriptionDebug = ({
   useEffect(() => {
     if (!isSupported) return;
 
+    // CRITICAL: Check if another recognition instance is already running
+    // If FreeTranscription is using window.recognition, we need to use a different approach
+    if (window.recognition && window.recognition.readyState !== 0) {
+      console.log('⚠️ DEBUG: Another recognition instance is running. Will use shared instance.');
+      // Don't create new instance, will handle separately
+      return;
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     
@@ -103,15 +111,35 @@ const TranscriptionDebug = ({
 
     recognition.onerror = (event) => {
       console.error('🎤 DEBUG: Speech recognition error:', event.error);
+      
+      // CRITICAL FIX: Handle aborted error better - it's usually due to multiple instances
+      if (event.error === 'aborted') {
+        console.log('🎤 DEBUG: Recognition aborted - likely due to multiple instances. Will retry...');
+        setError(null); // Don't show error for aborted
+        setIsListening(false);
+        // Retry after a delay
+        setTimeout(() => {
+          if (shouldAutoRestartRef.current && recognitionRef.current) {
+            try {
+              console.log('🎤 DEBUG: Retrying after abort...');
+              recognitionRef.current.start();
+            } catch (e) {
+              console.log('⚠️ DEBUG: Retry failed:', e.message);
+              setError('Multiple transcription instances detected. Please close other transcription windows.');
+            }
+          }
+        }, 500);
+        return;
+      }
+      
       setError(`Error: ${event.error}`);
       
       if (event.error === 'network') {
         shouldAutoRestartRef.current = false;
         setIsListening(false);
       } else if (event.error === 'no-speech') {
-        // Normal, will retry
-      } else if (event.error === 'aborted') {
-        shouldAutoRestartRef.current = false;
+        // Normal, will retry - don't show error
+        setError(null);
       } else if (event.error === 'audio-capture') {
         setError('Microphone not available');
         shouldAutoRestartRef.current = false;
@@ -120,9 +148,9 @@ const TranscriptionDebug = ({
         setError('Microphone permission denied');
         shouldAutoRestartRef.current = false;
         setIsListening(false);
+      } else {
+        setIsListening(false);
       }
-      
-      setIsListening(false);
     };
 
     recognition.onend = () => {
@@ -130,47 +158,111 @@ const TranscriptionDebug = ({
       if (shouldAutoRestartRef.current) {
         setTimeout(() => {
           try {
-            recognition.start();
+            if (recognitionRef.current) {
+              recognitionRef.current.start();
+            }
           } catch (e) {
             console.log('DEBUG: Auto-restart failed:', e);
+            // If it's an abort error, don't retry immediately
+            if (e.message && e.message.includes('abort')) {
+              shouldAutoRestartRef.current = false;
+            }
           }
-        }, 100);
+        }, 300); // Increased delay to avoid conflicts
       }
     };
 
     recognitionRef.current = recognition;
+    
+    // Store in window for sharing (but only if not already exists)
+    if (!window.recognition) {
+      window.recognition = recognition;
+    }
 
-    // Auto-start
+    // Auto-start with longer delay to avoid conflicts
     const autoStartTimer = setTimeout(() => {
       if (recognition && socket && meetingId && participantId) {
         try {
-          console.log('🎤 DEBUG: Auto-starting transcription...');
-          shouldAutoRestartRef.current = true;
-          recognition.start();
+          // Check if recognition is already running
+          if (recognition.readyState === 0) { // 0 = not started
+            console.log('🎤 DEBUG: Auto-starting transcription...');
+            shouldAutoRestartRef.current = true;
+            recognition.start();
+          } else {
+            console.log('⚠️ DEBUG: Recognition already running, skipping auto-start');
+          }
         } catch (error) {
           console.log('⚠️ DEBUG: Auto-start failed:', error.message);
+          if (error.message && error.message.includes('abort')) {
+            // Retry after delay
+            setTimeout(() => {
+              if (recognitionRef.current && shouldAutoRestartRef.current) {
+                try {
+                  recognitionRef.current.start();
+                } catch (e) {
+                  console.log('⚠️ DEBUG: Retry after abort failed:', e.message);
+                }
+              }
+            }, 1000);
+          }
         }
       }
-    }, 1000);
+    }, 2000); // Increased delay to 2 seconds
 
     return () => {
       clearTimeout(autoStartTimer);
       shouldAutoRestartRef.current = false;
-      if (recognition) {
-        recognition.stop();
+      if (recognition && recognition.readyState !== 0) {
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.log('DEBUG: Stop failed during cleanup:', e);
+        }
       }
+      // Don't delete window.recognition as FreeTranscription might be using it
     };
   }, [isSupported, socket, meetingId, participantId, participantName]);
 
   const toggleListening = () => {
-    if (!recognitionRef.current) return;
+    // Try to use recognitionRef first, then window.recognition
+    const recognition = recognitionRef.current || window.recognition;
+    if (!recognition) {
+      setError('Recognition not initialized');
+      return;
+    }
     
     if (isListening) {
       shouldAutoRestartRef.current = false;
-      recognitionRef.current.stop();
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.log('DEBUG: Stop failed:', e);
+      }
     } else {
       shouldAutoRestartRef.current = true;
-      recognitionRef.current.start();
+      try {
+        // Check if already running
+        if (recognition.readyState === 0) {
+          recognition.start();
+        } else {
+          console.log('DEBUG: Recognition already running');
+          setIsListening(true);
+        }
+      } catch (error) {
+        console.log('DEBUG: Start failed:', error.message);
+        if (error.message && error.message.includes('abort')) {
+          // Retry after delay
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch (e) {
+              setError('Failed to start. Another instance may be running.');
+            }
+          }, 500);
+        } else {
+          setError(`Failed to start: ${error.message}`);
+        }
+      }
     }
   };
 
