@@ -1,0 +1,91 @@
+{
+  "meeting": {
+    "id": "144",
+    "title": "Meeting 144",
+    "endedAt": "2026-01-05T15:04:58.291Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting transcript consists solely of Ritu uttering a series of disconnected words and phrases, interspersed with greetings. There was no apparent discussion topic, specific agenda, or interaction between participants. No decisions were made, and no action items were assigned.",
+    "keyPoints": [
+      "Mention of 'Russian malaria shoes'",
+      "Utterance of 'divin'",
+      "Reference to a 'pixelated message'",
+      "Discussion of 'standard things even'",
+      "Mention of 'Subway'",
+      "Consideration of 'finding a lullaby'",
+      "Reference to 'Nancy'"
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "Initiated with 'Russian malaria shoes'.",
+        "Mentioned 'divin'.",
+        "Spoke about a 'pixelated message'.",
+        "Referred to 'standard things even'.",
+        "Mentioned 'Subway'.",
+        "Talked about 'finding a lullaby'.",
+        "Concluded with 'Nancy'."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "20:41:20",
+        "text": "Russian malaria shoes"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:42:14",
+        "text": "divin"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:43:28",
+        "text": "pixelated"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:43:32",
+        "text": "message"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:46:45",
+        "text": "standard things even"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:46:47",
+        "text": "Subway"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:47:20",
+        "text": "and then finding a lullaby"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "20:47:38",
+        "text": "Nancy"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2026-01-05T15:04:58.291Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2026-01-05T15:04:58.291Z"
+  }
+}

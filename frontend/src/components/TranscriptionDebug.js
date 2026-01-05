@@ -33,6 +33,8 @@ const TranscriptionDebug = ({
   const [transcriptCount, setTranscriptCount] = useState(0);
   const shouldAutoRestartRef = useRef(false);
   const recognitionRef = useRef(null);
+  const interimTimeoutRef = useRef(null);
+  const lastInterimRef = useRef('');
 
   // Check Web Speech API support
   useEffect(() => {
@@ -151,16 +153,58 @@ const TranscriptionDebug = ({
         }
 
         if (final) {
+          // Clear any pending interim promotion timeout
+          if (interimTimeoutRef.current) {
+            clearTimeout(interimTimeoutRef.current);
+            interimTimeoutRef.current = null;
+          }
+          
           setTranscript(prev => {
             const newTranscript = prev + ' ' + final;
-            console.log('📝 DEBUG: Updated transcript in TranscriptionDebug:', newTranscript);
+            console.log('✅ DEBUG: Final transcript - Updated transcript in TranscriptionDebug:', newTranscript);
             return newTranscript;
           });
+          // Clear interim when we get final
+          setInterimTranscript('');
+          lastInterimRef.current = '';
         }
         
         if (interim) {
           setInterimTranscript(interim);
+          lastInterimRef.current = interim;
           console.log('📝 DEBUG: Interim transcript in TranscriptionDebug:', interim);
+          
+          // Clear any existing timeout
+          if (interimTimeoutRef.current) {
+            clearTimeout(interimTimeoutRef.current);
+          }
+          
+          // If interim persists for a while without becoming final, promote it
+          // This ensures we see something even if final never comes
+          interimTimeoutRef.current = setTimeout(() => {
+            if (lastInterimRef.current === interim && interim.trim().length > 0) {
+              // Interim hasn't changed and hasn't become final - promote it
+              console.log('⚠️ DEBUG: Interim transcript persisted, promoting to final:', interim);
+              setTranscript(prevTranscript => {
+                const updated = prevTranscript + ' ' + interim;
+                console.log('📝 DEBUG: Promoted interim to transcript:', updated);
+                return updated;
+              });
+              setInterimTranscript('');
+              setTranscriptCount(prev => prev + 1);
+              lastInterimRef.current = '';
+            }
+          }, 2000); // Wait 2 seconds - if interim hasn't become final, promote it
+        }
+        
+        // Also show combined view for debugging
+        if (final || interim) {
+          console.log('📊 DEBUG: Combined transcript state:', {
+            final,
+            interim,
+            hasFinal: !!final,
+            hasInterim: !!interim
+          });
         }
       };
       
@@ -187,21 +231,37 @@ const TranscriptionDebug = ({
       window.transcriptionDebugHandler = ourHandler;
       
       // Set up periodic check to ensure handler stays attached
+      // Use a more aggressive check to catch overwrites quickly
       const handlerCheckInterval = setInterval(() => {
         if (window.recognition && window.recognition.onresult) {
           const currentHandler = window.recognition.onresult.toString();
-          const ourHandlerStr = ourHandler.toString();
-          // Check if our handler is in the chain
-          if (!currentHandler.includes('TranscriptionDebug') && !currentHandler.includes('ourHandler')) {
-            console.log('⚠️ DEBUG: Handler was overwritten, re-attaching...');
+          // Check if our handler is in the chain by looking for our function body
+          const hasOurHandler = currentHandler.includes('TranscriptionDebug') || 
+                               currentHandler.includes('ourHandler') ||
+                               currentHandler.includes('Final transcript received in TranscriptionDebug');
+          
+          if (!hasOurHandler) {
+            console.log('⚠️ DEBUG: Handler was overwritten, re-attaching...', {
+              handlerLength: currentHandler.length,
+              handlerPreview: currentHandler.substring(0, 100)
+            });
             const currentOnResult = window.recognition.onresult;
             window.recognition.onresult = (event) => {
-              if (currentOnResult) currentOnResult.call(window.recognition, event);
+              // Call original handler first
+              if (currentOnResult && typeof currentOnResult === 'function') {
+                try {
+                  currentOnResult.call(window.recognition, event);
+                } catch (e) {
+                  console.error('⚠️ DEBUG: Error in original handler:', e);
+                }
+              }
+              // Always call our handler
               ourHandler(event);
             };
+            console.log('✅ DEBUG: Handler re-attached successfully');
           }
         }
-      }, 2000); // Check every 2 seconds
+      }, 1000); // Check every 1 second for faster detection
       
       recognition.onstart = () => {
         console.log('🎤 DEBUG: Shared transcription started in TranscriptionDebug');
@@ -608,7 +668,8 @@ const TranscriptionDebug = ({
               mb: 1,
               lineHeight: 1.6,
               color: 'white',
-              fontSize: '0.9rem'
+              fontSize: '0.9rem',
+              wordBreak: 'break-word'
             }}
           >
             {transcript}
@@ -621,10 +682,24 @@ const TranscriptionDebug = ({
             sx={{
               color: 'rgba(255, 255, 255, 0.7)',
               fontStyle: 'italic',
-              fontSize: '0.9rem'
+              fontSize: '0.9rem',
+              wordBreak: 'break-word'
             }}
           >
             {interimTranscript}
+          </Typography>
+        )}
+        
+        {!transcript && !interimTranscript && (
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontStyle: 'italic',
+              fontSize: '0.9rem'
+            }}
+          >
+            {isListening ? 'Listening... Speak something...' : 'Not listening. Click mic to start.'}
           </Typography>
         )}
         
