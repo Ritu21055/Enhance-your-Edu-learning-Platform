@@ -1,0 +1,69 @@
+{
+  "meeting": {
+    "id": "123",
+    "title": "Meeting 123",
+    "endedAt": "2026-01-05T10:26:08.164Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The brief meeting, with Ritu as the sole participant, commenced with a request concerning a \"bedbug kitchen order.\" Subsequently, Ritu proposed a \"meeting idea\" centered around a \"1 2 3 greeting code,\" further mentioning the numbers \"123\" and \"78\" without additional context.",
+    "keyPoints": [
+      "A request for a \"bedbug kitchen order\" was made.",
+      "A \"meeting idea\" proposing a \"1 2 3 greeting code\" was suggested.",
+      "The numerical sequences \"123\" and \"78\" were mentioned, likely related to the greeting code or other concepts."
+    ],
+    "actionItems": [
+      {
+        "task": "Get bedbug kitchen order",
+        "assignedTo": "TBD",
+        "deadline": "TBD"
+      }
+    ],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "Made a personal request for a \"bedbug kitchen order.\"",
+        "Proposed a \"meeting idea\" involving a \"1 2 3 greeting code.\"",
+        "Stated the numbers \"123\" and \"78.\""
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "16:08:41",
+        "text": "can you get my bedbug kitchen order"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:08:59",
+        "text": "a meeting idea 1 2 3 greeting code"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:09:03",
+        "text": "123"
+      },
+      {
+        "speaker": "ritu",
+        "timestamp": "16:09:19",
+        "text": "78"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2026-01-05T10:26:08.164Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2026-01-05T10:26:08.164Z"
+  }
+}

@@ -688,9 +688,9 @@ class LLMService {
 
   // Intelligent question generation trigger based on conversation flow
   shouldGenerateQuestionIntelligently(meetingId, transcriptContext, hasParticipantEmotions = false) {
-    // First check basic time interval - 3 minutes minimum for first question
-    // This allows questions after some initial conversation time
-    const timeInterval = 3; // Changed from 5 to 3 minutes
+    // RELAXED: Reduced time interval - 1 minute minimum for first question (changed from 3 minutes)
+    // This allows questions faster after conversation starts
+    const timeInterval = 1; // Changed from 3 to 1 minute
     if (!this.shouldGenerateQuestion(meetingId, timeInterval)) {
       console.log(`🤖 Question trigger: Time interval not met (need ${timeInterval} minutes)`);
       return false;
@@ -700,25 +700,25 @@ class LLMService {
 
     // If conversation is very low BUT we have participant emotions, allow question generation
     // This handles early meeting scenarios where conversation hasn't started but participants show emotions
-    if (hasParticipantEmotions && contextLength < 200) {
+    if (hasParticipantEmotions && contextLength < 100) {
       console.log('🤖 Question trigger: Low conversation but emotions present - will generate based on emotions');
       return true; // Allow generation based on emotions
     }
 
     // Progressive requirements based on conversation length
-    // Early conversation (200-500 chars): Relaxed requirements
+    // Early conversation (100-500 chars): Very relaxed requirements
     if (contextLength < 500) {
       const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
       const uniqueWords = new Set(words.map(word => word.toLowerCase()));
       
-      // Relaxed: at least 30 words and 15 unique words
-      if (words.length >= 30 && uniqueWords.size >= 15) {
+      // RELAXED: at least 20 words and 10 unique words (reduced from 30/15)
+      if (words.length >= 20 && uniqueWords.size >= 10) {
         console.log('🤖 Question trigger: Early conversation detected - generating question');
         return true;
       }
       
       // If emotions present, even more relaxed
-      if (hasParticipantEmotions && words.length >= 20 && uniqueWords.size >= 10) {
+      if (hasParticipantEmotions && words.length >= 15 && uniqueWords.size >= 8) {
         console.log('🤖 Question trigger: Early conversation with emotions - generating question');
         return true;
       }
@@ -728,22 +728,22 @@ class LLMService {
     if (contextLength < 1000) {
       const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
       const uniqueWords = new Set(words.map(word => word.toLowerCase()));
-      const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 15);
+      const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
       
-      // Moderate: at least 50 words, 20 unique words, 3 sentences
-      if (words.length >= 50 && uniqueWords.size >= 20 && sentences.length >= 3) {
+      // RELAXED: at least 30 words, 15 unique words, 2 sentences (reduced from 50/20/3)
+      if (words.length >= 30 && uniqueWords.size >= 15 && sentences.length >= 2) {
         console.log('🤖 Question trigger: Medium conversation detected - generating question');
         return true;
       }
     }
     
-    // Substantial conversation (1000+ chars): Stricter requirements
+    // Substantial conversation (1000+ chars): Moderate requirements
     const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
     const uniqueWords = new Set(words.map(word => word.toLowerCase()));
-    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 15);
+    const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
     
-    // Stricter: at least 60 words, 25 unique words, 5 sentences
-    if (words.length >= 60 && uniqueWords.size >= 25 && sentences.length >= 5) {
+    // RELAXED: at least 40 words, 20 unique words, 3 sentences (reduced from 60/25/5)
+    if (words.length >= 40 && uniqueWords.size >= 20 && sentences.length >= 3) {
       console.log('🤖 Question trigger: Substantial conversation detected - generating question');
       return true;
     }
@@ -935,7 +935,7 @@ class LLMService {
       this.questionGenerationTimer.delete(meetingId);
     }
   }
-}
+} 
 
 // Export singleton instance
 const llmService = new LLMService();

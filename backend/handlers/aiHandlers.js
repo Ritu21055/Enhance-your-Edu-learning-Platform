@@ -265,25 +265,23 @@ export default function registerAIHandlers(socket, io) {
         });
 
         // Progressive validation based on conversation length
-        const contextLength = recentContext.length;
-
-        // CRITICAL: Require substantial conversation (500+ chars, 50+ words)
+        const contextLength = recentContext.length        // RELAXED: Reduced minimum conversation requirement (200+ chars instead of 500+)
         // Face expressions sirf tab use karein jab conversation substantial ho
-        if (contextLength < 500) {
-          console.log('📝 Skipping question generation - conversation not substantial enough (need at least 500 chars)');
+        if (contextLength < 200) {
+          console.log('📝 Skipping question generation - conversation not substantial enough (need at least 200 chars)');
           return; // Don't generate questions even with emotions if conversation is too short
         }
 
-        // Early conversation (500-1000 chars): Require substantial content
+        // Early conversation (200-1000 chars): Relaxed requirements
         if (contextLength < 1000) {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
           const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // CRITICAL: Require at least 50 words, 20 unique words, 3 sentences
-          // Even with emotions, need substantial conversation
-          if (meaningfulWords < 50 || uniqueWords.size < 20 || sentences.length < 3) {
-            console.log('📝 Skipping question generation - insufficient conversation quality (need at least 50 words, 20 unique, 3 sentences)');
+          // RELAXED: Require at least 30 words, 15 unique words, 2 sentences (reduced from 50/20/3)
+          // Even with emotions, need some conversation
+          if (meaningfulWords < 30 || uniqueWords.size < 15 || sentences.length < 2) {
+            console.log('📝 Skipping question generation - insufficient conversation quality (need at least 30 words, 15 unique, 2 sentences)');
             return;
           }
           
@@ -305,9 +303,9 @@ export default function registerAIHandlers(socket, io) {
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
           const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // Require at least 60 words, 25 unique words, 5 sentences
-          if (meaningfulWords < 60 || uniqueWords.size < 25 || sentences.length < 5) {
-            console.log('📝 Skipping question generation - insufficient conversation quality (need at least 60 words, 25 unique, 5 sentences)');
+          // RELAXED: Require at least 40 words, 20 unique words, 3 sentences (reduced from 60/25/5)
+          if (meaningfulWords < 40 || uniqueWords.size < 20 || sentences.length < 3) {
+            console.log('📝 Skipping question generation - insufficient conversation quality (need at least 40 words, 20 unique, 3 sentences)');
             return;
           }
           
@@ -402,7 +400,7 @@ export default function registerAIHandlers(socket, io) {
       } catch (error) {
         console.error('❌ Question generation failed:', error);
       }
-     }, 180000); // Check every 180 seconds (3 minutes) - gives more time for substantial conversation
+     }, 60000); // Check every 60 seconds (1 minute) - faster checking for better responsiveness
     
     // Store timer for cleanup
     llmService.questionGenerationTimer.set(meetingId, questionTimer);

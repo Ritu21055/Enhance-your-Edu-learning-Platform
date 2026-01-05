@@ -1730,13 +1730,13 @@ const useVideoCall = (meetingId, userName) => {
                     // CRITICAL FIX: Only trigger renegotiation if track was actually replaced
                     // If same track, just enable/disable - no renegotiation needed
                     // Renegotiation is needed for replaceTrack, but can cause lag
-                    // Use a small delay to batch renegotiations and reduce lag
+                    // Use a shorter delay for faster updates and less lag
                     setTimeout(() => {
                       if (pc.signalingState === 'stable' && 
                           (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
                         triggerRenegotiation(pc, participantId);
                       }
-                    }, 200); // Increased from 100ms to 200ms to batch renegotiations
+                    }, 100); // Reduced from 200ms to 100ms for faster updates and less lag
                   })
                   .catch(err => console.error(`❌ Failed to replace video track for ${participantId}:`, err));
               }
@@ -1754,7 +1754,7 @@ const useVideoCall = (meetingId, userName) => {
                     (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed')) {
                   triggerRenegotiation(pc, participantId);
                 }
-              }, 200); // Increased from 100ms to 200ms to batch renegotiations
+              }, 100); // Reduced from 200ms to 100ms for faster updates and less lag
             }
           }
         }

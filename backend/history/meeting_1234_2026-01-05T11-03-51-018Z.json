@@ -1,0 +1,44 @@
+{
+  "meeting": {
+    "id": "1234",
+    "title": "Meeting 1234",
+    "endedAt": "2026-01-05T11:03:51.021Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting transcript is extremely brief, with only one utterance from Ritu mentioning 'another project below'. This suggests a reference to an additional project or an item to be considered.",
+    "keyPoints": [
+      "Ritu mentioned 'another project below'."
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "another project below"
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "16:51:30",
+        "text": "another project below"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2026-01-05T11:03:51.022Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2026-01-05T11:12:14.361Z"
+  }
+}

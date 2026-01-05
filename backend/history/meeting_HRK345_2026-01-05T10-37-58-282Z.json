@@ -1,0 +1,44 @@
+{
+  "meeting": {
+    "id": "HRK345",
+    "title": "Meeting HRK345",
+    "endedAt": "2026-01-05T10:37:58.282Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "This was an extremely brief meeting where a single phrase, \"for the perfect garden,\" was mentioned. The context or purpose of this phrase was not elaborated upon.",
+    "keyPoints": [
+      "The phrase \"for the perfect garden\" was stated."
+    ],
+    "actionItems": [],
+    "decisions": [],
+    "studyGuide": {
+      "definitions": [],
+      "examples": [],
+      "formulas": []
+    },
+    "participantContributions": {
+      "ritu": [
+        "Stated the phrase \"for the perfect garden\"."
+      ]
+    },
+    "conversationTranscript": [
+      {
+        "speaker": "ritu",
+        "timestamp": "16:19:36",
+        "text": "for the perfect garden"
+      }
+    ]
+  },
+  "metadata": {
+    "savedAt": "2026-01-05T10:37:58.283Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2026-01-05T10:37:58.283Z"
+  }
+}

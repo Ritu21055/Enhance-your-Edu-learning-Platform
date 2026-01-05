@@ -48,6 +48,7 @@ import useAudioTranscription from './hooks/useAudioTranscription';
 // import ShareHighlightReel from './components/ShareHighlightReel';
 // import AIHighlightNotification from './components/AIHighlightNotification';
 import FreeTranscription from './components/FreeTranscription';
+import TranscriptionDebug from './components/TranscriptionDebug';
 
 // Import Meeting Media Protection
 import meetingMediaProtection from './utils/meetingMediaProtection';
@@ -893,6 +894,14 @@ const MeetingRoom = () => {
         onTranscriptUpdate={(transcript, confidence) => {
           console.log('📝 Transcript update received:', { transcript, confidence });
         }}
+      />
+
+      {/* Transcription Debug Component - Temporary */}
+      <TranscriptionDebug
+        socket={socket}
+        meetingId={meetingId}
+        participantId={socket?.id}
+        participantName={finalUserName}
       />
 
       {/* REMOVED: AI Highlight Notifications - Feature removed */}
