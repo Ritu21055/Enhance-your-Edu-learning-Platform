@@ -926,7 +926,7 @@ class LLMService {
 
   // Clean up meeting data
   cleanupMeeting(meetingId) {
-    this.transcriptionBuffer.delete(meetingId);
+    // REMOVED: transcriptionBuffer.delete - no longer exists (Google Cloud Speech-to-Text removed)
     this.transcriptHistory.delete(meetingId);
     this.lastQuestionTime.delete(meetingId);
     
