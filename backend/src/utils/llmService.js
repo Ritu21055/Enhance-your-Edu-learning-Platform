@@ -635,40 +635,122 @@ class LLMService {
 
   // Add transcript to history
   addToTranscriptHistory(meetingId, transcript) {
+    // Validate input
+    if (!meetingId || !transcript || transcript.trim().length === 0) {
+      console.warn(`⚠️ addToTranscriptHistory: Invalid input`, {
+        meetingId: !!meetingId,
+        hasTranscript: !!transcript,
+        transcriptLength: transcript?.length
+      });
+      return;
+    }
+    
     if (!this.transcriptHistory.has(meetingId)) {
       this.transcriptHistory.set(meetingId, []);
+      console.log(`📝 Created new transcript history for meeting ${meetingId}`);
     }
     
     const history = this.transcriptHistory.get(meetingId);
-    history.push({
-      transcript,
-      timestamp: Date.now()
-    });
+    const timestamp = Date.now();
+    const entry = {
+      transcript: transcript.trim(),
+      timestamp: timestamp
+    };
+    
+    history.push(entry);
     
     // INCREASED: Keep last 50 transcripts to manage memory (increased from 10 to 50 for better context)
     if (history.length > 50) {
       history.shift();
     }
     
-    // Debug logging
+    // Enhanced debug logging
+    console.log(`📝 Added to transcript history for ${meetingId}:`, {
+      transcript: transcript.trim().substring(0, 50) + (transcript.length > 50 ? '...' : ''),
+      timestamp: new Date(timestamp).toISOString(),
+      totalEntries: history.length,
+      historySize: history.length
+    });
+    
+    // Periodic summary
     if (history.length % 5 === 0) {
-      console.log(`📝 Transcript history for ${meetingId}: ${history.length} entries`);
+      console.log(`📝 Transcript history summary for ${meetingId}: ${history.length} entries`);
     }
   }
 
   // Get recent transcript context (default: 10 minutes for better context)
   getRecentTranscriptContext(meetingId, minutes = 10) {
+    // DEBUG: Check if meeting exists in history
     if (!this.transcriptHistory.has(meetingId)) {
+      console.log(`🔍 getRecentTranscriptContext: No history for meeting ${meetingId}`);
       return '';
     }
     
     const history = this.transcriptHistory.get(meetingId);
     const cutoffTime = Date.now() - (minutes * 60 * 1000);
+    const now = Date.now();
     
-    const recentTranscripts = history
-      .filter(entry => entry.timestamp > cutoffTime)
-      .map(entry => entry.transcript)
+    // DEBUG: Log history details
+    console.log(`🔍 getRecentTranscriptContext DEBUG for ${meetingId}:`, {
+      totalEntries: history.length,
+      cutoffTime: new Date(cutoffTime).toISOString(),
+      currentTime: new Date(now).toISOString(),
+      minutesWindow: minutes,
+      firstEntryTimestamp: history.length > 0 ? new Date(history[0].timestamp).toISOString() : 'N/A',
+      lastEntryTimestamp: history.length > 0 ? new Date(history[history.length - 1].timestamp).toISOString() : 'N/A',
+      sampleEntries: history.slice(0, 3).map(e => ({
+        transcript: e.transcript?.substring(0, 30) + '...',
+        timestamp: new Date(e.timestamp).toISOString(),
+        ageMinutes: ((now - e.timestamp) / 60000).toFixed(2)
+      }))
+    });
+    
+    // Filter by timestamp, but if history is small (< 10 entries), use all entries
+    // This ensures we have context even if timestamps are slightly off
+    let recentEntries;
+    if (history.length < 10) {
+      // Small history - use all entries (likely all recent anyway)
+      console.log(`🔍 getRecentTranscriptContext: Using ALL ${history.length} entries (history is small)`);
+      recentEntries = history;
+    } else {
+      // Large history - filter by timestamp
+      recentEntries = history.filter(entry => {
+        // CRITICAL FIX: Handle missing or invalid timestamps
+        if (!entry.timestamp || typeof entry.timestamp !== 'number') {
+          console.warn(`⚠️ Entry has invalid timestamp, including it anyway:`, {
+            transcript: entry.transcript?.substring(0, 30),
+            timestamp: entry.timestamp
+          });
+          return true; // Include entries with invalid timestamps
+        }
+        
+        const isRecent = entry.timestamp > cutoffTime;
+        if (!isRecent && history.length > 0) {
+          console.log(`⏰ Entry filtered out (too old):`, {
+            transcript: entry.transcript?.substring(0, 30),
+            entryTimestamp: new Date(entry.timestamp).toISOString(),
+            cutoffTimestamp: new Date(cutoffTime).toISOString(),
+            ageMinutes: ((now - entry.timestamp) / 60000).toFixed(2)
+          });
+        }
+        return isRecent;
+      });
+    }
+    
+    console.log(`🔍 getRecentTranscriptContext: Filtered ${recentEntries.length} recent entries from ${history.length} total`);
+    
+    // CRITICAL FIX: Filter out empty transcripts and join
+    const recentTranscripts = recentEntries
+      .filter(entry => entry.transcript && entry.transcript.trim().length > 0)
+      .map(entry => entry.transcript.trim())
       .join(' ');
+    
+    console.log(`🔍 getRecentTranscriptContext result:`, {
+      meetingId,
+      recentEntriesCount: recentEntries.length,
+      contextLength: recentTranscripts.length,
+      contextPreview: recentTranscripts.substring(0, 100) + (recentTranscripts.length > 100 ? '...' : '')
+    });
     
     return recentTranscripts;
   }

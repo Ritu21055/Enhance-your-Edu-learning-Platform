@@ -198,20 +198,32 @@ export default function registerAIHandlers(socket, io) {
     // Set up intelligent question generation (every 60 seconds - reduced frequency)
     const questionTimer = setInterval(async () => {
       try {
+        // DEBUG: Check transcript history BEFORE getting context
+        const hasHistory = llmService.transcriptHistory.has(meetingId);
+        const rawHistory = hasHistory ? llmService.transcriptHistory.get(meetingId) : null;
+        const transcriptHistoryCount = rawHistory ? rawHistory.length : 0;
+        
+        console.log('🔍 PRE-CHECK: Transcript history status:', {
+          meetingId,
+          hasHistory,
+          transcriptHistoryCount,
+          rawHistorySample: rawHistory ? rawHistory.slice(0, 2).map(e => ({
+            transcript: e.transcript?.substring(0, 30),
+            timestamp: e.timestamp,
+            timestampISO: new Date(e.timestamp).toISOString()
+          })) : null
+        });
+        
         // Get recent transcript context (INCREASED: 10 minutes instead of 5 for better context)
         const recentContext = llmService.getRecentTranscriptContext(meetingId, 10);
-        
-        // Get transcript history count for debugging
-        const transcriptHistoryCount = llmService.transcriptHistory.has(meetingId) 
-          ? llmService.transcriptHistory.get(meetingId).length 
-          : 0;
         
         console.log('🤖 Question generation check:', {
           meetingId,
           contextLength: recentContext.length,
           transcriptHistoryCount,
           context: recentContext.substring(0, 100) + (recentContext.length > 100 ? '...' : ''),
-          hasContext: recentContext.length > 0
+          hasContext: recentContext.length > 0,
+          isEmpty: recentContext.trim().length === 0
         });
         
         // Get ALL participants from meeting (not just those with emotions)

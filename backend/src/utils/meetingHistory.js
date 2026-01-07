@@ -202,12 +202,30 @@ class MeetingHistoryManager {
         const fileContent = await fs.readFile(filePath, 'utf8');
         const meetingHistory = JSON.parse(fileContent);
         
+        // CRITICAL FIX: Ensure metadata structure exists
+        if (!meetingHistory.metadata) {
+          meetingHistory.metadata = {};
+        }
+        if (!meetingHistory.metadata.aiFeatures) {
+          meetingHistory.metadata.aiFeatures = {
+            highlightDetection: false,
+            questionGeneration: false,
+            sentimentAnalysis: false,
+            transcription: false,
+            meetingNotes: false
+          };
+        }
+        
         meetingHistory.notes = notes;
         meetingHistory.metadata.aiFeatures.meetingNotes = true;
         meetingHistory.metadata.notesGeneratedAt = new Date().toISOString();
         
         await fs.writeFile(filePath, JSON.stringify(meetingHistory, null, 2));
-        console.log(`💾 Updated meeting history with notes for meeting ${meetingId}`);
+        console.log(`💾 Updated meeting history with notes for meeting ${meetingId}`, {
+          filePath,
+          hasNotes: !!meetingHistory.notes,
+          notesSummary: meetingHistory.notes?.summary?.substring(0, 50) + '...' || 'N/A'
+        });
         return true;
       } else {
         // Create new meeting history entry with notes

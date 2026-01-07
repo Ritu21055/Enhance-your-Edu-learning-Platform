@@ -512,20 +512,52 @@ app.get('/api/meetings/:meetingId/history', async (req, res) => {
 app.get('/api/meetings/:meetingId/notes', async (req, res) => {
   try {
     const { meetingId } = req.params;
+    console.log(`📋 Fetching notes for meeting: ${meetingId}`);
+    
     const history = await meetingHistoryManager.getMeetingHistory(meetingId);
     
     if (!history) {
-      return res.status(404).json({ error: 'Meeting history not found' });
+      console.log(`⚠️ Meeting history not found for: ${meetingId}`);
+      return res.status(404).json({ 
+        error: 'Meeting not found',
+        notes: null 
+      });
     }
     
-    if (!history.notes) {
-      return res.status(404).json({ error: 'Meeting notes not found' });
+    // Check if notes exist
+    if (history.notes) {
+      console.log(`✅ Notes found for meeting: ${meetingId}`, {
+        hasSummary: !!history.notes.summary,
+        hasImportantPoints: !!history.notes.importantPoints,
+        importantPointsCount: history.notes.importantPoints?.length || 0
+      });
+      return res.json({ 
+        notes: history.notes,
+        hasNotes: true
+      });
+    } else {
+      console.log(`⚠️ No notes found for meeting: ${meetingId}`, {
+        hasHistory: true,
+        hasNotes: false,
+        metadata: history.metadata ? {
+          aiFeatures: history.metadata.aiFeatures,
+          notesGeneratedAt: history.metadata.notesGeneratedAt
+        } : 'no metadata'
+      });
+      return res.status(404).json({ 
+        error: 'No meeting notes available for this meeting. Notes are automatically generated when a meeting ends with transcript data. This meeting may have ended before the notes feature was enabled, or it may not have had sufficient transcript data.',
+        notes: null,
+        hasNotes: false
+      });
     }
-    
-    res.json({ notes: history.notes });
   } catch (error) {
-    console.error('❌ Error getting meeting notes:', error);
-    res.status(500).json({ error: 'Failed to get meeting notes' });
+    console.error('❌ Error fetching meeting notes:', error);
+    console.error('❌ Error stack:', error.stack);
+    return res.status(500).json({ 
+      error: 'Failed to fetch meeting notes',
+      message: error.message,
+      notes: null
+    });
   }
 });
 
