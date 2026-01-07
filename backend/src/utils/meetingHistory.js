@@ -68,9 +68,9 @@ class MeetingHistoryManager {
         } : null,
         // REMOVED: highlightReel section - Highlight reel feature removed
         transcript: {
-          totalEntries: transcriptHistory.length,
-          data: transcriptHistory,
-          fullTranscript: this.generateFullTranscript(transcriptHistory)
+          totalEntries: transcriptHistory ? transcriptHistory.length : 0,
+          data: transcriptHistory || [],
+          fullTranscript: this.generateFullTranscript(transcriptHistory || [])
         },
         sentiment: sentimentData ? {
           totalParticipants: sentimentData.participants?.size || 0,

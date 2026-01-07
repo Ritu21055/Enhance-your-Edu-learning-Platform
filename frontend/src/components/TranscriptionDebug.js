@@ -94,6 +94,7 @@ const TranscriptionDebug = ({
 
         let interim = '';
         let final = '';
+        let finalConfidence = 0; // Store confidence for final transcripts
 
         // Process all results
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -103,6 +104,7 @@ const TranscriptionDebug = ({
 
           if (result.isFinal) {
             final += transcriptText + ' ';
+            finalConfidence = conf; // Store confidence
             setConfidence(conf);
             console.log('✅ TranscriptionDebug: FINAL transcript:', transcriptText);
           } else {
@@ -113,13 +115,62 @@ const TranscriptionDebug = ({
 
         // Update state - SIMPLE
         if (final) {
+          const finalText = final.trim();
           setTranscript(prev => {
-            const newText = prev + final.trim();
+            const newText = prev + finalText;
             console.log('📝 TranscriptionDebug: Updated transcript:', newText);
             return newText;
           });
           setTranscriptCount(prev => prev + 1);
           setInterimTranscript(''); // Clear interim when we get final
+          
+          // CRITICAL FIX: Send transcript to backend for AI question generation and meeting notes
+          const currentParticipantId = participantId || socket?.id;
+          if (socket && meetingId && currentParticipantId && finalText) {
+            // DEBUG: Check socket connection
+            if (!socket.connected) {
+              console.error('❌ TranscriptionDebug: Socket not connected!', {
+                socketId: socket?.id,
+                connected: socket?.connected,
+                meetingId,
+                participantId: currentParticipantId
+              });
+            }
+            
+            const transcriptData = {
+              meetingId,
+              participantId: currentParticipantId,
+              participantName: participantName || 'Unknown',
+              transcript: finalText,
+              timestamp: Date.now(),
+              language: 'en-US',
+              confidence: finalConfidence || 0
+            };
+            
+            console.log('📤 TranscriptionDebug: Sending transcript to server:', {
+              transcript: finalText.substring(0, 50) + (finalText.length > 50 ? '...' : ''),
+              participantId: currentParticipantId,
+              socketId: socket?.id,
+              socketConnected: socket?.connected,
+              meetingId,
+              confidence: finalConfidence,
+              transcriptLength: finalText.length
+            });
+            
+            socket.emit('transcript_update', transcriptData);
+            
+            // DEBUG: Verify emit was called
+            console.log('✅ TranscriptionDebug: transcript_update event emitted');
+          } else {
+            console.error('❌ TranscriptionDebug: Cannot send transcript - missing data:', {
+              hasSocket: !!socket,
+              hasMeetingId: !!meetingId,
+              hasParticipantId: !!currentParticipantId,
+              hasFinalText: !!finalText,
+              socketConnected: socket?.connected,
+              socketId: socket?.id
+            });
+          }
         }
 
         if (interim) {

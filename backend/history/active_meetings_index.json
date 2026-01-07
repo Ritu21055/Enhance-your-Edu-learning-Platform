@@ -41,14 +41,15 @@
     "lastUpdated": "2025-12-26T07:43:59.322Z"
   },
   "HRK345": {
-    "title": "Meeting HRK345",
-    "createdAt": "2025-12-26T07:37:20.051Z",
-    "endedAt": "2025-12-26T07:37:15.320Z",
-    "duration": 0,
-    "highlights": 0,
+    "title": "testing",
+    "host": "ritu (Host)",
+    "createdAt": "2026-01-07T14:55:50.561Z",
+    "endedAt": "2026-01-07T14:59:25.461Z",
+    "duration": 214780,
+    "participants": 1,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2025-12-26T07:37:15.626Z"
+    "lastUpdated": "2026-01-07T14:59:26.226Z"
   },
   "STW014": {
     "title": "Meeting STW014",
