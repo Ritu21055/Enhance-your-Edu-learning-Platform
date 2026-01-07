@@ -242,6 +242,12 @@ ${emotionSummary.join('\n')}
 CONVERSATION CONTEXT:
 "${shortContext}"
 
+IMPORTANT: The transcript is in ${detectedLanguage} language. Generate the question in the SAME language (${detectedLanguage}). 
+- If ${detectedLanguage} is 'hindi', generate the question in Hindi.
+- If ${detectedLanguage} is 'english', generate the question in English.
+- If ${detectedLanguage} is 'hinglish', generate the question in Hinglish (mixed Hindi-English, maintaining the same style and mix as the transcript).
+Do NOT translate to English if the transcript is in Hindi or Hinglish.
+
 CRITICAL REQUIREMENTS:
 1. The question MUST be DIRECTLY related to what was discussed in the conversation above
 2. The question MUST reference specific topics, points, or issues mentioned in the conversation
@@ -251,6 +257,7 @@ CRITICAL REQUIREMENTS:
 6. If the conversation is unclear or too short, respond with only "SKIP" (no question)
 7. The question should build on the LAST 2-3 sentences or main points discussed
 8. Keep it concise (one sentence, maximum 20 words)
+9. CRITICAL: Generate the question in ${detectedLanguage} language - use the same language as the conversation.
 
 EXAMPLES OF BAD QUESTIONS (DO NOT GENERATE THESE):
 - "Are there any dependencies we need to consider?" (too generic)
@@ -331,8 +338,9 @@ Generate ONLY the question, or "SKIP" if conversation is unclear. No explanation
    * Generate question using rule-based system
    */
   generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions = [], participantNames = {}, emotionCategories = {}) {
+    const detectedLanguage = this.detectLanguageFromContext(transcriptContext);
     const conversationAnalysis = this.analyzeConversationContext(transcriptContext);
-    const followUpQuestions = this.generateContextualQuestions(topics, sentiment, transcriptContext, conversationAnalysis, allParticipantsWithEmotions, participantNames, emotionCategories);
+    const followUpQuestions = this.generateContextualQuestions(topics, sentiment, transcriptContext, conversationAnalysis, allParticipantsWithEmotions, participantNames, emotionCategories, detectedLanguage);
     
     const validQuestions = followUpQuestions.filter(q => q && q.trim().length > 0);
     
@@ -350,13 +358,14 @@ Generate ONLY the question, or "SKIP" if conversation is unclear. No explanation
   // ============================================
 
   /**
-   * Generate comprehensive notes using Gemini
+   * Generate simplified meeting notes using Gemini
+   * Only includes: summary (paragraph format) and important points (bullet format)
    */
   async generateComprehensiveNotesWithGemini(fullTranscript, conversationTranscript, transcripts) {
     // Detect language from transcript
     const detectedLanguage = this.detectLanguageFromContext(fullTranscript);
     
-    const prompt = `You are an AI assistant that generates comprehensive meeting notes. Analyze the following meeting transcript and create structured notes.
+    const prompt = `You are an AI assistant that generates meeting notes. Analyze the following meeting transcript and create concise notes.
 
 MEETING TRANSCRIPT:
 ${fullTranscript}
@@ -364,59 +373,38 @@ ${fullTranscript}
 CONVERSATION TRANSCRIPT (Who Said What):
 ${conversationTranscript}
 
-IMPORTANT: The transcript is in ${detectedLanguage} language. Generate ALL notes (summary, key points, action items, decisions, study guide, participant contributions, etc.) in the SAME language (${detectedLanguage}). 
+IMPORTANT: The transcript is in ${detectedLanguage} language. Generate ALL notes in the SAME language (${detectedLanguage}). 
 - If ${detectedLanguage} is 'hindi', generate everything in Hindi.
 - If ${detectedLanguage} is 'english', generate everything in English.
 - If ${detectedLanguage} is 'hinglish', generate everything in Hinglish (mixed Hindi-English, maintaining the same style and mix as the transcript).
 Do NOT translate to English if the transcript is in Hindi or Hinglish.
 
-Please generate comprehensive meeting notes in the following JSON format:
+Please generate meeting notes in the following SIMPLE JSON format:
 {
-  "summary": "A brief 2-3 sentence summary of the entire meeting",
-  "keyPoints": ["Point 1", "Point 2", "Point 3", ...],
-  "actionItems": [
-    {
-      "task": "Task description",
-      "assignedTo": "Person name or 'TBD'",
-      "deadline": "Deadline if mentioned or 'TBD'"
-    }
-  ],
-  "decisions": ["Decision 1", "Decision 2", ...],
-  "studyGuide": {
-    "definitions": ["Term: Definition", ...],
-    "examples": ["Example 1", "Example 2", ...],
-    "formulas": ["Formula 1", ...]
-  },
-  "participantContributions": {
-    "Person Name": ["Contribution 1", "Contribution 2", ...]
-  },
-  "conversationTranscript": [
-    {
-      "speaker": "Person Name",
-      "timestamp": "HH:MM:SS",
-      "text": "What they said"
-    }
+  "summary": "A well-structured paragraph summarizing the main topics discussed in the meeting. Write it as a proper paragraph with smooth flow and connections between ideas. The length should be appropriate based on the meeting content - short meetings with few topics should have shorter summaries (2-3 sentences), longer meetings with many topics should have longer summaries (5-8 sentences). Let the content determine the appropriate length.",
+  "importantPoints": [
+    "First important point discussed in the meeting",
+    "Second important point discussed in the meeting",
+    "Third important point discussed in the meeting"
   ]
 }
 
-IMPORTANT REQUIREMENTS:
-1. Extract ALL action items with who is responsible (if mentioned) and deadlines (if mentioned)
-2. List ALL decisions made during the meeting
-3. Identify key definitions, examples, and formulas if this is an educational meeting
-4. For participantContributions, group what each person said/contributed (only important contributions)
-5. For conversationTranscript, include ONLY important discussions from both host and participants:
-   - Include statements that contain: decisions, action items, key points, important questions, definitions, examples, formulas
-   - Include statements from host OR participants (even if only one person is speaking)
-   - Exclude: casual greetings, filler words, "um", "ah", repetitive statements, off-topic discussions
-   - Mix host and participant statements chronologically based on timestamps
-   - If only host is speaking, include host's important statements
-   - If only participants are speaking, include participants' important statements
-   - Format clearly showing who said what with timestamps
-6. Be comprehensive - don't miss important details
-7. Use the exact participant names from the transcript
-8. Format timestamps as HH:MM:SS based on the transcript timestamps
-9. CRITICAL: Generate everything in ${detectedLanguage} language - summary, key points, action items, decisions, study guide, all content must be in ${detectedLanguage}
-10. DO NOT include full transcript in conversationTranscript - only include important discussions that add value to the meeting notes
+REQUIREMENTS:
+1. Summary must be a proper paragraph format - NOT just bullet points or separate sentences. Write it as a flowing paragraph that summarizes the main topics and themes discussed. The length should be appropriate based on meeting content: short meetings (few topics) = shorter paragraph (2-3 sentences), longer meetings (many topics) = longer paragraph (5-8 sentences). Let the content determine the length naturally. Connect ideas smoothly and make it easy to read.
+2. Important points should be determined by analyzing the ACTUAL meeting content and topics discussed. For each meeting, identify what was actually important based on:
+   - What topics were discussed in detail during the meeting
+   - What decisions were made or conclusions reached
+   - What key information was shared or explained
+   - What questions were asked and answered
+   - What action items or next steps were mentioned
+   - The depth and significance of each discussion topic
+   - The actual content and context of the meeting, not generic keywords
+3. Important points should be concise bullet points - each point should be a clear, standalone statement about what was discussed. Keep each point to 1-2 sentences maximum for easy reading. The NUMBER of important points should match the meeting content: short meetings with few topics = fewer points (3-5), longer meetings with many topics = more points (8-15). Let the actual meeting content determine how many points are needed.
+4. Exclude: casual greetings, filler words, repetitive statements, off-topic discussions, meaningless chatter.
+5. Be concise but comprehensive - capture the essence of what was discussed.
+6. Summary should flow naturally as a paragraph, connecting ideas smoothly.
+7. Important points should be easy to read in bullet format - keep each point concise and clear.
+8. CRITICAL: Generate everything in ${detectedLanguage} language.
 
 Return ONLY valid JSON, no additional text.`;
 
@@ -439,14 +427,11 @@ Return ONLY valid JSON, no additional text.`;
       
       const notes = JSON.parse(jsonText);
       
-      // If LLM didn't provide conversationTranscript, create filtered version with only important discussions
-      if (!notes.conversationTranscript && transcripts && transcripts.length > 0) {
-        // Filter transcripts to include only important discussions
-        const importantTranscripts = this.filterImportantDiscussions(transcripts);
-        notes.conversationTranscript = this.formatConversationTranscriptForNotes(importantTranscripts);
-      }
-      
-      return notes;
+      // Ensure we only return summary and importantPoints
+      return {
+        summary: notes.summary || 'No summary available',
+        importantPoints: notes.importantPoints || []
+      };
     } catch (error) {
       console.error('❌ Error in Gemini notes generation:', error);
       throw error;
@@ -454,13 +439,14 @@ Return ONLY valid JSON, no additional text.`;
   },
 
   /**
-   * Generate comprehensive notes using Ollama
+   * Generate simplified meeting notes using Ollama
+   * Only includes: summary (paragraph format) and important points (bullet format)
    */
   async generateComprehensiveNotesWithOllama(fullTranscript, conversationTranscript, transcripts) {
     // Detect language from transcript
     const detectedLanguage = this.detectLanguageFromContext(fullTranscript);
     
-    const prompt = `You are an AI assistant that generates comprehensive meeting notes. Analyze the following meeting transcript and create structured notes.
+    const prompt = `You are an AI assistant that generates meeting notes. Analyze the following meeting transcript and create concise notes.
 
 MEETING TRANSCRIPT:
 ${fullTranscript}
@@ -468,59 +454,38 @@ ${fullTranscript}
 CONVERSATION TRANSCRIPT (Who Said What):
 ${conversationTranscript}
 
-IMPORTANT: The transcript is in ${detectedLanguage} language. Generate ALL notes (summary, key points, action items, decisions, study guide, participant contributions, etc.) in the SAME language (${detectedLanguage}). 
+IMPORTANT: The transcript is in ${detectedLanguage} language. Generate ALL notes in the SAME language (${detectedLanguage}). 
 - If ${detectedLanguage} is 'hindi', generate everything in Hindi.
 - If ${detectedLanguage} is 'english', generate everything in English.
 - If ${detectedLanguage} is 'hinglish', generate everything in Hinglish (mixed Hindi-English, maintaining the same style and mix as the transcript).
 Do NOT translate to English if the transcript is in Hindi or Hinglish.
 
-Please generate comprehensive meeting notes in JSON format with the following structure:
+Please generate meeting notes in the following SIMPLE JSON format:
 {
-  "summary": "A brief 2-3 sentence summary of the entire meeting",
-  "keyPoints": ["Point 1", "Point 2", "Point 3"],
-  "actionItems": [
-    {
-      "task": "Task description",
-      "assignedTo": "Person name or 'TBD'",
-      "deadline": "Deadline if mentioned or 'TBD'"
-    }
-  ],
-  "decisions": ["Decision 1", "Decision 2"],
-  "studyGuide": {
-    "definitions": ["Term: Definition"],
-    "examples": ["Example 1"],
-    "formulas": ["Formula 1"]
-  },
-  "participantContributions": {
-    "Person Name": ["Contribution 1"]
-  },
-  "conversationTranscript": [
-    {
-      "speaker": "Person Name",
-      "timestamp": "HH:MM:SS",
-      "text": "What they said"
-    }
+  "summary": "A well-structured paragraph summarizing the main topics discussed in the meeting. Write it as a proper paragraph with smooth flow and connections between ideas. The length should be appropriate based on the meeting content - short meetings with few topics should have shorter summaries (2-3 sentences), longer meetings with many topics should have longer summaries (5-8 sentences). Let the content determine the appropriate length.",
+  "importantPoints": [
+    "First important point discussed in the meeting",
+    "Second important point discussed in the meeting",
+    "Third important point discussed in the meeting"
   ]
 }
 
-IMPORTANT REQUIREMENTS:
-1. Extract ALL action items with who is responsible (if mentioned) and deadlines (if mentioned)
-2. List ALL decisions made during the meeting
-3. Identify key definitions, examples, and formulas if this is an educational meeting
-4. For participantContributions, group what each person said/contributed (only important contributions)
-5. For conversationTranscript, include ONLY important discussions from both host and participants:
-   - Include statements that contain: decisions, action items, key points, important questions, definitions, examples, formulas
-   - Include statements from host OR participants (even if only one person is speaking)
-   - Exclude: casual greetings, filler words, "um", "ah", repetitive statements, off-topic discussions
-   - Mix host and participant statements chronologically based on timestamps
-   - If only host is speaking, include host's important statements
-   - If only participants are speaking, include participants' important statements
-   - Format clearly showing who said what with timestamps
-6. CRITICAL: Generate everything in ${detectedLanguage} language - summary, key points, action items, decisions, study guide, all content must be in ${detectedLanguage}
-7. Be comprehensive - don't miss important details
-8. Use the exact participant names from the transcript
-9. Format timestamps as HH:MM:SS based on the transcript timestamps
-10. DO NOT include full transcript in conversationTranscript - only include important discussions that add value to the meeting notes
+REQUIREMENTS:
+1. Summary must be a proper paragraph format - NOT just bullet points or separate sentences. Write it as a flowing paragraph that summarizes the main topics and themes discussed. The length should be appropriate based on meeting content: short meetings (few topics) = shorter paragraph (2-3 sentences), longer meetings (many topics) = longer paragraph (5-8 sentences). Let the content determine the length naturally. Connect ideas smoothly and make it easy to read.
+2. Important points should be determined by analyzing the ACTUAL meeting content and topics discussed. For each meeting, identify what was actually important based on:
+   - What topics were discussed in detail during the meeting
+   - What decisions were made or conclusions reached
+   - What key information was shared or explained
+   - What questions were asked and answered
+   - What action items or next steps were mentioned
+   - The depth and significance of each discussion topic
+   - The actual content and context of the meeting, not generic keywords
+3. Important points should be concise bullet points - each point should be a clear, standalone statement about what was discussed. Keep each point to 1-2 sentences maximum for easy reading. The NUMBER of important points should match the meeting content: short meetings with few topics = fewer points (3-5), longer meetings with many topics = more points (8-15). Let the actual meeting content determine how many points are needed.
+4. Exclude: casual greetings, filler words, repetitive statements, off-topic discussions, meaningless chatter.
+5. Be concise but comprehensive - capture the essence of what was discussed.
+6. Summary should flow naturally as a paragraph, connecting ideas smoothly.
+7. Important points should be easy to read in bullet format - keep each point concise and clear.
+8. CRITICAL: Generate everything in ${detectedLanguage} language.
 
 Return ONLY valid JSON, no additional text.`;
 
@@ -566,14 +531,11 @@ Return ONLY valid JSON, no additional text.`;
       if (jsonMatch) {
         const notes = JSON.parse(jsonMatch[0]);
         
-        // If LLM didn't provide conversationTranscript, create filtered version with only important discussions
-        if (!notes.conversationTranscript && transcripts && transcripts.length > 0) {
-          // Filter transcripts to include only important discussions
-          const importantTranscripts = this.filterImportantDiscussions(transcripts);
-          notes.conversationTranscript = this.formatConversationTranscriptForNotes(importantTranscripts);
-        }
-        
-        return notes;
+        // Ensure we only return summary and importantPoints
+        return {
+          summary: notes.summary || 'No summary available',
+          importantPoints: notes.importantPoints || []
+        };
       } else {
         throw new Error('Invalid JSON response from Ollama');
       }
@@ -585,17 +547,13 @@ Return ONLY valid JSON, no additional text.`;
 
   /**
    * Generate rule-based notes (fallback)
+   * Simplified format: only summary (paragraph) and important points (bullets)
    */
   generateRuleBasedNotes(transcripts) {
     if (!transcripts || transcripts.length === 0) {
       return {
         summary: 'No transcript data available for this meeting.',
-        keyPoints: [],
-        actionItems: [],
-        decisions: [],
-        studyGuide: { definitions: [], examples: [], formulas: [] },
-        participantContributions: {},
-        conversationTranscript: []
+        importantPoints: []
       };
     }
     
@@ -608,72 +566,86 @@ Return ONLY valid JSON, no additional text.`;
       }))
     );
     
-    const keyPoints = sentences
-      .filter(s => {
-        const lower = s.text.toLowerCase();
-        return lower.includes('important') || lower.includes('key') || 
-               lower.includes('main') || lower.includes('critical');
-      })
-      .map(s => s.text)
-      .slice(0, 10);
-    
-    const actionItems = sentences
-      .filter(s => {
-        const lower = s.text.toLowerCase();
-        return lower.includes('need to') || lower.includes('should') || 
-               lower.includes('must') || lower.includes('will do') ||
-               lower.includes('action') || lower.includes('task');
-      })
-      .map(s => ({
-        task: s.text,
-        assignedTo: this.extractPersonName(s.text, transcripts),
-        deadline: this.extractDeadline(s.text)
-      }))
-      .slice(0, 10);
-    
-    const decisions = sentences
-      .filter(s => {
-        const lower = s.text.toLowerCase();
-        return lower.includes('decided') || lower.includes('agreed') || 
-               lower.includes('concluded') || lower.includes('chosen');
-      })
-      .map(s => s.text)
-      .slice(0, 10);
-    
-    const definitions = this.extractDefinitions(sentences);
-    const examples = this.extractExamples(sentences);
-    const formulas = this.extractFormulas(sentences);
-    
-    const participantContributions = {};
-    transcripts.forEach(t => {
-      const name = t.participantName || 'Unknown';
-      if (!participantContributions[name]) {
-        participantContributions[name] = [];
-      }
-      const contributions = t.transcript.split(/[.!?]+/).filter(s => s.trim().length > 20);
-      participantContributions[name].push(...contributions.slice(0, 5));
-    });
-    
-    const conversationTranscript = this.formatConversationTranscriptForNotes(transcripts);
-    
+    // Generate summary as a proper paragraph - length depends on content
     const topics = this.detectTopics(transcripts.map(t => t.transcript).join(' '));
-    const summary = `This meeting discussed ${topics.map(t => t.topic).join(', ')}. ` +
-      `${keyPoints.length > 0 ? 'Key points included: ' + keyPoints.slice(0, 3).join(', ') + '. ' : ''}` +
-      `${decisions.length > 0 ? decisions.length + ' decisions were made. ' : ''}` +
-      `${actionItems.length > 0 ? actionItems.length + ' action items were identified.' : ''}`;
+    const mainTopics = topics.map(t => t.topic).slice(0, 5);
+    const totalWords = transcripts.map(t => t.transcript).join(' ').split(/\s+/).length;
+    const uniqueParticipants = [...new Set(transcripts.map(t => t.participantName).filter(Boolean))];
+    
+    // Determine if meeting was short or long based on content
+    const isShortMeeting = totalWords < 200 || mainTopics.length <= 2;
+    const isLongMeeting = totalWords > 1000 || mainTopics.length > 5;
+    
+    // Extract important points - analyze actual content, not just keywords
+    // Extract meaningful sentences based on actual content
+    const importantPoints = sentences
+      .filter(s => {
+        const lower = s.text.toLowerCase();
+        const wordCount = s.text.split(/\s+/).length;
+        
+        // Include sentences that have substantial content (8+ words)
+        // OR contain discussion indicators (decisions, conclusions, key info)
+        const hasSubstantialContent = wordCount >= 8;
+        const hasDecisionKeywords = lower.includes('decide') || lower.includes('agree') || 
+                                    lower.includes('conclude') || lower.includes('decided') ||
+                                    lower.includes('agreed') || lower.includes('concluded');
+        const hasKeyInfo = lower.includes('important') || lower.includes('key') || 
+                          lower.includes('main') || lower.includes('critical') ||
+                          lower.includes('action') || lower.includes('next step');
+        const hasQuestionAnswer = lower.includes('?') || lower.includes('answer') ||
+                                  lower.includes('explain') || lower.includes('clarify');
+        
+        return hasSubstantialContent || hasDecisionKeywords || hasKeyInfo || hasQuestionAnswer;
+      })
+      .map(s => s.text)
+      .filter((text, index, self) => self.indexOf(text) === index) // Remove duplicates
+      .slice(0, isShortMeeting ? 5 : (isLongMeeting ? 15 : 10)); // Dynamic limit based on meeting length
+    
+    // Create a flowing paragraph summary - length based on content
+    let summary = '';
+    
+    // Start with main topics
+    if (mainTopics.length > 0) {
+      if (isShortMeeting) {
+        summary = `This meeting focused on ${mainTopics.join(' and ')}. `;
+      } else {
+        summary = `This meeting primarily discussed ${mainTopics.join(', ')}. `;
+      }
+    }
+    
+    // Add key discussions
+    if (importantPoints.length > 0) {
+      const pointsToInclude = isShortMeeting ? 2 : (isLongMeeting ? 5 : 3);
+      const firstFewPoints = importantPoints.slice(0, pointsToInclude).map(p => {
+        // Clean up point - remove speaker names if present
+        return p.replace(/^[A-Z][a-z]+ [A-Z][a-z]+:\s*/i, '').trim();
+      });
+      summary += `Key discussions included ${firstFewPoints.join(', ')}. `;
+    }
+    
+    // Add participant context if relevant
+    if (uniqueParticipants.length > 0 && !isShortMeeting) {
+      summary += `The meeting involved ${uniqueParticipants.length} participant${uniqueParticipants.length > 1 ? 's' : ''} discussing these topics. `;
+    }
+    
+    // Add more context for longer meetings
+    if (isLongMeeting) {
+      summary += `Multiple aspects of these topics were explored in detail during the discussion.`;
+    } else if (!isShortMeeting) {
+      summary += `The meeting covered these topics in detail.`;
+    }
+    
+    // For very short meetings, keep it concise
+    if (isShortMeeting && summary.split(/[.!?]+/).filter(s => s.trim().length > 0).length > 2) {
+      // Already has enough sentences for short meeting
+    } else if (!isShortMeeting && summary.split(/[.!?]+/).filter(s => s.trim().length > 0).length < 3) {
+      // Add a bit more for medium/long meetings
+      summary += ` Overall, the discussion provided valuable insights on these topics.`;
+    }
     
     return {
       summary: summary.trim(),
-      keyPoints,
-      actionItems,
-      decisions,
-      studyGuide: {
-        definitions,
-        examples,
-        formulas
-      },
-      participantContributions,
-      conversationTranscript
+      importantPoints: importantPoints
     };
   },
 
@@ -951,9 +923,139 @@ Return ONLY valid JSON, no additional text.`;
   /**
    * Generate contextual follow-up questions
    */
-  generateContextualQuestions(topics, sentiment, transcript, conversationAnalysis = null, allParticipantsWithEmotions = [], participantNames = {}, emotionCategories = {}) {
+  generateContextualQuestions(topics, sentiment, transcript, conversationAnalysis = null, allParticipantsWithEmotions = [], participantNames = {}, emotionCategories = {}, detectedLanguage = 'english') {
     const questions = [];
     const lowerTranscript = transcript.toLowerCase();
+    
+    // Language-specific question templates
+    const questionTemplates = {
+      english: {
+        budget: (mention) => [
+          `What's the budget for ${mention}?`,
+          `How much will ${mention} cost?`
+        ],
+        timeline: (mention) => [
+          `When do we need to complete ${mention}?`,
+          `What's the deadline for ${mention}?`
+        ],
+        team: (mention) => [
+          `Who will handle ${mention}?`,
+          `What resources do we need for ${mention}?`
+        ],
+        technical: (mention) => [
+          `What are the technical challenges for ${mention}?`,
+          `How will we implement ${mention}?`
+        ],
+        features: (mention) => [
+          `What features are needed for ${mention}?`,
+          `Which features are most important for ${mention}?`
+        ],
+        user: (mention) => [
+          `How will ${mention} affect users?`,
+          `What do users need from ${mention}?`
+        ],
+        issue: (issueWords) => [
+          `How do we resolve the ${issueWords} issue?`
+        ],
+        negative: (name, topic) => [
+          `${name}, would you like to clarify your question about ${topic}?`,
+          `${name} appears concerned. Should we revisit ${topic}?`
+        ],
+        positive: (name, topic) => [
+          `${name}, what aspects of ${topic} are you most excited about?`,
+          `Should we explore ${topic} further based on ${name}'s interest?`
+        ],
+        neutral: (name, topic) => [
+          `${name}, how do you feel about ${topic}?`,
+          `Any questions from ${name} about ${topic}?`
+        ]
+      },
+      hindi: {
+        budget: (mention) => [
+          `${mention} ke liye budget kya hai?`,
+          `${mention} ki cost kitni hogi?`
+        ],
+        timeline: (mention) => [
+          `${mention} ko kab complete karna hai?`,
+          `${mention} ki deadline kya hai?`
+        ],
+        team: (mention) => [
+          `${mention} ko kaun handle karega?`,
+          `${mention} ke liye kya resources chahiye?`
+        ],
+        technical: (mention) => [
+          `${mention} ke liye technical challenges kya hain?`,
+          `${mention} ko kaise implement karenge?`
+        ],
+        features: (mention) => [
+          `${mention} ke liye kya features chahiye?`,
+          `${mention} ke liye sabse important features kaunse hain?`
+        ],
+        user: (mention) => [
+          `${mention} users ko kaise affect karega?`,
+          `${mention} se users ko kya chahiye?`
+        ],
+        issue: (issueWords) => [
+          `${issueWords} issue ko kaise resolve karenge?`
+        ],
+        negative: (name, topic) => [
+          `${name}, ${topic} ke baare mein aapka question clarify karna chahenge?`,
+          `${name} ko lagta hai concerned. Kya hum ${topic} ko dobara discuss karein?`
+        ],
+        positive: (name, topic) => [
+          `${name}, ${topic} ke kaunse aspects aapko sabse zyada exciting lagte hain?`,
+          `Kya hum ${name} ki interest ke basis par ${topic} ko aur explore karein?`
+        ],
+        neutral: (name, topic) => [
+          `${name}, ${topic} ke baare mein aapko kaisa lagta hai?`,
+          `${name} se ${topic} ke baare mein koi questions hain?`
+        ]
+      },
+      hinglish: {
+        budget: (mention) => [
+          `${mention} ka budget kya hai?`,
+          `${mention} ki cost kitni hogi?`
+        ],
+        timeline: (mention) => [
+          `${mention} ko kab complete karna hai?`,
+          `${mention} ki deadline kya hai?`
+        ],
+        team: (mention) => [
+          `${mention} ko kaun handle karega?`,
+          `${mention} ke liye kya resources chahiye?`
+        ],
+        technical: (mention) => [
+          `${mention} ke liye technical challenges kya hain?`,
+          `${mention} ko kaise implement karenge?`
+        ],
+        features: (mention) => [
+          `${mention} ke liye kya features chahiye?`,
+          `${mention} ke liye sabse important features kaunse hain?`
+        ],
+        user: (mention) => [
+          `${mention} users ko kaise affect karega?`,
+          `${mention} se users ko kya chahiye?`
+        ],
+        issue: (issueWords) => [
+          `${issueWords} issue ko kaise resolve karenge?`
+        ],
+        negative: (name, topic) => [
+          `${name}, ${topic} ke baare mein aapka question clarify karna chahenge?`,
+          `${name} ko lagta hai concerned. Kya hum ${topic} ko dobara discuss karein?`
+        ],
+        positive: (name, topic) => [
+          `${name}, ${topic} ke kaunse aspects aapko sabse zyada exciting lagte hain?`,
+          `Kya hum ${name} ki interest ke basis par ${topic} ko aur explore karein?`
+        ],
+        neutral: (name, topic) => [
+          `${name}, ${topic} ke baare mein aapko kaisa lagta hai?`,
+          `${name} se ${topic} ke baare mein koi questions hain?`
+        ]
+      }
+    };
+    
+    // Select templates based on detected language
+    const templates = questionTemplates[detectedLanguage] || questionTemplates.english;
 
     if (topics.length === 0 && (!conversationAnalysis || conversationAnalysis.unresolvedIssues.length === 0)) {
       console.log('📝 No clear topics or issues found - skipping question generation');
@@ -970,24 +1072,21 @@ Return ONLY valid JSON, no additional text.`;
         if (lowerIssue.includes('budget') || lowerIssue.includes('cost') || lowerIssue.includes('money')) {
           const budgetMention = this.extractSpecificMention(transcript, ['budget', 'cost', 'money', 'financial']);
           if (budgetMention) {
-            questions.push(`What's the budget for ${budgetMention}?`);
-            questions.push(`How much will ${budgetMention} cost?`);
+            questions.push(...templates.budget(budgetMention));
           }
         } else if (lowerIssue.includes('timeline') || lowerIssue.includes('schedule') || lowerIssue.includes('deadline')) {
           const timelineMention = this.extractSpecificMention(transcript, ['timeline', 'schedule', 'deadline', 'when']);
           if (timelineMention) {
-            questions.push(`When do we need to complete ${timelineMention}?`);
-            questions.push(`What's the deadline for ${timelineMention}?`);
+            questions.push(...templates.timeline(timelineMention));
           }
         } else if (lowerIssue.includes('team') || lowerIssue.includes('people') || lowerIssue.includes('resource')) {
           const teamMention = this.extractSpecificMention(transcript, ['team', 'people', 'resource', 'who']);
           if (teamMention) {
-            questions.push(`Who will handle ${teamMention}?`);
-            questions.push(`What resources do we need for ${teamMention}?`);
+            questions.push(...templates.team(teamMention));
           }
         } else {
           const issueWords = issue.split(/\s+/).slice(0, 3).join(' ');
-          questions.push(`How do we resolve the ${issueWords} issue?`);
+          questions.push(...templates.issue(issueWords));
         }
       });
     }
@@ -1001,28 +1100,22 @@ Return ONLY valid JSON, no additional text.`;
       
       switch (topicData.topic) {
         case 'budget':
-          questions.push(`What's the budget for ${specificMention}?`);
-          questions.push(`How much does ${specificMention} cost?`);
+          questions.push(...templates.budget(specificMention));
           break;
         case 'timeline':
-          questions.push(`What's the timeline for ${specificMention}?`);
-          questions.push(`When will ${specificMention} be completed?`);
+          questions.push(...templates.timeline(specificMention));
           break;
         case 'technical':
-          questions.push(`What are the technical challenges for ${specificMention}?`);
-          questions.push(`How will we implement ${specificMention}?`);
+          questions.push(...templates.technical(specificMention));
           break;
         case 'team':
-          questions.push(`Who will work on ${specificMention}?`);
-          questions.push(`What team is needed for ${specificMention}?`);
+          questions.push(...templates.team(specificMention));
           break;
         case 'features':
-          questions.push(`What features are needed for ${specificMention}?`);
-          questions.push(`Which features are most important for ${specificMention}?`);
+          questions.push(...templates.features(specificMention));
           break;
         case 'user':
-          questions.push(`How will ${specificMention} affect users?`);
-          questions.push(`What do users need from ${specificMention}?`);
+          questions.push(...templates.user(specificMention));
           break;
       }
     });
@@ -1034,33 +1127,50 @@ Return ONLY valid JSON, no additional text.`;
         const negativeNames = emotionCategories.negative.map(p => p.name).join(', ');
         if (emotionCategories.negative.length === 1) {
           const participant = emotionCategories.negative[0];
-          questions.push(`Would you like to clarify ${participant.name}'s question about ${mainTopic}?`);
-          questions.push(`${participant.name} appears ${participant.emotion}. Should we revisit ${mainTopic}?`);
+          questions.push(...templates.negative(participant.name, mainTopic));
         } else {
-          questions.push(`Would you like to clarify the discussion for ${negativeNames}?`);
-          questions.push(`Some participants appear concerned. Should we revisit ${mainTopic}?`);
+          // For multiple participants, use English template or create multi-participant version
+          if (detectedLanguage === 'hindi' || detectedLanguage === 'hinglish') {
+            questions.push(`${negativeNames}, ${mainTopic} ke baare mein discussion clarify karna chahenge?`);
+            questions.push(`Kuch participants concerned lag rahe hain. Kya hum ${mainTopic} ko dobara discuss karein?`);
+          } else {
+            questions.push(`Would you like to clarify the discussion for ${negativeNames}?`);
+            questions.push(`Some participants appear concerned. Should we revisit ${mainTopic}?`);
+          }
         }
       }
       
       if (emotionCategories.positive && emotionCategories.positive.length > 0) {
         const positiveNames = emotionCategories.positive.map(p => p.name).join(', ');
         if (emotionCategories.positive.length === 1) {
-          questions.push(`What aspects of ${mainTopic} is ${positiveNames} most excited about?`);
-          questions.push(`Should we explore ${mainTopic} further based on ${positiveNames}'s interest?`);
+          const participant = emotionCategories.positive[0];
+          questions.push(...templates.positive(participant.name, mainTopic));
         } else {
-          questions.push(`What aspects of ${mainTopic} are ${positiveNames} most excited about?`);
-          questions.push(`Should we build on the positive engagement around ${mainTopic}?`);
+          // For multiple participants
+          if (detectedLanguage === 'hindi' || detectedLanguage === 'hinglish') {
+            questions.push(`${positiveNames}, ${mainTopic} ke kaunse aspects aapko sabse zyada exciting lagte hain?`);
+            questions.push(`Kya hum ${mainTopic} par positive engagement ke basis par aur build karein?`);
+          } else {
+            questions.push(`What aspects of ${mainTopic} are ${positiveNames} most excited about?`);
+            questions.push(`Should we build on the positive engagement around ${mainTopic}?`);
+          }
         }
       }
       
       if (emotionCategories.neutral && emotionCategories.neutral.length > 0) {
         const neutralNames = emotionCategories.neutral.map(p => p.name).join(', ');
         if (emotionCategories.neutral.length === 1) {
-          questions.push(`How does ${neutralNames} feel about ${mainTopic}?`);
-          questions.push(`Any questions from ${neutralNames} about ${mainTopic}?`);
+          const participant = emotionCategories.neutral[0];
+          questions.push(...templates.neutral(participant.name, mainTopic));
         } else {
-          questions.push(`How do ${neutralNames} feel about ${mainTopic}?`);
-          questions.push(`Any questions from the participants about ${mainTopic}?`);
+          // For multiple participants
+          if (detectedLanguage === 'hindi' || detectedLanguage === 'hinglish') {
+            questions.push(`${neutralNames}, ${mainTopic} ke baare mein aapko kaisa lagta hai?`);
+            questions.push(`Participants se ${mainTopic} ke baare mein koi questions hain?`);
+          } else {
+            questions.push(`How do ${neutralNames} feel about ${mainTopic}?`);
+            questions.push(`Any questions from the participants about ${mainTopic}?`);
+          }
         }
       }
     }

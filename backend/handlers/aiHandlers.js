@@ -18,6 +18,60 @@ import meetingHistoryManager from '../src/utils/meetingHistory.js';
 // REMOVED: AI Highlight Detector initialization
 
 /**
+ * Validate transcript before storing
+ * Rejects empty, low-confidence, filler words, and noise
+ */
+function isValidTranscript(transcript, confidence) {
+  if (!transcript || typeof transcript !== 'string') {
+    return false;
+  }
+  
+  const trimmed = transcript.trim();
+  
+  // Reject empty or very short transcripts
+  if (trimmed.length < 3) {
+    return false;
+  }
+  
+  // Reject low confidence transcripts (if confidence is provided)
+  if (confidence !== undefined && confidence !== null && confidence < 0.3) {
+    return false;
+  }
+  
+  // Reject common filler words and noise
+  const fillerWords = ['um', 'uh', 'ah', 'er', 'hmm', 'mm', 'mhm', 'eh', 'oh'];
+  const lowerText = trimmed.toLowerCase();
+  
+  // Reject if it's just a filler word
+  if (fillerWords.includes(lowerText)) {
+    return false;
+  }
+  
+  // Reject if it's just punctuation or special characters
+  if (/^[^\w\s]+$/.test(trimmed)) {
+    return false;
+  }
+  
+  // Reject if it's mostly numbers or special characters
+  const wordCount = trimmed.split(/\s+/).filter(w => w.length > 0).length;
+  if (wordCount === 0) {
+    return false;
+  }
+  
+  // Reject if it's just repeated characters (like "aaa", "mmm")
+  if (/^(.)\1{2,}$/.test(trimmed)) {
+    return false;
+  }
+  
+  // Reject if it contains only numbers
+  if (/^\d+$/.test(trimmed)) {
+    return false;
+  }
+  
+  return true;
+}
+
+/**
  * Register AI-related socket event handlers
  * @param {Socket} socket - Socket.IO socket instance
  * @param {Server} io - Socket.IO server instance
@@ -487,7 +541,25 @@ export default function registerAIHandlers(socket, io) {
   socket.on('transcript_update', (data) => {
     try {
       const { meetingId, participantId, transcript, timestamp, language, confidence, participantName } = data;
-      console.log('📝 Transcript update received:', { meetingId, participantId, participantName, transcript: transcript.substring(0, 50) + '...', confidence });
+      
+      // VALIDATE TRANSCRIPT BEFORE STORING
+      if (!isValidTranscript(transcript, confidence)) {
+        console.log('⚠️ Invalid transcript rejected:', {
+          transcript: transcript?.substring(0, 30),
+          confidence,
+          participantId,
+          reason: 'Failed validation - empty, low confidence, or noise'
+        });
+        return; // Don't store invalid transcripts
+      }
+      
+      console.log('✅ Valid transcript received:', { 
+        meetingId, 
+        participantId, 
+        participantName, 
+        transcript: transcript.substring(0, 50) + '...', 
+        confidence 
+      });
       
       // Get meeting to find participant name if not provided
       let finalParticipantName = participantName;
@@ -511,7 +583,7 @@ export default function registerAIHandlers(socket, io) {
         timestamp,
         participantId,
         participantName: finalParticipantName || `Participant ${participantId.slice(0, 8)}`,
-        transcript,
+        transcript: transcript.trim(), // Store trimmed version
         language,
         confidence,
         id: uuidv4()
@@ -520,7 +592,7 @@ export default function registerAIHandlers(socket, io) {
       transcriptData.get(meetingId).push(transcriptEntry);
       
       // Also add to LLM service for AI question generation
-      llmService.addToTranscriptHistory(meetingId, transcript);
+      llmService.addToTranscriptHistory(meetingId, transcript.trim());
       
       // REMOVED: Highlight detection feature - no longer analyzing for highlights
       

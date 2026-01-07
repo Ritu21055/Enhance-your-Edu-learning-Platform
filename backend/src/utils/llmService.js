@@ -93,8 +93,8 @@ class LLMService {
       console.error('❌ LLM initialization failed:', error);
       // Only set to rule-based if Gemini is not already initialized
       if (this.llmType !== 'gemini') {
-        this.llmType = 'rule-based';
-        console.log('🤖 Falling back to rule-based question generation');
+      this.llmType = 'rule-based';
+      console.log('🤖 Falling back to rule-based question generation');
       }
     }
   }
@@ -112,7 +112,7 @@ class LLMService {
       // Gemini will be tested during actual question generation
       if (this.llmType === 'gemini') {
         console.log(`✅ Gemini initialized for meeting ${meetingId} - ready for question generation`);
-        return true;
+          return true;
       }
       
       // If not Gemini, still return true to enable basic AI features
@@ -153,21 +153,21 @@ class LLMService {
           model.generateContent('Hi'),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
         ]);
-        
-        clearTimeout(timeoutId);
-        
+
+      clearTimeout(timeoutId);
+
         if (testResult && testResult.response) {
           console.log('🤖 Gemini: Test successful, model is working');
-          return true;
-        } else {
+        return true;
+      } else {
           console.error('🤖 Gemini: Test failed - no response');
           return false;
-        }
-      } catch (error) {
+      }
+    } catch (error) {
         clearTimeout(timeoutId);
         if (error.message === 'Timeout' || error.name === 'AbortError') {
           console.error('🤖 Gemini: Test timed out after 10 seconds');
-        } else {
+      } else {
           console.error('🤖 Gemini: Test failed:', error.message);
         }
         // gemini-pro should work, so if it fails, return false
@@ -223,7 +223,7 @@ class LLMService {
       console.log('✅ Gemini already initialized, skipping reinitialization');
       return;
     }
-    
+
     // Re-check API key in case .env was loaded after constructor
     if (!this.geminiApiKey) {
       this.geminiApiKey = process.env.GEMINI_API_KEY || null;
@@ -264,7 +264,7 @@ class LLMService {
             throw fallbackError;
           }
         }
-      } catch (error) {
+    } catch (error) {
         console.error('🤖 Gemini initialization failed:', error.message);
         // Don't fall through immediately - if Gemini API key exists, we should prioritize it
         // Only fall to Ollama if Gemini completely fails
@@ -289,7 +289,7 @@ class LLMService {
           console.log(`🤖 Using Ollama (${this.ollamaModel}) for question generation`);
           return;
         }
-      } catch (error) {
+    } catch (error) {
         console.error('🤖 Ollama initialization failed:', error.message);
         // Fall through to rule-based
       }
@@ -355,7 +355,7 @@ class LLMService {
             participantNames,
             emotionCategories
           );
-          generatedQuestion = result.question;
+        generatedQuestion = result.question;
           modelName = this.geminiModel;
           confidence = 0.9;
           // CRITICAL: Reset llmType to gemini on success
@@ -399,10 +399,10 @@ class LLMService {
           } catch (ollamaError) {
             console.log('⚠️ Ollama fallback failed, using rule-based:', ollamaError.message);
             const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
-            generatedQuestion = result.question;
-            modelName = 'rule-based-fallback';
-            confidence = 0.6;
-          }
+          generatedQuestion = result.question;
+          modelName = 'rule-based-fallback';
+          confidence = 0.6;
+        }
         }
       } else if (this.llmType === 'ollama') {
         // Only use Ollama if Gemini is not available at all
@@ -421,13 +421,13 @@ class LLMService {
             generatedQuestion = ollamaResult.question;
             modelName = ollamaResult.modelName;
             confidence = ollamaResult.confidence;
-          } else {
+      } else {
             throw new Error('All Ollama models failed');
           }
         } catch (error) {
           console.log('🤖 All Ollama models failed, falling back to rule-based:', error.message);
           const result = this.generateWithRuleBased(topics, sentiment, transcriptContext, allParticipantsWithEmotions, participantNames, emotionCategories);
-          generatedQuestion = result.question;
+        generatedQuestion = result.question;
           modelName = 'rule-based-fallback';
           confidence = 0.6;
         }
@@ -491,11 +491,11 @@ class LLMService {
         method: 'GET',
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
       
       if (response.ok) {
-        const data = await response.json();
+      const data = await response.json();
         const models = data.models || [];
         // Check if model exists (exact match or partial match)
         const modelExists = models.some(m => {
@@ -708,9 +708,9 @@ class LLMService {
     // Progressive requirements based on conversation length
     // Early conversation (100-500 chars): Very relaxed requirements
     if (contextLength < 500) {
-      const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
-      const uniqueWords = new Set(words.map(word => word.toLowerCase()));
-      
+    const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
+    const uniqueWords = new Set(words.map(word => word.toLowerCase()));
+    
       // RELAXED: at least 20 words and 10 unique words (reduced from 30/15)
       if (words.length >= 20 && uniqueWords.size >= 10) {
         console.log('🤖 Question trigger: Early conversation detected - generating question');
@@ -720,7 +720,7 @@ class LLMService {
       // If emotions present, even more relaxed
       if (hasParticipantEmotions && words.length >= 15 && uniqueWords.size >= 8) {
         console.log('🤖 Question trigger: Early conversation with emotions - generating question');
-        return true;
+    return true;
       }
     }
     
@@ -935,7 +935,7 @@ class LLMService {
       this.questionGenerationTimer.delete(meetingId);
     }
   }
-} 
+}
 
 // Export singleton instance
 const llmService = new LLMService();

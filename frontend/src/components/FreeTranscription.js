@@ -1,5 +1,6 @@
 /**
  * Free Transcription Component using Web Speech API
+ * COMPLETELY REWRITTEN - Simple, working version
  * Provides real-time transcription without any cloud costs
  */
 
@@ -9,10 +10,6 @@ import {
   Typography,
   IconButton,
   Chip,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Alert,
   LinearProgress,
   Tooltip
@@ -20,7 +17,6 @@ import {
 import {
   Mic,
   MicOff,
-  Language,
   Clear,
   VolumeUp,
   VolumeOff
@@ -39,216 +35,334 @@ const FreeTranscription = ({
   const [interimTranscript, setInterimTranscript] = useState('');
   const [isSupported, setIsSupported] = useState(false);
   const [error, setError] = useState(null);
-  const [language, setLanguage] = useState('en-US,hi-IN'); // Support both English and Hindi
-  const [isMuted, setIsMuted] = useState(false);
   const [confidence, setConfidence] = useState(0);
+  const [status, setStatus] = useState('Initializing...');
+  
+  const recognitionRef = useRef(null);
+  const isInitializedRef = useRef(false);
   const shouldAutoRestartRef = useRef(false);
 
-  // Check Web Speech API support
+  // Step 1: Check Web Speech API support
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    setIsSupported(!!SpeechRecognition);
+    const supported = !!SpeechRecognition;
+    setIsSupported(supported);
     
-    if (!SpeechRecognition) {
-      setError('Web Speech API not supported in this browser. Please use Chrome, Edge, or Safari.');
+    if (!supported) {
+      setError('Web Speech API not supported. Use Chrome, Edge, or Safari.');
+      setStatus('Not Supported');
+    } else {
+      setStatus('Ready');
+      console.log('✅ FreeTranscription: Web Speech API is supported');
     }
   }, []);
 
-  // Initialize speech recognition
+  // Step 2: Initialize recognition - ONLY ONCE
   useEffect(() => {
-    if (!isSupported) return;
+    if (!isSupported || isInitializedRef.current) {
+      return;
+    }
+
+    console.log('🎤 FreeTranscription: Initializing recognition...');
+    setStatus('Initializing...');
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
     
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = language;
-    recognition.maxAlternatives = 1;
+    try {
+      // Create recognition instance
+      const recognition = new SpeechRecognition();
+      
+      // Configuration - FIXED: Use single language code
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US'; // FIXED: Single language only
+      recognition.maxAlternatives = 1;
 
-    recognition.onstart = () => {
-      console.log('🎤 Free transcription started');
-      setIsListening(true);
-      setError(null);
-    };
+      // onstart handler
+      recognition.onstart = () => {
+        console.log('✅ FreeTranscription: Recognition STARTED');
+        setIsListening(true);
+        setError(null);
+        setStatus('Listening...');
+      };
 
-    recognition.onresult = (event) => {
-      let interim = '';
-      let final = '';
+      // onresult handler - SIMPLE AND DIRECT
+      recognition.onresult = (event) => {
+        console.log('🎤 FreeTranscription: onresult triggered', {
+          resultIndex: event.resultIndex,
+          resultsLength: event.results.length
+        });
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        const confidence = event.results[i][0].confidence;
-        
-        if (event.results[i].isFinal) {
-          final += transcript;
-          setConfidence(confidence);
-        } else {
-          interim += transcript;
+        let interim = '';
+        let final = '';
+
+        // Process all results
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const transcriptText = result[0].transcript;
+          const conf = result[0].confidence || 0;
+
+          if (result.isFinal) {
+            final += transcriptText + ' ';
+            setConfidence(conf);
+            console.log('✅ FreeTranscription: FINAL transcript:', transcriptText);
+          } else {
+            interim += transcriptText;
+            console.log('📝 FreeTranscription: INTERIM transcript:', transcriptText);
+          }
         }
-      }
 
-      if (final) {
-        setTranscript(prev => prev + final);
+        // Update state
+        if (final) {
+          const finalText = final.trim();
+          
+          // VALIDATE: Only process valid transcripts
+          if (!finalText || finalText.length < 3) {
+            console.log('⚠️ FreeTranscription: Skipping empty/short transcript');
+            return;
+          }
+          
+          // VALIDATE: Reject filler words
+          const fillerWords = ['um', 'uh', 'ah', 'er', 'hmm', 'mm', 'mhm'];
+          const lowerText = finalText.toLowerCase();
+          if (fillerWords.includes(lowerText)) {
+            console.log('⚠️ FreeTranscription: Skipping filler word:', finalText);
+            return;
+          }
+          
+          // VALIDATE: Reject low confidence (if available)
+          if (confidence !== undefined && confidence !== null && confidence < 0.3) {
+            console.log('⚠️ FreeTranscription: Skipping low confidence transcript:', {
+              transcript: finalText,
+              confidence
+            });
+            return;
+          }
+          
+          setTranscript(prev => {
+            const newText = prev + finalText;
+            console.log('📝 FreeTranscription: Updated transcript:', newText);
+            return newText;
+          });
+          setInterimTranscript(''); // Clear interim when we get final
+          
+          // Send to server
+          // FIX: Use socket.id as fallback if participantId is not available
+          const currentParticipantId = participantId || socket?.id;
+          if (socket && meetingId && currentParticipantId) {
+            socket.emit('transcript_update', {
+              meetingId,
+              participantId: currentParticipantId,
+              participantName: participantName || 'Unknown',
+              transcript: finalText,
+              timestamp: Date.now(),
+              language: 'en-US',
+              confidence: confidence
+            });
+            console.log('📤 FreeTranscription: Sent transcript to server:', {
+              transcript: finalText,
+              participantId: currentParticipantId,
+              socketId: socket?.id,
+              confidence
+            });
+          }
+
+          // Notify parent
+          if (onTranscriptUpdate) {
+            onTranscriptUpdate(finalText, confidence);
+          }
+        }
+
+        if (interim) {
+          setInterimTranscript(interim);
+        }
+      };
+
+      // onerror handler
+      recognition.onerror = (event) => {
+        console.error('❌ FreeTranscription: Error:', event.error);
         
-        // Send to server for AI analysis
-        if (socket && meetingId && participantId) {
-          socket.emit('transcript_update', {
+        if (event.error === 'no-speech') {
+          // Normal - just waiting
+          setStatus('Waiting for speech...');
+          return;
+        }
+        
+        if (event.error === 'aborted') {
+          console.log('⚠️ FreeTranscription: Recognition aborted');
+          setIsListening(false);
+          setStatus('Stopped');
+          shouldAutoRestartRef.current = false;
+          return;
+        }
+        
+        if (event.error === 'network') {
+          setError('Network error - check internet connection');
+          setStatus('Network Error');
+          setIsListening(false);
+          shouldAutoRestartRef.current = false; // Don't auto-restart on network error
+          return;
+        }
+        
+        if (event.error === 'not-allowed') {
+          setError('Microphone permission denied');
+          setStatus('Permission Denied');
+          setIsListening(false);
+          shouldAutoRestartRef.current = false;
+          return;
+        }
+        
+        if (event.error === 'audio-capture') {
+          setError('Microphone not available');
+          setStatus('No Microphone');
+          setIsListening(false);
+          shouldAutoRestartRef.current = false;
+          return;
+        }
+        
+        setError(`Error: ${event.error}`);
+        setIsListening(false);
+        setStatus('Error');
+      };
+
+      // onend handler
+      recognition.onend = () => {
+        console.log('🛑 FreeTranscription: Recognition ended');
+        setIsListening(false);
+        setStatus('Stopped');
+        
+        // Auto-restart if enabled
+        if (shouldAutoRestartRef.current) {
+          console.log('🔄 FreeTranscription: Auto-restarting...');
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current) {
+                recognitionRef.current.start();
+              }
+            } catch (e) {
+              console.log('⚠️ FreeTranscription: Auto-restart failed:', e.message);
+              shouldAutoRestartRef.current = false;
+            }
+          }, 500);
+        }
+      };
+
+      // Store reference
+      recognitionRef.current = recognition;
+      isInitializedRef.current = true;
+      setStatus('Ready');
+      console.log('✅ FreeTranscription: Recognition initialized successfully');
+
+      // Store in window for sharing (optional)
+      window.recognition = recognition;
+
+      // Auto-start after socket is ready
+      // FIX: Handle case where participantId might be undefined initially (for participants)
+      const autoStartTimer = setTimeout(() => {
+        if (recognitionRef.current && socket && meetingId) {
+          // Check if participantId is available (socket.id might be undefined initially)
+          const currentParticipantId = participantId || socket?.id;
+          
+          if (currentParticipantId) {
+            try {
+              console.log('🚀 FreeTranscription: Auto-starting...', {
+                participantId: currentParticipantId,
+                socketId: socket?.id,
+                isHost: socket?.id === participantId
+              });
+              shouldAutoRestartRef.current = true;
+              recognitionRef.current.start();
+            } catch (e) {
+              console.log('⚠️ FreeTranscription: Auto-start failed:', e.message);
+              setStatus('Start Failed');
+            }
+          } else {
+            console.log('⚠️ FreeTranscription: Waiting for participantId...', {
+              hasSocket: !!socket,
+              socketId: socket?.id,
+              participantId
+            });
+            // Retry after 1 more second if participantId not available
+            setTimeout(() => {
+              if (recognitionRef.current && socket?.id) {
+                try {
+                  console.log('🚀 FreeTranscription: Retrying auto-start with socket.id...', {
+                    socketId: socket.id
+                  });
+                  shouldAutoRestartRef.current = true;
+                  recognitionRef.current.start();
+                } catch (e) {
+                  console.log('⚠️ FreeTranscription: Retry failed:', e.message);
+                  setStatus('Start Failed');
+                }
+              }
+            }, 1000);
+          }
+        } else {
+          console.log('⚠️ FreeTranscription: Cannot auto-start - missing dependencies:', {
+            hasRecognition: !!recognitionRef.current,
+            hasSocket: !!socket,
             meetingId,
             participantId,
-            participantName: participantName || 'Unknown',
-            transcript: final,
-            timestamp: Date.now(),
-            language: language,
-            confidence: confidence
+            socketId: socket?.id
           });
         }
+      }, 2000); // 2 second delay
 
-        // Notify parent component
-        if (onTranscriptUpdate) {
-          onTranscriptUpdate(final, confidence);
-        }
-      }
-      
-      setInterimTranscript(interim);
-    };
-
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      
-      // CRITICAL FIX: Handle network errors gracefully
-      if (event.error === 'network') {
-        // Network error - don't auto-restart to avoid infinite loop
+      // Cleanup
+      return () => {
+        console.log('🧹 FreeTranscription: Cleaning up...');
+        clearTimeout(autoStartTimer);
         shouldAutoRestartRef.current = false;
-        setError('Network error: Speech recognition service unavailable. Please check your internet connection and try again.');
-        setIsListening(false);
-        console.warn('🎤 Network error detected - auto-restart disabled to prevent infinite loop');
-      } else if (event.error === 'no-speech') {
-        // No speech detected - this is normal, just restart
-        console.log('🎤 No speech detected, will retry...');
-        setError(null); // Clear error for no-speech
-        // Allow auto-restart for no-speech
-      } else if (event.error === 'aborted') {
-        // User or system aborted - don't show error
-        console.log('🎤 Speech recognition aborted');
-        setError(null);
-        shouldAutoRestartRef.current = false;
-      } else if (event.error === 'audio-capture') {
-        // Microphone not available
-        setError('Microphone not available. Please check your microphone permissions and try again.');
-        shouldAutoRestartRef.current = false;
-        setIsListening(false);
-      } else if (event.error === 'not-allowed') {
-        // Permission denied
-        setError('Microphone permission denied. Please allow microphone access and refresh the page.');
-        shouldAutoRestartRef.current = false;
-        setIsListening(false);
-      } else {
-        // Other errors - show but allow retry
-        setError(`Speech recognition error: ${event.error}. Will retry automatically.`);
-        // Allow auto-restart for other errors (except network)
-      }
-      
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      // Auto-restart if it was listening
-      if (shouldAutoRestartRef.current) {
-        setTimeout(() => {
+        if (recognitionRef.current) {
           try {
-            recognition.start();
+            recognitionRef.current.stop();
           } catch (e) {
-            console.log('Auto-restart failed:', e);
+            console.log('⚠️ FreeTranscription: Stop during cleanup failed:', e.message);
           }
-        }, 100);
-      }
-    };
-
-    // Store recognition instance
-    window.recognition = recognition;
-
-    // Auto-start transcription when meeting starts (after a small delay)
-    const autoStartTimer = setTimeout(() => {
-      if (window.recognition && !isListening && socket && meetingId && participantId) {
-        try {
-          console.log('🎤 Auto-starting transcription on meeting start...');
-          shouldAutoRestartRef.current = true;
-          window.recognition.start();
-        } catch (error) {
-          console.log('⚠️ Auto-start failed (user can start manually):', error.message);
-          // Don't show error to user - they can start manually if needed
         }
-      }
-    }, 1500); // 1.5 second delay to ensure everything is ready
+      };
 
-    return () => {
-      clearTimeout(autoStartTimer);
-      shouldAutoRestartRef.current = false;
-      if (window.recognition) {
-        window.recognition.stop();
-      }
-    };
-  }, [isSupported, language, socket, meetingId, participantId, participantName, onTranscriptUpdate]); // Removed isListening from dependencies to avoid re-initialization
-
-  const startListening = () => {
-    if (window.recognition && !isListening) {
-      try {
-        shouldAutoRestartRef.current = true;
-        window.recognition.start();
-      } catch (error) {
-        setError('Failed to start speech recognition');
-      }
+    } catch (error) {
+      console.error('❌ FreeTranscription: Initialization error:', error);
+      setError(`Initialization failed: ${error.message}`);
+      setStatus('Init Failed');
     }
-  };
+  }, [isSupported, socket, meetingId, participantId, participantName, onTranscriptUpdate]);
 
-  const stopListening = () => {
-    if (window.recognition && isListening) {
-      shouldAutoRestartRef.current = false;
-      window.recognition.stop();
-    }
-  };
-
+  // Toggle listening
   const toggleListening = () => {
+    const recognition = recognitionRef.current;
+    if (!recognition) {
+      setError('Recognition not initialized');
+      return;
+    }
+
     if (isListening) {
-      stopListening();
+      console.log('🛑 FreeTranscription: Stopping...');
+      shouldAutoRestartRef.current = false;
+      try {
+        recognition.stop();
+      } catch (e) {
+        console.log('⚠️ FreeTranscription: Stop failed:', e.message);
+      }
     } else {
-      startListening();
+      console.log('🚀 FreeTranscription: Starting...');
+      shouldAutoRestartRef.current = true;
+      try {
+        recognition.start();
+      } catch (e) {
+        console.log('⚠️ FreeTranscription: Start failed:', e.message);
+        setError(`Failed to start: ${e.message}`);
+      }
     }
   };
 
   const clearTranscript = () => {
     setTranscript('');
     setInterimTranscript('');
+    console.log('🧹 FreeTranscription: Transcript cleared');
   };
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-  };
-
-  const handleLanguageChange = (event) => {
-    setLanguage(event.target.value);
-    if (window.recognition) {
-      window.recognition.lang = event.target.value;
-    }
-  };
-
-  const languages = [
-    { code: 'en-US', name: 'English (US)' },
-    { code: 'en-GB', name: 'English (UK)' },
-    { code: 'es-ES', name: 'Spanish (Spain)' },
-    { code: 'fr-FR', name: 'French (France)' },
-    { code: 'de-DE', name: 'German (Germany)' },
-    { code: 'it-IT', name: 'Italian (Italy)' },
-    { code: 'pt-BR', name: 'Portuguese (Brazil)' },
-    { code: 'ru-RU', name: 'Russian (Russia)' },
-    { code: 'ja-JP', name: 'Japanese (Japan)' },
-    { code: 'ko-KR', name: 'Korean (South Korea)' },
-    { code: 'zh-CN', name: 'Chinese (Simplified)' },
-    { code: 'ar-SA', name: 'Arabic (Saudi Arabia)' },
-    { code: 'hi-IN', name: 'Hindi (India)' }
-  ];
 
   if (!isVisible) return null;
 
@@ -273,10 +387,9 @@ const FreeTranscription = ({
             sx={{ fontSize: '0.7rem', height: '20px' }}
           />
           <Chip 
-            label="No Cloud Required" 
-            color="info" 
-            size="small" 
-            variant="outlined"
+            label={status}
+            color={isListening ? 'success' : 'default'}
+            size="small"
             sx={{ fontSize: '0.7rem', height: '20px' }}
           />
         </Box>
@@ -290,13 +403,11 @@ const FreeTranscription = ({
 
       {!isSupported && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Web Speech API not supported. Please use Chrome, Edge, or Safari for free transcription.
+          Web Speech API not supported. Please use Chrome, Edge, or Safari.
         </Alert>
       )}
 
       <Box display="flex" alignItems="center" gap={2} mb={2}>
-        {/* Language selector removed as per user request */}
-        
         <Tooltip title={isListening ? "Stop listening" : "Start listening"}>
           <IconButton
             onClick={toggleListening}
@@ -316,12 +427,6 @@ const FreeTranscription = ({
         <Tooltip title="Clear transcript">
           <IconButton onClick={clearTranscript} disabled={!transcript}>
             <Clear />
-          </IconButton>
-        </Tooltip>
-
-        <Tooltip title={isMuted ? "Unmute" : "Mute"}>
-          <IconButton onClick={toggleMute} color={isMuted ? "error" : "default"}>
-            {isMuted ? <VolumeOff /> : <VolumeUp />}
           </IconButton>
         </Tooltip>
       </Box>
@@ -409,7 +514,6 @@ const FreeTranscription = ({
           </Typography>
         </Box>
       )}
-
     </Box>
   );
 };

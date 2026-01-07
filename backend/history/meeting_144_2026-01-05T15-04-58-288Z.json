@@ -6,16 +6,8 @@
     "status": "completed"
   },
   "notes": {
-    "summary": "The meeting transcript consists solely of Ritu uttering a series of disconnected words and phrases, interspersed with greetings. There was no apparent discussion topic, specific agenda, or interaction between participants. No decisions were made, and no action items were assigned.",
-    "keyPoints": [
-      "Mention of 'Russian malaria shoes'",
-      "Utterance of 'divin'",
-      "Reference to a 'pixelated message'",
-      "Discussion of 'standard things even'",
-      "Mention of 'Subway'",
-      "Consideration of 'finding a lullaby'",
-      "Reference to 'Nancy'"
-    ],
+    "summary": "The transcript consists of fragmented and disconnected phrases spoken by a single participant, ritu. No clear topics, decisions, or action items can be identified from the provided conversation snippets.",
+    "keyPoints": [],
     "actionItems": [],
     "decisions": [],
     "studyGuide": {
@@ -25,57 +17,13 @@
     },
     "participantContributions": {
       "ritu": [
-        "Initiated with 'Russian malaria shoes'.",
-        "Mentioned 'divin'.",
-        "Spoke about a 'pixelated message'.",
-        "Referred to 'standard things even'.",
-        "Mentioned 'Subway'.",
-        "Talked about 'finding a lullaby'.",
-        "Concluded with 'Nancy'."
+        "Mentioned 'Norton Dallas'.",
+        "Stated 'I've been' (incomplete thought).",
+        "Stated 'you know that doesn't' (incomplete thought).",
+        "Mentioned 'tinda Chad over there'."
       ]
     },
-    "conversationTranscript": [
-      {
-        "speaker": "ritu",
-        "timestamp": "20:41:20",
-        "text": "Russian malaria shoes"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "20:42:14",
-        "text": "divin"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "20:43:28",
-        "text": "pixelated"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "20:43:32",
-        "text": "message"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "20:46:45",
-        "text": "standard things even"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "20:46:47",
-        "text": "Subway"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "20:47:20",
-        "text": "and then finding a lullaby"
-      },
-      {
-        "speaker": "ritu",
-        "timestamp": "20:47:38",
-        "text": "Nancy"
-      }
-    ]
+    "conversationTranscript": []
   },
   "metadata": {
     "savedAt": "2026-01-05T15:04:58.291Z",
@@ -86,6 +34,6 @@
       "sentimentAnalysis": false,
       "transcription": false
     },
-    "notesGeneratedAt": "2026-01-05T15:04:58.291Z"
+    "notesGeneratedAt": "2026-01-06T05:14:03.895Z"
   }
 }

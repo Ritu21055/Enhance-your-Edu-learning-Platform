@@ -14,8 +14,9 @@ import {
 } from '@mui/icons-material';
 
 /**
- * Temporary Transcription Debug Component
- * Shows real-time transcription to verify it's working
+ * NEW SIMPLE Transcription Debug Component
+ * Completely independent - creates its own recognition instance
+ * No sharing, no complex handler wrapping - just simple, direct transcription
  */
 const TranscriptionDebug = ({ 
   socket, 
@@ -31,516 +32,244 @@ const TranscriptionDebug = ({
   const [error, setError] = useState(null);
   const [confidence, setConfidence] = useState(0);
   const [transcriptCount, setTranscriptCount] = useState(0);
-  const shouldAutoRestartRef = useRef(false);
+  const [status, setStatus] = useState('Initializing...');
+  
   const recognitionRef = useRef(null);
-  const interimTimeoutRef = useRef(null);
-  const lastInterimRef = useRef('');
+  const isInitializedRef = useRef(false);
 
-  // Check Web Speech API support
+  // Step 1: Check Web Speech API support
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    setIsSupported(!!SpeechRecognition);
+    const supported = !!SpeechRecognition;
+    setIsSupported(supported);
     
-    if (!SpeechRecognition) {
+    if (!supported) {
       setError('Web Speech API not supported. Use Chrome, Edge, or Safari.');
+      setStatus('Not Supported');
+    } else {
+      setStatus('Ready');
+      console.log('✅ TranscriptionDebug: Web Speech API is supported');
     }
   }, []);
 
-  // Listen to socket events for transcript updates (from FreeTranscription)
-  // This ensures we get transcripts even if recognition handler is overwritten
+  // Step 2: Initialize recognition - SIMPLE AND DIRECT
   useEffect(() => {
-    if (!socket || !meetingId) {
-      console.log('⚠️ DEBUG: Socket listener not set up:', { hasSocket: !!socket, meetingId, participantId });
+    if (!isSupported || isInitializedRef.current) {
       return;
     }
 
-    console.log('✅ DEBUG: Setting up socket listener for transcript updates', { meetingId, participantId, socketId: socket?.id });
+    console.log('🎤 TranscriptionDebug: Initializing recognition...');
+    setStatus('Initializing...');
 
-    const handleTranscriptUpdate = (data) => {
-      console.log('📥 DEBUG: Received transcript_update event in TranscriptionDebug:', data);
-      
-      // Check if meeting ID matches
-      if (data.meetingId !== meetingId) {
-        console.log('⚠️ DEBUG: Meeting ID mismatch:', {
-          received: data.meetingId,
-          expected: meetingId
-        });
-        return;
-      }
-      
-      // If participantId is provided, only show transcripts for that participant
-      // Otherwise, show all transcripts for the meeting (useful for debugging)
-      const shouldShow = !participantId || data.participantId === participantId || data.participantId === socket?.id;
-      
-      if (shouldShow) {
-        console.log('✅ DEBUG: Transcript matches - updating display in TranscriptionDebug:', data.transcript, {
-          participantId: data.participantId,
-          participantName: data.participantName,
-          socketId: socket?.id
-        });
-        setTranscript(prev => {
-          const newTranscript = prev + ' ' + data.transcript;
-          console.log('📝 DEBUG: Updated transcript in TranscriptionDebug via socket:', newTranscript);
-          return newTranscript;
-        });
-        setConfidence(data.confidence || 0);
-        setTranscriptCount(prev => prev + 1);
-      } else {
-        console.log('⚠️ DEBUG: Participant ID mismatch:', {
-          receivedParticipantId: data.participantId,
-          expectedParticipantId: participantId,
-          socketId: socket?.id,
-          shouldShow
-        });
-      }
-    };
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     
-    // Test socket connection
-    console.log('🔍 DEBUG: Testing socket connection for transcript events:', {
-      socketId: socket?.id,
-      connected: socket?.connected,
-      hasOn: typeof socket?.on === 'function'
-    });
-
-    socket.on('transcript_update', handleTranscriptUpdate);
-    console.log('✅ DEBUG: Socket listener registered for transcript_update');
-
-    return () => {
-      console.log('🧹 DEBUG: Cleaning up socket listener');
-      socket.off('transcript_update', handleTranscriptUpdate);
-    };
-  }, [socket, meetingId, participantId]);
-
-  // Initialize speech recognition
-  useEffect(() => {
-    if (!isSupported) return;
-
-    // CRITICAL: Use existing recognition instance if available (from FreeTranscription)
-    // This avoids conflicts and allows sharing the same recognition instance
-    let recognition = null;
-    
-    if (window.recognition && window.recognition.readyState !== 0) {
-      console.log('⚠️ DEBUG: Using existing recognition instance from FreeTranscription');
-      recognition = window.recognition;
+    try {
+      // Create NEW instance - completely independent
+      const recognition = new SpeechRecognition();
       
-      // CRITICAL: Store original handler before modifying
-      const originalOnResult = recognition.onresult;
-      
-      // Create a wrapper function that will always call our handler
-      const ourHandler = (event) => {
-        console.log('🎤 DEBUG: Recognition onresult triggered in TranscriptionDebug', { 
-          resultIndex: event.resultIndex, 
-          resultsLength: event.results.length,
-          timestamp: Date.now()
+      // Basic configuration
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US'; // FIXED: Single language
+      recognition.maxAlternatives = 1;
+
+      // SIMPLE onstart handler
+      recognition.onstart = () => {
+        console.log('✅ TranscriptionDebug: Recognition STARTED');
+        setIsListening(true);
+        setError(null);
+        setStatus('Listening...');
+      };
+
+      // SIMPLE onresult handler - DIRECT, NO WRAPPING
+      recognition.onresult = (event) => {
+        console.log('🎤 TranscriptionDebug: onresult triggered', {
+          resultIndex: event.resultIndex,
+          resultsLength: event.results.length
         });
-        
-        // Process transcripts for our display
+
         let interim = '';
         let final = '';
 
+        // Process all results
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          const conf = event.results[i][0].confidence;
-          
-          if (event.results[i].isFinal) {
-            final += transcript;
+          const result = event.results[i];
+          const transcriptText = result[0].transcript;
+          const conf = result[0].confidence || 0;
+
+          if (result.isFinal) {
+            final += transcriptText + ' ';
             setConfidence(conf);
-            setTranscriptCount(prev => prev + 1);
-            console.log('✅ DEBUG: Final transcript received in TranscriptionDebug:', final);
+            console.log('✅ TranscriptionDebug: FINAL transcript:', transcriptText);
           } else {
-            interim += transcript;
+            interim += transcriptText;
+            console.log('📝 TranscriptionDebug: INTERIM transcript:', transcriptText);
           }
         }
 
+        // Update state - SIMPLE
         if (final) {
-          // Clear any pending interim promotion timeout
-          if (interimTimeoutRef.current) {
-            clearTimeout(interimTimeoutRef.current);
-            interimTimeoutRef.current = null;
-          }
-          
           setTranscript(prev => {
-            const newTranscript = prev + ' ' + final;
-            console.log('✅ DEBUG: Final transcript - Updated transcript in TranscriptionDebug:', newTranscript);
-            return newTranscript;
+            const newText = prev + final.trim();
+            console.log('📝 TranscriptionDebug: Updated transcript:', newText);
+            return newText;
           });
-          // Clear interim when we get final
-          setInterimTranscript('');
-          lastInterimRef.current = '';
+          setTranscriptCount(prev => prev + 1);
+          setInterimTranscript(''); // Clear interim when we get final
         }
-        
+
         if (interim) {
           setInterimTranscript(interim);
-          lastInterimRef.current = interim;
-          console.log('📝 DEBUG: Interim transcript in TranscriptionDebug:', interim);
-          
-          // Clear any existing timeout
-          if (interimTimeoutRef.current) {
-            clearTimeout(interimTimeoutRef.current);
-          }
-          
-          // If interim persists for a while without becoming final, promote it
-          // This ensures we see something even if final never comes
-          interimTimeoutRef.current = setTimeout(() => {
-            if (lastInterimRef.current === interim && interim.trim().length > 0) {
-              // Interim hasn't changed and hasn't become final - promote it
-              console.log('⚠️ DEBUG: Interim transcript persisted, promoting to final:', interim);
-              setTranscript(prevTranscript => {
-                const updated = prevTranscript + ' ' + interim;
-                console.log('📝 DEBUG: Promoted interim to transcript:', updated);
-                return updated;
-              });
-              setInterimTranscript('');
-              setTranscriptCount(prev => prev + 1);
-              lastInterimRef.current = '';
-            }
-          }, 2000); // Wait 2 seconds - if interim hasn't become final, promote it
-        }
-        
-        // Also show combined view for debugging
-        if (final || interim) {
-          console.log('📊 DEBUG: Combined transcript state:', {
-            final,
-            interim,
-            hasFinal: !!final,
-            hasInterim: !!interim
-          });
         }
       };
-      
-      // Set up listeners on existing instance - wrap the original handler
-      recognition.onresult = (event) => {
-        // Call original handler first (FreeTranscription's handler)
-        if (originalOnResult && typeof originalOnResult === 'function') {
-          try {
-            originalOnResult.call(recognition, event);
-            console.log('✅ DEBUG: Original handler called successfully');
-          } catch (e) {
-            console.error('⚠️ DEBUG: Error calling original handler:', e);
-          }
-        } else {
-          console.log('⚠️ DEBUG: No original handler to call');
-        }
-        
-        // Always call our handler
-        ourHandler(event);
-      };
-      
-      // Store our handler reference for potential re-attachment
-      recognitionRef.current = recognition;
-      window.transcriptionDebugHandler = ourHandler;
-      
-      // Set up periodic check to ensure handler stays attached
-      // Use a more aggressive check to catch overwrites quickly
-      const handlerCheckInterval = setInterval(() => {
-        if (window.recognition && window.recognition.onresult) {
-          const currentHandler = window.recognition.onresult.toString();
-          // Check if our handler is in the chain by looking for our function body
-          const hasOurHandler = currentHandler.includes('TranscriptionDebug') || 
-                               currentHandler.includes('ourHandler') ||
-                               currentHandler.includes('Final transcript received in TranscriptionDebug');
-          
-          if (!hasOurHandler) {
-            console.log('⚠️ DEBUG: Handler was overwritten, re-attaching...', {
-              handlerLength: currentHandler.length,
-              handlerPreview: currentHandler.substring(0, 100)
-            });
-            const currentOnResult = window.recognition.onresult;
-            window.recognition.onresult = (event) => {
-              // Call original handler first
-              if (currentOnResult && typeof currentOnResult === 'function') {
-                try {
-                  currentOnResult.call(window.recognition, event);
-                } catch (e) {
-                  console.error('⚠️ DEBUG: Error in original handler:', e);
-                }
-              }
-              // Always call our handler
-              ourHandler(event);
-            };
-            console.log('✅ DEBUG: Handler re-attached successfully');
-          }
-        }
-      }, 1000); // Check every 1 second for faster detection
-      
-      recognition.onstart = () => {
-        console.log('🎤 DEBUG: Shared transcription started in TranscriptionDebug');
-        setIsListening(true);
-        setError(null);
-      };
-      
-      // Cleanup interval on unmount
-      return () => {
-        clearInterval(handlerCheckInterval);
-      };
-      
+
+      // SIMPLE onerror handler
       recognition.onerror = (event) => {
-        console.error('🎤 DEBUG: Shared recognition error:', event.error);
+        console.error('❌ TranscriptionDebug: Error:', event.error);
         
-        // Handle network error - retry with delay
-        if (event.error === 'network') {
-          setError('Network error: Retrying...');
-          setIsListening(false);
-          setTimeout(() => {
-            if (shouldAutoRestartRef.current && recognitionRef.current) {
-              try {
-                console.log('🎤 DEBUG: Retrying after network error...');
-                recognitionRef.current.start();
-              } catch (e) {
-                console.log('⚠️ DEBUG: Network retry failed:', e.message);
-                setError('Network error: Please check your internet connection');
-                shouldAutoRestartRef.current = false;
-              }
-            }
-          }, 2000);
+        if (event.error === 'no-speech') {
+          // Normal - just waiting for speech
+          setStatus('Waiting for speech...');
           return;
         }
         
-        // Handle aborted error
         if (event.error === 'aborted') {
-          console.log('🎤 DEBUG: Recognition aborted');
-          setError(null);
+          console.log('⚠️ TranscriptionDebug: Recognition aborted');
+          setIsListening(false);
+          setStatus('Stopped');
+          return;
+        }
+        
+        if (event.error === 'network') {
+          setError('Network error - check internet connection');
+          setStatus('Network Error');
+          setIsListening(false);
+          return;
+        }
+        
+        if (event.error === 'not-allowed') {
+          setError('Microphone permission denied');
+          setStatus('Permission Denied');
+          setIsListening(false);
+          return;
+        }
+        
+        if (event.error === 'audio-capture') {
+          setError('Microphone not available');
+          setStatus('No Microphone');
           setIsListening(false);
           return;
         }
         
         setError(`Error: ${event.error}`);
         setIsListening(false);
+        setStatus('Error');
       };
-      
+
+      // SIMPLE onend handler
       recognition.onend = () => {
+        console.log('🛑 TranscriptionDebug: Recognition ended');
         setIsListening(false);
+        setStatus('Stopped');
+        
+        // Auto-restart if we were listening
+        if (isListening) {
+          console.log('🔄 TranscriptionDebug: Auto-restarting...');
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current) {
+                recognitionRef.current.start();
+              }
+            } catch (e) {
+              console.log('⚠️ TranscriptionDebug: Auto-restart failed:', e.message);
+            }
+          }, 500);
+        }
       };
-      
+
+      // Store reference
       recognitionRef.current = recognition;
-      setIsListening(recognition.readyState === 1); // 1 = listening
-      return;
-    }
+      isInitializedRef.current = true;
+      setStatus('Ready');
+      console.log('✅ TranscriptionDebug: Recognition initialized successfully');
 
-    // Create new instance if no existing one
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US,hi-IN';
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-      console.log('🎤 DEBUG: Transcription started');
-      setIsListening(true);
-      setError(null);
-    };
-
-    recognition.onresult = (event) => {
-      let interim = '';
-      let final = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        const conf = event.results[i][0].confidence;
-        
-        if (event.results[i].isFinal) {
-          final += transcript;
-          setConfidence(conf);
-          setTranscriptCount(prev => prev + 1);
-        } else {
-          interim += transcript;
-        }
-      }
-
-      if (final) {
-        setTranscript(prev => prev + ' ' + final);
-        
-        // Send to server
-        if (socket && meetingId && participantId) {
-          const currentConf = confidence || 0.8; // Use current confidence or default
-          socket.emit('transcript_update', {
-            meetingId,
-            participantId,
-            participantName: participantName || 'Unknown',
-            transcript: final,
-            timestamp: Date.now(),
-            language: 'en-US,hi-IN',
-            confidence: currentConf
-          });
-          console.log('📤 DEBUG: Sent transcript to server:', final, 'confidence:', currentConf);
-        }
-      }
-      
-      setInterimTranscript(interim);
-    };
-
-    recognition.onerror = (event) => {
-      console.error('🎤 DEBUG: Speech recognition error:', event.error);
-      
-      // CRITICAL FIX: Handle network error - retry with delay
-      if (event.error === 'network') {
-        setError('Network error: Retrying...');
-        setIsListening(false);
-        // Retry after delay
-        setTimeout(() => {
-          if (shouldAutoRestartRef.current && recognitionRef.current) {
+      // Auto-start after 1 second
+      // FIX: Handle case where participantId might be undefined initially (for participants)
+      setTimeout(() => {
+        if (recognitionRef.current && socket && meetingId) {
+          // Check if participantId is available (socket.id might be undefined initially)
+          const currentParticipantId = participantId || socket?.id;
+          
+          if (currentParticipantId || socket) {
             try {
-              console.log('🎤 DEBUG: Retrying after network error...');
+              console.log('🚀 TranscriptionDebug: Auto-starting...', {
+                participantId: currentParticipantId,
+                socketId: socket?.id
+              });
               recognitionRef.current.start();
             } catch (e) {
-              console.log('⚠️ DEBUG: Network retry failed:', e.message);
-              setError('Network error: Please check your internet connection');
-              shouldAutoRestartRef.current = false;
+              console.log('⚠️ TranscriptionDebug: Auto-start failed:', e.message);
+              setStatus('Start Failed');
             }
-          }
-        }, 2000); // Wait 2 seconds before retry
-        return;
-      }
-      
-      // CRITICAL FIX: Handle aborted error better - it's usually due to multiple instances
-      if (event.error === 'aborted') {
-        console.log('🎤 DEBUG: Recognition aborted - likely due to multiple instances. Will retry...');
-        setError(null); // Don't show error for aborted
-        setIsListening(false);
-        // Retry after a delay
-        setTimeout(() => {
-          if (shouldAutoRestartRef.current && recognitionRef.current) {
-            try {
-              console.log('🎤 DEBUG: Retrying after abort...');
-              recognitionRef.current.start();
-            } catch (e) {
-              console.log('⚠️ DEBUG: Retry failed:', e.message);
-              setError('Multiple transcription instances detected. Please close other transcription windows.');
-            }
-          }
-        }, 500);
-        return;
-      }
-      
-      setError(`Error: ${event.error}`);
-      
-      if (event.error === 'no-speech') {
-        // Normal, will retry - don't show error
-        setError(null);
-      } else if (event.error === 'audio-capture') {
-        setError('Microphone not available');
-        shouldAutoRestartRef.current = false;
-        setIsListening(false);
-      } else if (event.error === 'not-allowed') {
-        setError('Microphone permission denied');
-        shouldAutoRestartRef.current = false;
-        setIsListening(false);
-      } else {
-        setIsListening(false);
-      }
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-      if (shouldAutoRestartRef.current) {
-        setTimeout(() => {
-          try {
-            if (recognitionRef.current) {
-              recognitionRef.current.start();
-            }
-          } catch (e) {
-            console.log('DEBUG: Auto-restart failed:', e);
-            // If it's an abort error, don't retry immediately
-            if (e.message && e.message.includes('abort')) {
-              shouldAutoRestartRef.current = false;
-            }
-          }
-        }, 300); // Increased delay to avoid conflicts
-      }
-    };
-
-    recognitionRef.current = recognition;
-    
-    // Store in window for sharing (but only if not already exists)
-    if (!window.recognition) {
-      window.recognition = recognition;
-    }
-
-    // Auto-start with longer delay to avoid conflicts
-    const autoStartTimer = setTimeout(() => {
-      if (recognition && socket && meetingId && participantId) {
-        try {
-          // Check if recognition is already running
-          if (recognition.readyState === 0) { // 0 = not started
-            console.log('🎤 DEBUG: Auto-starting transcription...');
-            shouldAutoRestartRef.current = true;
-            recognition.start();
           } else {
-            console.log('⚠️ DEBUG: Recognition already running, skipping auto-start');
-          }
-        } catch (error) {
-          console.log('⚠️ DEBUG: Auto-start failed:', error.message);
-          if (error.message && error.message.includes('abort')) {
-            // Retry after delay
+            console.log('⚠️ TranscriptionDebug: Waiting for socket connection...');
+            // Retry after 1 more second if socket not ready
             setTimeout(() => {
-              if (recognitionRef.current && shouldAutoRestartRef.current) {
+              if (recognitionRef.current && socket?.id) {
                 try {
+                  console.log('🚀 TranscriptionDebug: Retrying auto-start...');
                   recognitionRef.current.start();
                 } catch (e) {
-                  console.log('⚠️ DEBUG: Retry after abort failed:', e.message);
+                  console.log('⚠️ TranscriptionDebug: Retry failed:', e.message);
                 }
               }
             }, 1000);
           }
         }
-      }
-    }, 2000); // Increased delay to 2 seconds
+      }, 1000);
 
+    } catch (error) {
+      console.error('❌ TranscriptionDebug: Initialization error:', error);
+      setError(`Initialization failed: ${error.message}`);
+      setStatus('Init Failed');
+    }
+
+    // Cleanup
     return () => {
-      clearTimeout(autoStartTimer);
-      shouldAutoRestartRef.current = false;
-      if (recognition && recognition.readyState !== 0) {
+      console.log('🧹 TranscriptionDebug: Cleaning up...');
+      if (recognitionRef.current) {
         try {
-          recognition.stop();
+          recognitionRef.current.stop();
         } catch (e) {
-          console.log('DEBUG: Stop failed during cleanup:', e);
+          console.log('⚠️ TranscriptionDebug: Stop during cleanup failed:', e.message);
         }
       }
-      // Don't delete window.recognition as FreeTranscription might be using it
+      isInitializedRef.current = false;
     };
-  }, [isSupported, socket, meetingId, participantId, participantName]);
+  }, [isSupported, socket, meetingId, participantId]);
 
+  // Toggle listening
   const toggleListening = () => {
-    // Try to use recognitionRef first, then window.recognition
-    const recognition = recognitionRef.current || window.recognition;
+    const recognition = recognitionRef.current;
     if (!recognition) {
       setError('Recognition not initialized');
       return;
     }
-    
+
     if (isListening) {
-      shouldAutoRestartRef.current = false;
+      console.log('🛑 TranscriptionDebug: Stopping...');
       try {
         recognition.stop();
       } catch (e) {
-        console.log('DEBUG: Stop failed:', e);
+        console.log('⚠️ TranscriptionDebug: Stop failed:', e.message);
       }
     } else {
-      shouldAutoRestartRef.current = true;
+      console.log('🚀 TranscriptionDebug: Starting...');
       try {
-        // Check if already running
-        if (recognition.readyState === 0) {
-          recognition.start();
-        } else {
-          console.log('DEBUG: Recognition already running');
-          setIsListening(true);
-        }
-      } catch (error) {
-        console.log('DEBUG: Start failed:', error.message);
-        if (error.message && error.message.includes('abort')) {
-          // Retry after delay
-          setTimeout(() => {
-            try {
-              recognition.start();
-            } catch (e) {
-              setError('Failed to start. Another instance may be running.');
-            }
-          }, 500);
-        } else {
-          setError(`Failed to start: ${error.message}`);
-        }
+        recognition.start();
+      } catch (e) {
+        console.log('⚠️ TranscriptionDebug: Start failed:', e.message);
+        setError(`Failed to start: ${e.message}`);
       }
     }
   };
@@ -549,8 +278,10 @@ const TranscriptionDebug = ({
     setTranscript('');
     setInterimTranscript('');
     setTranscriptCount(0);
+    console.log('🧹 TranscriptionDebug: Transcript cleared');
   };
 
+  // Collapsed view
   if (!isOpen) {
     return (
       <Paper
@@ -574,6 +305,7 @@ const TranscriptionDebug = ({
     );
   }
 
+  // Main view
   return (
     <Paper
       sx={{
@@ -618,24 +350,30 @@ const TranscriptionDebug = ({
         </Box>
       </Box>
 
+      {/* Status */}
+      <Chip
+        label={status}
+        color={isListening ? 'success' : 'default'}
+        size="small"
+        sx={{ mb: 1 }}
+      />
+
+      {/* Error */}
       {error && (
         <Alert severity="error" sx={{ mb: 2, fontSize: '0.8rem' }}>
           {error}
         </Alert>
       )}
 
+      {/* Not supported */}
       {!isSupported && (
         <Alert severity="warning" sx={{ mb: 2, fontSize: '0.8rem' }}>
           Web Speech API not supported
         </Alert>
       )}
 
+      {/* Stats */}
       <Box mb={2} display="flex" gap={1} flexWrap="wrap">
-        <Chip
-          label={isListening ? 'Listening' : 'Not Listening'}
-          color={isListening ? 'success' : 'default'}
-          size="small"
-        />
         <Chip
           label={`${transcriptCount} phrases`}
           color="info"
@@ -650,6 +388,7 @@ const TranscriptionDebug = ({
         )}
       </Box>
 
+      {/* Transcript Display */}
       <Box
         sx={{
           minHeight: 150,
@@ -661,6 +400,7 @@ const TranscriptionDebug = ({
           mb: 1
         }}
       >
+        {/* Final transcript */}
         {transcript && (
           <Typography
             variant="body2"
@@ -676,6 +416,7 @@ const TranscriptionDebug = ({
           </Typography>
         )}
         
+        {/* Interim transcript */}
         {interimTranscript && (
           <Typography
             variant="body2"
@@ -690,27 +431,15 @@ const TranscriptionDebug = ({
           </Typography>
         )}
         
+        {/* Empty state */}
         {!transcript && !interimTranscript && (
           <Typography
             variant="body2"
             sx={{
               color: 'rgba(255, 255, 255, 0.5)',
               fontStyle: 'italic',
-              fontSize: '0.9rem'
-            }}
-          >
-            {isListening ? 'Listening... Speak something...' : 'Not listening. Click mic to start.'}
-          </Typography>
-        )}
-        
-        {!transcript && !interimTranscript && (
-          <Typography
-            variant="body2"
-            sx={{
-              textAlign: 'center',
-              fontStyle: 'italic',
-              color: 'rgba(255, 255, 255, 0.5)',
-              fontSize: '0.8rem'
+              fontSize: '0.9rem',
+              textAlign: 'center'
             }}
           >
             {isListening ? 'Listening... Speak now!' : 'Click mic to start'}
@@ -718,12 +447,12 @@ const TranscriptionDebug = ({
         )}
       </Box>
 
+      {/* Footer */}
       <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.7rem' }}>
-        Participant: {participantName || 'Unknown'} | Meeting: {meetingId}
+        {participantName || 'Unknown'} | {meetingId}
       </Typography>
     </Paper>
   );
 };
 
 export default TranscriptionDebug;
-
