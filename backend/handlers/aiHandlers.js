@@ -77,6 +77,9 @@ function isValidTranscript(transcript, confidence) {
  * @param {Server} io - Socket.IO server instance
  */
 export default function registerAIHandlers(socket, io) {
+  // DEBUG: Log when handler is registered
+  console.log('📝 AI Handlers registered for socket:', socket.id);
+  
   // Handle sentiment updates from participants
   socket.on('sentiment_update', ({ participantId, meetingId, sentimentData: receivedSentimentData }) => {
     // Extract emotion from sentimentData object (now using actual facial expressions)
@@ -602,8 +605,28 @@ export default function registerAIHandlers(socket, io) {
 
   // Transcript Update Event - Store with participant name for meeting notes
   socket.on('transcript_update', (data) => {
+    // DEBUG: Log that event was received
+    console.log('📥 transcript_update event received:', {
+      meetingId: data?.meetingId,
+      participantId: data?.participantId,
+      hasTranscript: !!data?.transcript,
+      transcriptLength: data?.transcript?.length,
+      confidence: data?.confidence,
+      socketId: socket.id
+    });
+    
     try {
       const { meetingId, participantId, transcript, timestamp, language, confidence, participantName } = data;
+      
+      // Validate required fields
+      if (!meetingId || !participantId || !transcript) {
+        console.log('⚠️ transcript_update rejected - missing required fields:', {
+          hasMeetingId: !!meetingId,
+          hasParticipantId: !!participantId,
+          hasTranscript: !!transcript
+        });
+        return;
+      }
       
       // VALIDATE TRANSCRIPT BEFORE STORING
       if (!isValidTranscript(transcript, confidence)) {

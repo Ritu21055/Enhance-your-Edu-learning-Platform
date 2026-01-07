@@ -152,7 +152,17 @@ const FreeTranscription = ({
           // FIX: Use socket.id as fallback if participantId is not available
           const currentParticipantId = participantId || socket?.id;
           if (socket && meetingId && currentParticipantId) {
-            socket.emit('transcript_update', {
+            // DEBUG: Check socket connection
+            if (!socket.connected) {
+              console.error('❌ FreeTranscription: Socket not connected!', {
+                socketId: socket?.id,
+                connected: socket?.connected,
+                meetingId,
+                participantId: currentParticipantId
+              });
+            }
+            
+            const transcriptData = {
               meetingId,
               participantId: currentParticipantId,
               participantName: participantName || 'Unknown',
@@ -160,12 +170,29 @@ const FreeTranscription = ({
               timestamp: Date.now(),
               language: 'en-US',
               confidence: confidence
-            });
-            console.log('📤 FreeTranscription: Sent transcript to server:', {
-              transcript: finalText,
+            };
+            
+            console.log('📤 FreeTranscription: Sending transcript to server:', {
+              transcript: finalText.substring(0, 50) + (finalText.length > 50 ? '...' : ''),
               participantId: currentParticipantId,
               socketId: socket?.id,
-              confidence
+              socketConnected: socket?.connected,
+              meetingId,
+              confidence,
+              transcriptLength: finalText.length
+            });
+            
+            socket.emit('transcript_update', transcriptData);
+            
+            // DEBUG: Verify emit was called
+            console.log('✅ FreeTranscription: transcript_update event emitted');
+          } else {
+            console.error('❌ FreeTranscription: Cannot send transcript - missing data:', {
+              hasSocket: !!socket,
+              hasMeetingId: !!meetingId,
+              hasParticipantId: !!currentParticipantId,
+              socketConnected: socket?.connected,
+              socketId: socket?.id
             });
           }
 
