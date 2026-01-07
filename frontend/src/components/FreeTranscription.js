@@ -41,6 +41,8 @@ const FreeTranscription = ({
   const recognitionRef = useRef(null);
   const isInitializedRef = useRef(false);
   const shouldAutoRestartRef = useRef(false);
+  const networkErrorRetryCountRef = useRef(0);
+  const maxNetworkRetries = 3;
 
   // Step 1: Check Web Speech API support
   useEffect(() => {
@@ -197,10 +199,40 @@ const FreeTranscription = ({
         }
         
         if (event.error === 'network') {
-          setError('Network error - check internet connection');
-          setStatus('Network Error');
+          console.warn('⚠️ FreeTranscription: Network error detected, attempting auto-recovery...');
+          setStatus('Network Error - Retrying...');
           setIsListening(false);
-          shouldAutoRestartRef.current = false; // Don't auto-restart on network error
+          
+          // Auto-retry with exponential backoff (1s, 2s, 4s)
+          networkErrorRetryCountRef.current += 1;
+          if (networkErrorRetryCountRef.current <= maxNetworkRetries) {
+            const retryDelay = Math.min(1000 * Math.pow(2, networkErrorRetryCountRef.current - 1), 4000);
+            console.log(`🔄 FreeTranscription: Retrying in ${retryDelay}ms (attempt ${networkErrorRetryCountRef.current}/${maxNetworkRetries})`);
+            
+            setTimeout(() => {
+              if (recognitionRef.current && shouldAutoRestartRef.current) {
+                try {
+                  recognitionRef.current.start();
+                  networkErrorRetryCountRef.current = 0; // Reset on success
+                  console.log('✅ FreeTranscription: Auto-recovery successful');
+                  setError(null); // Clear error on success
+                  setStatus('Listening...');
+                } catch (e) {
+                  console.error('❌ FreeTranscription: Auto-recovery failed:', e.message);
+                  if (networkErrorRetryCountRef.current >= maxNetworkRetries) {
+                    setError('Network error - multiple retry attempts failed. Please check your connection.');
+                    setStatus('Network Error');
+                    shouldAutoRestartRef.current = false;
+                  }
+                }
+              }
+            }, retryDelay);
+          } else {
+            setError('Network error - multiple retry attempts failed. Please check your connection.');
+            setStatus('Network Error');
+            shouldAutoRestartRef.current = false;
+            networkErrorRetryCountRef.current = 0; // Reset for next time
+          }
           return;
         }
         
@@ -229,9 +261,11 @@ const FreeTranscription = ({
       recognition.onend = () => {
         console.log('🛑 FreeTranscription: Recognition ended');
         setIsListening(false);
-        setStatus('Stopped');
         
-        // Auto-restart if enabled
+        // Reset network error retry count on normal end (successful recovery)
+        networkErrorRetryCountRef.current = 0;
+        
+        // Auto-restart if enabled (even after network errors if retries succeeded)
         if (shouldAutoRestartRef.current) {
           console.log('🔄 FreeTranscription: Auto-restarting...');
           setTimeout(() => {
@@ -241,9 +275,11 @@ const FreeTranscription = ({
               }
             } catch (e) {
               console.log('⚠️ FreeTranscription: Auto-restart failed:', e.message);
-              shouldAutoRestartRef.current = false;
+              // Don't disable auto-restart on single failure, let it retry
             }
           }, 500);
+        } else {
+          setStatus('Stopped');
         }
       };
 

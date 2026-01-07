@@ -195,13 +195,20 @@ export default function registerAIHandlers(socket, io) {
     // Set up intelligent question generation (every 60 seconds - reduced frequency)
     const questionTimer = setInterval(async () => {
       try {
-        // Get recent transcript context
-        const recentContext = llmService.getRecentTranscriptContext(meetingId, 5);
+        // Get recent transcript context (INCREASED: 10 minutes instead of 5 for better context)
+        const recentContext = llmService.getRecentTranscriptContext(meetingId, 10);
+        
+        // Get transcript history count for debugging
+        const transcriptHistoryCount = llmService.transcriptHistory.has(meetingId) 
+          ? llmService.transcriptHistory.get(meetingId).length 
+          : 0;
         
         console.log('🤖 Question generation check:', {
           meetingId,
           contextLength: recentContext.length,
-          context: recentContext.substring(0, 100) + '...'
+          transcriptHistoryCount,
+          context: recentContext.substring(0, 100) + (recentContext.length > 100 ? '...' : ''),
+          hasContext: recentContext.length > 0
         });
         
         // Get ALL participants from meeting (not just those with emotions)
@@ -319,66 +326,121 @@ export default function registerAIHandlers(socket, io) {
         });
 
         // Progressive validation based on conversation length
-        const contextLength = recentContext.length        // RELAXED: Reduced minimum conversation requirement (200+ chars instead of 500+)
+        const contextLength = recentContext.length;
+        
+        console.log('🤖 Question generation validation:', {
+          contextLength,
+          hasAnyParticipants,
+          hasParticipantEmotions,
+          participantsCount: allParticipantsForQuestions.length
+        });
+        
+        // FURTHER RELAXED: Reduced minimum conversation requirement (100+ chars instead of 200+)
         // Face expressions sirf tab use karein jab conversation substantial ho
-        if (contextLength < 200) {
-          console.log('📝 Skipping question generation - conversation not substantial enough (need at least 200 chars)');
+        if (contextLength < 100) {
+          console.log('📝 Skipping question generation - conversation too short (need at least 100 chars, got ' + contextLength + ')');
           return; // Don't generate questions even with emotions if conversation is too short
         }
 
-        // Early conversation (200-1000 chars): Relaxed requirements
-        if (contextLength < 1000) {
+        // Early conversation (100-500 chars): Very relaxed requirements
+        if (contextLength < 500) {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
           const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // RELAXED: Require at least 30 words, 15 unique words, 2 sentences (reduced from 50/20/3)
+          // FURTHER RELAXED: Require at least 15 words, 8 unique words, 1 sentence (reduced from 30/15/2)
           // Even with emotions, need some conversation
-          if (meaningfulWords < 30 || uniqueWords.size < 15 || sentences.length < 2) {
-            console.log('📝 Skipping question generation - insufficient conversation quality (need at least 30 words, 15 unique, 2 sentences)');
+          if (meaningfulWords < 15 || uniqueWords.size < 8 || sentences.length < 1) {
+            console.log('📝 Skipping question generation - insufficient conversation quality:', {
+              meaningfulWords,
+              uniqueWords: uniqueWords.size,
+              sentences: sentences.length,
+              required: '15 words, 8 unique, 1 sentence'
+            });
             return;
           }
           
-          // Now check if we have participants (with or without emotions)
+          // FIXED: Make participants check optional - generate general questions even without participants
           if (!hasAnyParticipants) {
-            console.log('📝 Conversation substantial but no participants found');
-            return;
-          }
-          
-          if (hasParticipantEmotions) {
-            console.log('📝 Conversation substantial with participant emotions - will generate personalized question');
+            console.log('📝 Early conversation but no participants found - will generate general topic-related question');
+          } else if (hasParticipantEmotions) {
+            console.log('📝 Early conversation with participant emotions - will generate personalized question');
           } else {
-            console.log('📝 Conversation substantial but no emotions (video off) - will generate topic-related question for participants');
+            console.log('📝 Early conversation but no emotions (video off) - will generate topic-related question for participants');
           }
         }
-        // Medium conversation (1000+ chars): Good quality
+        // Medium conversation (500-1000 chars): Relaxed requirements
+        else if (contextLength < 1000) {
+          const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
+          const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+          const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+          
+          // RELAXED: Require at least 25 words, 12 unique words, 2 sentences (reduced from 40/20/3)
+          if (meaningfulWords < 25 || uniqueWords.size < 12 || sentences.length < 2) {
+            console.log('📝 Skipping question generation - insufficient conversation quality:', {
+              meaningfulWords,
+              uniqueWords: uniqueWords.size,
+              sentences: sentences.length,
+              required: '25 words, 12 unique, 2 sentences'
+            });
+            return;
+          }
+          
+          // FIXED: Make participants check optional - generate general questions even without participants
+          if (!hasAnyParticipants) {
+            console.log('📝 Medium conversation but no participants found - will generate general topic-related question');
+          } else if (hasParticipantEmotions) {
+            console.log('📝 Medium conversation with participant emotions - will generate personalized question');
+          } else {
+            console.log('📝 Medium conversation but no emotions (video off) - will generate topic-related question');
+          }
+        }
+        // Substantial conversation (1000+ chars): Good quality
         else {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
           const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // RELAXED: Require at least 40 words, 20 unique words, 3 sentences (reduced from 60/25/5)
-          if (meaningfulWords < 40 || uniqueWords.size < 20 || sentences.length < 3) {
-            console.log('📝 Skipping question generation - insufficient conversation quality (need at least 40 words, 20 unique, 3 sentences)');
+          // RELAXED: Require at least 35 words, 18 unique words, 3 sentences (reduced from 40/20/3)
+          if (meaningfulWords < 35 || uniqueWords.size < 18 || sentences.length < 3) {
+            console.log('📝 Skipping question generation - insufficient conversation quality:', {
+              meaningfulWords,
+              uniqueWords: uniqueWords.size,
+              sentences: sentences.length,
+              required: '35 words, 18 unique, 3 sentences'
+            });
             return;
           }
           
+          // FIXED: Make participants check optional - generate general questions even without participants
           if (!hasAnyParticipants) {
-            console.log('📝 Conversation substantial but no participants found');
-            return;
-          }
-          
-          if (hasParticipantEmotions) {
+            console.log('📝 Substantial conversation but no participants found - will generate general topic-related question');
+          } else if (hasParticipantEmotions) {
             console.log('📝 Substantial conversation with participant emotions - will generate personalized question');
           } else {
             console.log('📝 Substantial conversation but no emotions (video off) - will generate topic-related question');
           }
         }
 
-        // Use intelligent question generation trigger (passes emotion info)
-        if (!llmService.shouldGenerateQuestionIntelligently(meetingId, recentContext, hasParticipantEmotions)) {
-          console.log('⏰ Skipping question generation - not a good time for questions');
+        // FIXED: Use intelligent question generation trigger ONLY for time interval check (not double validation)
+        // Check time interval first
+        const timeInterval = 1; // 1 minute minimum between questions
+        if (!llmService.shouldGenerateQuestion(meetingId, timeInterval)) {
+          const lastQuestionTime = llmService.lastQuestionTime.get(meetingId);
+          const timeSinceLastQuestion = lastQuestionTime ? (Date.now() - lastQuestionTime) / 1000 : 0;
+          console.log(`⏰ Skipping question generation - time interval not met (need ${timeInterval} minutes, last question was ${timeSinceLastQuestion.toFixed(0)} seconds ago)`);
           return;
+        }
+        
+        // Additional check: Only use intelligent trigger for very early conversations (< 200 chars)
+        // For longer conversations, skip the double validation
+        if (contextLength < 200) {
+          if (!llmService.shouldGenerateQuestionIntelligently(meetingId, recentContext, hasParticipantEmotions)) {
+            console.log('⏰ Skipping question generation - very early conversation requirements not met');
+            return;
+          }
+        } else {
+          console.log('✅ Conversation length sufficient, skipping intelligent trigger double-check');
         }
 
         // Categorize emotions for better context (only for participants with emotions)
@@ -414,7 +476,8 @@ export default function registerAIHandlers(socket, io) {
         if (questionResult && questionResult.question && questionResult.question.trim().length > 10) {
           const questionText = questionResult.question.trim();
           
-          // CRITICAL: Validate that question includes participant name if participants exist
+          // FIXED: Validate that question includes participant name if participants exist
+          // But allow general questions if no participants
           if (hasAnyParticipants && allParticipantsForQuestions.length > 0) {
             const participantNames = allParticipantsForQuestions.map(p => p.name);
             const hasParticipantName = participantNames.some(name => 
@@ -594,6 +657,37 @@ export default function registerAIHandlers(socket, io) {
       // Also add to LLM service for AI question generation
       llmService.addToTranscriptHistory(meetingId, transcript.trim());
       
+      // Debug: Log transcript history status
+      const historyCount = llmService.transcriptHistory.has(meetingId) 
+        ? llmService.transcriptHistory.get(meetingId).length 
+        : 0;
+      if (historyCount % 5 === 0 || historyCount === 1) {
+        console.log(`📝 Transcript history status for ${meetingId}: ${historyCount} entries stored`);
+      }
+      
+      // CRITICAL FIX: Broadcast transcript to all other participants in real-time
+      const meeting = activeMeetings.get(meetingId);
+      if (meeting && meeting.participants) {
+        meeting.participants.forEach(p => {
+          // Don't send back to the sender (they already have it)
+          // Use p.id as socket ID (participants use their socket.id as their participant id)
+          const targetSocketId = p.id || p.socketId;
+          // Check both participantId and socket.id to avoid sending to sender
+          if (targetSocketId && targetSocketId !== participantId && targetSocketId !== socket?.id) {
+            io.to(targetSocketId).emit('transcript_received', {
+              meetingId,
+              participantId,
+              participantName: finalParticipantName,
+              transcript: transcript.trim(),
+              timestamp,
+              language,
+              confidence
+            });
+            console.log(`📤 Broadcasted transcript to ${p.name} (${targetSocketId}) from ${finalParticipantName}`);
+          }
+        });
+      }
+      
       // REMOVED: Highlight detection feature - no longer analyzing for highlights
       
     } catch (error) {
@@ -612,6 +706,30 @@ export default function registerAIHandlers(socket, io) {
       if (!meeting) {
         console.log('❌ Meeting not found:', meetingId);
         return;
+      }
+      
+      // CRITICAL FIX: Generate meeting notes from transcriptData BEFORE saving
+      let notes = null;
+      if (transcriptData.has(meetingId)) {
+        const transcripts = transcriptData.get(meetingId);
+        if (transcripts && transcripts.length > 0) {
+          console.log(`📝 Generating meeting notes for meeting ${meetingId}...`, { transcriptCount: transcripts.length });
+          try {
+            notes = await llmService.generateMeetingNotes(transcripts, meetingId);
+            console.log(`✅ Meeting notes generated for meeting ${meetingId}`);
+            
+            // Save notes to meeting history
+            await meetingHistoryManager.saveMeetingNotes(meetingId, notes);
+            console.log(`💾 Meeting notes saved to history for meeting ${meetingId}`);
+          } catch (error) {
+            console.error(`❌ Error generating/saving meeting notes for meeting ${meetingId}:`, error);
+            // Continue even if notes generation fails
+          }
+        } else {
+          console.log(`⚠️ No transcripts found in transcriptData for meeting ${meetingId}`);
+        }
+      } else {
+        console.log(`⚠️ transcriptData does not have meeting ${meetingId}`);
       }
       
       // REMOVED: Highlight detection feature - no longer getting highlights
@@ -649,7 +767,8 @@ export default function registerAIHandlers(socket, io) {
           meetingId,
           historyPath,
           transcriptEntries: transcriptHistory.length,
-          hasRecording: !!existingRecordingSession
+          hasRecording: !!existingRecordingSession,
+          notesGenerated: !!notes
         });
       } catch (historyError) {
         console.error('❌ Failed to save meeting to history:', historyError);

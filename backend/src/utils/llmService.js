@@ -645,14 +645,19 @@ class LLMService {
       timestamp: Date.now()
     });
     
-    // Keep only last 10 transcripts to manage memory
-    if (history.length > 10) {
+    // INCREASED: Keep last 50 transcripts to manage memory (increased from 10 to 50 for better context)
+    if (history.length > 50) {
       history.shift();
+    }
+    
+    // Debug logging
+    if (history.length % 5 === 0) {
+      console.log(`📝 Transcript history for ${meetingId}: ${history.length} entries`);
     }
   }
 
-  // Get recent transcript context
-  getRecentTranscriptContext(meetingId, minutes = 5) {
+  // Get recent transcript context (default: 10 minutes for better context)
+  getRecentTranscriptContext(meetingId, minutes = 10) {
     if (!this.transcriptHistory.has(meetingId)) {
       return '';
     }
@@ -708,19 +713,25 @@ class LLMService {
     // Progressive requirements based on conversation length
     // Early conversation (100-500 chars): Very relaxed requirements
     if (contextLength < 500) {
-    const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
-    const uniqueWords = new Set(words.map(word => word.toLowerCase()));
-    
-      // RELAXED: at least 20 words and 10 unique words (reduced from 30/15)
-      if (words.length >= 20 && uniqueWords.size >= 10) {
-        console.log('🤖 Question trigger: Early conversation detected - generating question');
+      const words = transcriptContext.split(/\s+/).filter(word => word.length > 2);
+      const uniqueWords = new Set(words.map(word => word.toLowerCase()));
+      
+      // FURTHER RELAXED: at least 15 words and 8 unique words (reduced from 20/10)
+      if (words.length >= 15 && uniqueWords.size >= 8) {
+        console.log('🤖 Question trigger: Early conversation detected - generating question', {
+          words: words.length,
+          uniqueWords: uniqueWords.size
+        });
         return true;
       }
       
       // If emotions present, even more relaxed
-      if (hasParticipantEmotions && words.length >= 15 && uniqueWords.size >= 8) {
-        console.log('🤖 Question trigger: Early conversation with emotions - generating question');
-    return true;
+      if (hasParticipantEmotions && words.length >= 10 && uniqueWords.size >= 6) {
+        console.log('🤖 Question trigger: Early conversation with emotions - generating question', {
+          words: words.length,
+          uniqueWords: uniqueWords.size
+        });
+        return true;
       }
     }
     
@@ -730,9 +741,13 @@ class LLMService {
       const uniqueWords = new Set(words.map(word => word.toLowerCase()));
       const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
       
-      // RELAXED: at least 30 words, 15 unique words, 2 sentences (reduced from 50/20/3)
-      if (words.length >= 30 && uniqueWords.size >= 15 && sentences.length >= 2) {
-        console.log('🤖 Question trigger: Medium conversation detected - generating question');
+      // RELAXED: at least 25 words, 12 unique words, 2 sentences (reduced from 30/15/2)
+      if (words.length >= 25 && uniqueWords.size >= 12 && sentences.length >= 2) {
+        console.log('🤖 Question trigger: Medium conversation detected - generating question', {
+          words: words.length,
+          uniqueWords: uniqueWords.size,
+          sentences: sentences.length
+        });
         return true;
       }
     }
@@ -742,13 +757,22 @@ class LLMService {
     const uniqueWords = new Set(words.map(word => word.toLowerCase()));
     const sentences = transcriptContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
     
-    // RELAXED: at least 40 words, 20 unique words, 3 sentences (reduced from 60/25/5)
-    if (words.length >= 40 && uniqueWords.size >= 20 && sentences.length >= 3) {
-      console.log('🤖 Question trigger: Substantial conversation detected - generating question');
+    // RELAXED: at least 35 words, 18 unique words, 3 sentences (reduced from 40/20/3)
+    if (words.length >= 35 && uniqueWords.size >= 18 && sentences.length >= 3) {
+      console.log('🤖 Question trigger: Substantial conversation detected - generating question', {
+        words: words.length,
+        uniqueWords: uniqueWords.size,
+        sentences: sentences.length
+      });
       return true;
     }
 
-    console.log('🤖 Question trigger: Conversation requirements not met');
+    console.log('🤖 Question trigger: Conversation requirements not met', {
+      contextLength,
+      words: words.length,
+      uniqueWords: uniqueWords.size,
+      sentences: sentences.length
+    });
     return false;
   }
 

@@ -33,9 +33,13 @@ const TranscriptionDebug = ({
   const [confidence, setConfidence] = useState(0);
   const [transcriptCount, setTranscriptCount] = useState(0);
   const [status, setStatus] = useState('Initializing...');
+  // CRITICAL FIX: Store transcripts from other participants
+  const [otherParticipantsTranscripts, setOtherParticipantsTranscripts] = useState([]);
   
   const recognitionRef = useRef(null);
   const isInitializedRef = useRef(false);
+  const networkErrorRetryCountRef = useRef(0);
+  const maxNetworkRetries = 3;
 
   // Step 1: Check Web Speech API support
   useEffect(() => {
@@ -141,9 +145,38 @@ const TranscriptionDebug = ({
         }
         
         if (event.error === 'network') {
-          setError('Network error - check internet connection');
-          setStatus('Network Error');
+          console.warn('⚠️ TranscriptionDebug: Network error detected, attempting auto-recovery...');
+          setStatus('Network Error - Retrying...');
           setIsListening(false);
+          
+          // Auto-retry with exponential backoff (1s, 2s, 4s)
+          networkErrorRetryCountRef.current += 1;
+          if (networkErrorRetryCountRef.current <= maxNetworkRetries) {
+            const retryDelay = Math.min(1000 * Math.pow(2, networkErrorRetryCountRef.current - 1), 4000);
+            console.log(`🔄 TranscriptionDebug: Retrying in ${retryDelay}ms (attempt ${networkErrorRetryCountRef.current}/${maxNetworkRetries})`);
+            
+            setTimeout(() => {
+              if (recognitionRef.current) {
+                try {
+                  recognitionRef.current.start();
+                  networkErrorRetryCountRef.current = 0; // Reset on success
+                  console.log('✅ TranscriptionDebug: Auto-recovery successful');
+                  setError(null); // Clear error on success
+                  setStatus('Listening...');
+                } catch (e) {
+                  console.error('❌ TranscriptionDebug: Auto-recovery failed:', e.message);
+                  if (networkErrorRetryCountRef.current >= maxNetworkRetries) {
+                    setError('Network error - multiple retry attempts failed.');
+                    setStatus('Network Error');
+                  }
+                }
+              }
+            }, retryDelay);
+          } else {
+            setError('Network error - multiple retry attempts failed.');
+            setStatus('Network Error');
+            networkErrorRetryCountRef.current = 0; // Reset for next time
+          }
           return;
         }
         
@@ -170,7 +203,9 @@ const TranscriptionDebug = ({
       recognition.onend = () => {
         console.log('🛑 TranscriptionDebug: Recognition ended');
         setIsListening(false);
-        setStatus('Stopped');
+        
+        // Reset network error retry count on normal end (successful recovery)
+        networkErrorRetryCountRef.current = 0;
         
         // Auto-restart if we were listening
         if (isListening) {
@@ -182,8 +217,11 @@ const TranscriptionDebug = ({
               }
             } catch (e) {
               console.log('⚠️ TranscriptionDebug: Auto-restart failed:', e.message);
+              // Don't disable on single failure, let it retry
             }
           }, 500);
+        } else {
+          setStatus('Stopped');
         }
       };
 
@@ -247,6 +285,43 @@ const TranscriptionDebug = ({
       isInitializedRef.current = false;
     };
   }, [isSupported, socket, meetingId, participantId]);
+
+  // CRITICAL FIX: Listen for transcripts from other participants
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleTranscriptReceived = (data) => {
+      // Don't show own transcripts (already shown)
+      const currentParticipantId = participantId || socket?.id;
+      if (data.participantId === currentParticipantId) {
+        return;
+      }
+
+      console.log('📥 TranscriptionDebug: Received transcript from other participant:', {
+        from: data.participantName,
+        transcript: data.transcript.substring(0, 50) + '...',
+        participantId: data.participantId
+      });
+
+      // Add to other participants' transcripts list
+      setOtherParticipantsTranscripts(prev => {
+        // Keep only last 20 transcripts to avoid memory issues
+        const updated = [...prev, {
+          participantName: data.participantName,
+          transcript: data.transcript,
+          timestamp: data.timestamp,
+          participantId: data.participantId
+        }];
+        return updated.slice(-20); // Keep last 20 only
+      });
+    };
+
+    socket.on('transcript_received', handleTranscriptReceived);
+
+    return () => {
+      socket.off('transcript_received', handleTranscriptReceived);
+    };
+  }, [socket, participantId]);
 
   // Toggle listening
   const toggleListening = () => {
@@ -400,20 +475,64 @@ const TranscriptionDebug = ({
           mb: 1
         }}
       >
-        {/* Final transcript */}
+        {/* Your own transcript */}
         {transcript && (
-          <Typography
-            variant="body2"
-            sx={{
-              mb: 1,
-              lineHeight: 1.6,
-              color: 'white',
-              fontSize: '0.9rem',
-              wordBreak: 'break-word'
-            }}
-          >
-            {transcript}
-          </Typography>
+          <Box mb={1}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'rgba(255, 255, 255, 0.8)',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                mb: 0.5
+              }}
+            >
+              {participantName || 'You'}:
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                lineHeight: 1.6,
+                color: 'white',
+                fontSize: '0.9rem',
+                wordBreak: 'break-word'
+              }}
+            >
+              {transcript}
+            </Typography>
+          </Box>
+        )}
+        
+        {/* Other participants' transcripts */}
+        {otherParticipantsTranscripts.length > 0 && (
+          <Box>
+            {otherParticipantsTranscripts.slice(-5).map((item, index) => (
+              <Box key={index} mb={1} sx={{ borderLeft: '2px solid rgba(255, 255, 255, 0.3)', pl: 1 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    mb: 0.5
+                  }}
+                >
+                  {item.participantName}:
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    lineHeight: 1.6,
+                    color: 'rgba(255, 255, 255, 0.9)',
+                    fontSize: '0.9rem',
+                    wordBreak: 'break-word'
+                  }}
+                >
+                  {item.transcript}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
         )}
         
         {/* Interim transcript */}
@@ -432,7 +551,7 @@ const TranscriptionDebug = ({
         )}
         
         {/* Empty state */}
-        {!transcript && !interimTranscript && (
+        {!transcript && !interimTranscript && otherParticipantsTranscripts.length === 0 && (
           <Typography
             variant="body2"
             sx={{

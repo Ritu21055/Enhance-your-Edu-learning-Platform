@@ -1002,6 +1002,11 @@ const MeetingRoom = () => {
           onLeaveMeeting={() => {
             // Update meeting status when leaving
             if (isHost) {
+              // CRITICAL FIX: Emit end_meeting event to backend to generate notes
+              if (socket) {
+                console.log('🏁 Host ending meeting, emitting end_meeting event...');
+                socket.emit('end_meeting', { meetingId });
+              }
               updateMeetingStatus(meetingId, 'completed', Date.now());
             }
             navigate('/');
