@@ -710,26 +710,44 @@ export default function registerAIHandlers(socket, io) {
       
       // CRITICAL FIX: Generate meeting notes from transcriptData BEFORE saving
       let notes = null;
+      
+      // Debug: Check all transcript sources
+      console.log(`🔍 Debug transcript sources for meeting ${meetingId}:`, {
+        hasTranscriptData: transcriptData.has(meetingId),
+        transcriptDataCount: transcriptData.has(meetingId) ? transcriptData.get(meetingId).length : 0,
+        hasLLMTranscriptHistory: llmService.transcriptHistory.has(meetingId),
+        llmTranscriptCount: llmService.transcriptHistory.has(meetingId) ? llmService.transcriptHistory.get(meetingId).length : 0
+      });
+      
       if (transcriptData.has(meetingId)) {
         const transcripts = transcriptData.get(meetingId);
         if (transcripts && transcripts.length > 0) {
-          console.log(`📝 Generating meeting notes for meeting ${meetingId}...`, { transcriptCount: transcripts.length });
+          console.log(`📝 Generating meeting notes for meeting ${meetingId}...`, { 
+            transcriptCount: transcripts.length,
+            sampleTranscript: transcripts[0]?.transcript?.substring(0, 50) + '...'
+          });
           try {
             notes = await llmService.generateMeetingNotes(transcripts, meetingId);
-            console.log(`✅ Meeting notes generated for meeting ${meetingId}`);
+            console.log(`✅ Meeting notes generated for meeting ${meetingId}`, {
+              hasSummary: !!notes?.summary,
+              hasKeyPoints: !!notes?.importantPoints,
+              keyPointsCount: notes?.importantPoints?.length || 0
+            });
             
             // Save notes to meeting history
             await meetingHistoryManager.saveMeetingNotes(meetingId, notes);
             console.log(`💾 Meeting notes saved to history for meeting ${meetingId}`);
           } catch (error) {
             console.error(`❌ Error generating/saving meeting notes for meeting ${meetingId}:`, error);
+            console.error(`❌ Error stack:`, error.stack);
             // Continue even if notes generation fails
           }
         } else {
-          console.log(`⚠️ No transcripts found in transcriptData for meeting ${meetingId}`);
+          console.log(`⚠️ No transcripts found in transcriptData for meeting ${meetingId} (array is empty)`);
         }
       } else {
         console.log(`⚠️ transcriptData does not have meeting ${meetingId}`);
+        console.log(`⚠️ Available transcriptData keys:`, Array.from(transcriptData.keys()));
       }
       
       // REMOVED: Highlight detection feature - no longer getting highlights
@@ -752,12 +770,24 @@ export default function registerAIHandlers(socket, io) {
       meeting.status = 'completed';
       
       // Save meeting to history (without highlights)
+      // CRITICAL FIX: Use transcriptData instead of llmService.getTranscriptHistory for meeting history
+      // transcriptData has the full transcript with participant names needed for notes
+      const transcriptHistoryForSave = transcriptData.has(meetingId) ? transcriptData.get(meetingId) : (transcriptHistory || []);
+      
+      console.log('💾 Saving meeting to history:', {
+        meetingId,
+        transcriptDataCount: transcriptData.has(meetingId) ? transcriptData.get(meetingId).length : 0,
+        transcriptHistoryCount: transcriptHistory.length,
+        transcriptHistoryForSaveCount: transcriptHistoryForSave.length,
+        hasNotes: !!notes
+      });
+      
       try {
+        // Function signature: saveMeetingToHistory(meetingData, recordingSession, transcriptHistory, sentimentData)
         const historyPath = await meetingHistoryManager.saveMeetingToHistory(
           meeting,
-          [], // No highlights - feature removed
           existingRecordingSession,
-          transcriptHistory,
+          transcriptHistoryForSave,
           meetingSentimentData
         );
         console.log('💾 Meeting saved to history:', historyPath);

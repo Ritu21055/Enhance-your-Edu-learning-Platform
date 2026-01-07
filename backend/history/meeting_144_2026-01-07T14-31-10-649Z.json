@@ -1,0 +1,45 @@
+{
+  "meeting": {
+    "id": "144",
+    "title": "testing",
+    "host": "ritu (Host)",
+    "hostId": "3Ln8Gj2dcBIuc39QAAAE",
+    "participants": [
+      {
+        "id": "3Ln8Gj2dcBIuc39QAAAE",
+        "name": "ritu (Host)",
+        "joinedAt": "2026-01-07T14:30:08.579Z",
+        "isHost": true,
+        "isApproved": true,
+        "audioEnabled": true,
+        "videoEnabled": true
+      }
+    ],
+    "createdAt": "2026-01-07T14:30:08.078Z",
+    "endedAt": "2026-01-07T14:31:10.650Z",
+    "duration": 62571,
+    "status": "completed"
+  },
+  "recording": {
+    "duration": null
+  },
+  "transcript": {
+    "totalEntries": 0,
+    "data": [],
+    "fullTranscript": ""
+  },
+  "sentiment": {
+    "totalParticipants": 0,
+    "sentimentCounts": {}
+  },
+  "metadata": {
+    "savedAt": "2026-01-07T14:31:10.650Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": false,
+      "questionGeneration": true,
+      "sentimentAnalysis": true,
+      "transcription": false
+    }
+  }
+}
