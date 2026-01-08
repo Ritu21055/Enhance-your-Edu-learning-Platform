@@ -1,0 +1,30 @@
+{
+  "meeting": {
+    "id": "111",
+    "title": "testing",
+    "host": null,
+    "hostId": null,
+    "participants": [],
+    "createdAt": "2026-01-08T14:20:33.919Z",
+    "endedAt": "2026-01-08T14:28:36.405Z",
+    "duration": 482453,
+    "status": "completed"
+  },
+  "recording": null,
+  "transcript": {
+    "totalEntries": 0,
+    "data": [],
+    "fullTranscript": ""
+  },
+  "sentiment": null,
+  "metadata": {
+    "savedAt": "2026-01-08T14:28:36.407Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": false,
+      "questionGeneration": true,
+      "sentimentAnalysis": false,
+      "transcription": false
+    }
+  }
+}

@@ -202,6 +202,9 @@ export default function registerAIHandlers(socket, io) {
       llmService.questionGenerationTimer.delete(meetingId);
     }
     
+    // Create timer reference first (will be set later)
+    let questionTimerRef = null;
+    
     // Function to check and generate questions
     const checkAndGenerateQuestion = async () => {
       try {
@@ -209,7 +212,9 @@ export default function registerAIHandlers(socket, io) {
         const currentMeeting = activeMeetings.get(meetingId);
         if (!currentMeeting) {
           console.log('⚠️ Meeting no longer exists, stopping timer for:', meetingId);
-          clearInterval(questionTimer);
+          if (questionTimerRef) {
+            clearInterval(questionTimerRef);
+          }
           llmService.questionGenerationTimer.delete(meetingId);
           return;
         }
@@ -672,13 +677,13 @@ export default function registerAIHandlers(socket, io) {
     checkAndGenerateQuestion();
     
     // Then set up interval to check every 30 seconds
-    const questionTimer = setInterval(checkAndGenerateQuestion, 30000);
+    questionTimerRef = setInterval(checkAndGenerateQuestion, 30000);
     
     // Store timer for cleanup
-    llmService.questionGenerationTimer.set(meetingId, questionTimer);
+    llmService.questionGenerationTimer.set(meetingId, questionTimerRef);
     
     console.log('✅ Question generation timer started for meeting:', meetingId, {
-      timerId: questionTimer,
+      timerId: questionTimerRef,
       interval: '30 seconds',
       initialCheck: 'completed',
       nextCheck: 'in 30 seconds'

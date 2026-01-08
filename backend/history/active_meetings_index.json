@@ -1,13 +1,14 @@
 {
   "111": {
-    "title": "Meeting 111",
-    "createdAt": "2025-12-26T06:45:44.776Z",
-    "endedAt": "2025-12-26T06:45:39.543Z",
-    "duration": 0,
-    "highlights": 0,
+    "title": "testing",
+    "host": null,
+    "createdAt": "2026-01-08T14:20:33.919Z",
+    "endedAt": "2026-01-08T14:28:36.405Z",
+    "duration": 482453,
+    "participants": 0,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2025-12-26T06:45:39.547Z"
+    "lastUpdated": "2026-01-08T14:28:37.167Z"
   },
   "123": {
     "title": "Meeting 123",
