@@ -130,10 +130,10 @@ const MeetingNotes = ({ notes, loading = false, error = null }) => {
           
           ${notes.summary ? `<h2>SUMMARY</h2><p>${notes.summary}</p>` : ''}
           
-          ${notes.keyPoints && notes.keyPoints.length > 0 ? `
-            <h2>KEY POINTS</h2>
+          ${notes.importantPoints && notes.importantPoints.length > 0 ? `
+            <h2>IMPORTANT POINTS</h2>
             <ul>
-              ${notes.keyPoints.map((point, index) => `<li>${point}</li>`).join('')}
+              ${notes.importantPoints.map((point, index) => `<li>${point}</li>`).join('')}
             </ul>
           ` : ''}
           
@@ -222,10 +222,10 @@ const MeetingNotes = ({ notes, loading = false, error = null }) => {
       text += notes.summary + '\n\n';
     }
 
-    if (notes.keyPoints && notes.keyPoints.length > 0) {
-      text += 'KEY POINTS\n';
+    if (notes.importantPoints && notes.importantPoints.length > 0) {
+      text += 'IMPORTANT POINTS\n';
       text += '-'.repeat(50) + '\n';
-      notes.keyPoints.forEach((point, index) => {
+      notes.importantPoints.forEach((point, index) => {
         text += `${index + 1}. ${point}\n`;
       });
       text += '\n';
@@ -380,19 +380,19 @@ const MeetingNotes = ({ notes, loading = false, error = null }) => {
         </AccordionDetails>
       </Accordion>
 
-      {/* Key Points */}
-      {notes.keyPoints && notes.keyPoints.length > 0 && (
-        <Accordion expanded={expanded === 'keyPoints'} onChange={handleChange('keyPoints')}>
+      {/* Important Points */}
+      {notes.importantPoints && notes.importantPoints.length > 0 && (
+        <Accordion expanded={expanded === 'importantPoints'} onChange={handleChange('importantPoints')}>
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Box display="flex" alignItems="center" gap={1}>
               <Description color="primary" />
-              <Typography variant="h6">Key Points</Typography>
-              <Chip label={notes.keyPoints.length} size="small" color="primary" />
+              <Typography variant="h6">Important Points</Typography>
+              <Chip label={notes.importantPoints.length} size="small" color="primary" />
             </Box>
           </AccordionSummary>
           <AccordionDetails>
             <List>
-              {notes.keyPoints.map((point, index) => (
+              {notes.importantPoints.map((point, index) => (
                 <ListItem key={index}>
                   <ListItemText
                     primary={`${index + 1}. ${point}`}

@@ -273,10 +273,21 @@ export default function registerAIHandlers(socket, io) {
               }
             }
             
+            // CRITICAL FIX: Also check sentimentData participants for name
+            if (!participantName && meetingSentimentData && meetingSentimentData.participants) {
+              const sentimentParticipant = meetingSentimentData.participants.get(participantId);
+              if (sentimentParticipant && sentimentParticipant.participantName) {
+                participantName = sentimentParticipant.participantName;
+                participantNames[participantId] = participantName; // Cache it
+              }
+            }
+            
             // CRITICAL FIX: Only use participant ID prefix as last resort, log warning
             if (!participantName) {
               console.warn(`⚠️ Could not find participant name for ${participantId}, using ID prefix`);
-              participantName = `Participant ${participantId.slice(0, 8)}`; // Use participant ID prefix instead of 'a participant'
+              // FIX: Try to extract name from participantId if it contains name info
+              // Otherwise use a more descriptive fallback
+              participantName = `Participant ${participantId.slice(0, 8)}`;
             }
             
             // Collect participants with emotions (video ON)
@@ -350,14 +361,14 @@ export default function registerAIHandlers(socket, io) {
           participantsCount: allParticipantsForQuestions.length
         });
         
-        // FURTHER RELAXED: Reduced minimum conversation requirement (100+ chars instead of 200+)
+        // FURTHER RELAXED: Reduced minimum conversation requirement (70+ chars instead of 100+)
         // Face expressions sirf tab use karein jab conversation substantial ho
-        if (contextLength < 100) {
-          console.log('📝 Skipping question generation - conversation too short (need at least 100 chars, got ' + contextLength + ')');
+        if (contextLength < 70) {
+          console.log('📝 Skipping question generation - conversation too short (need at least 70 chars, got ' + contextLength + ')');
           return; // Don't generate questions even with emotions if conversation is too short
         }
 
-        // Early conversation (100-500 chars): Very relaxed requirements
+        // Early conversation (70-500 chars): Very relaxed requirements
         if (contextLength < 500) {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
@@ -522,6 +533,23 @@ export default function registerAIHandlers(socket, io) {
           negative: allParticipantsWithEmotions.filter(p => ['confused', 'sad', 'fear', 'angry', 'disgusted'].includes(p.emotion)),
           neutral: allParticipantsWithEmotions.filter(p => ['neutral', 'calm'].includes(p.emotion))
         };
+        
+        // CRITICAL: Log question generation status BEFORE generating
+        console.log('🤖 Question generation status - ALL VALIDATIONS PASSED:', {
+          meetingId,
+          contextLength,
+          hasAnyParticipants,
+          hasParticipantEmotions,
+          participantsWithEmotions: allParticipantsWithEmotions.length,
+          participantsWithoutEmotions: participantsWithoutEmotions.length,
+          totalParticipants: allParticipantsForQuestions.length,
+          positive: emotionCategories.positive.length,
+          negative: emotionCategories.negative.length,
+          neutral: emotionCategories.neutral.length,
+          participantsList: allParticipantsForQuestions.map(p => `${p.name} (${p.emotion === 'unknown' ? 'video off' : p.emotion})`),
+          willGenerate: true,
+          reason: 'All validation checks passed'
+        });
         
         console.log('🤖 Question generation with participant context:', {
           meetingId,

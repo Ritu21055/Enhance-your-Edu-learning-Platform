@@ -43,14 +43,14 @@
   },
   "HRK345": {
     "title": "testing",
-    "host": "ritu (Host)",
-    "createdAt": "2026-01-07T14:55:50.561Z",
-    "endedAt": "2026-01-07T14:59:25.461Z",
-    "duration": 214780,
-    "participants": 1,
+    "host": null,
+    "createdAt": "2026-01-08T12:40:34.306Z",
+    "endedAt": "2026-01-08T12:45:17.975Z",
+    "duration": 283666,
+    "participants": 0,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2026-01-07T14:59:26.226Z"
+    "lastUpdated": "2026-01-08T12:45:17.989Z"
   },
   "STW014": {
     "title": "Meeting STW014",
