@@ -109,15 +109,61 @@ const MeetingsHistory = () => {
             };
           });
           
-          setMeetings(meetingsData);
-          console.log(`✅ Loaded ${meetingsData.length} meetings from backend`);
+          // CRITICAL FIX: Deduplicate meetings by meeting ID (keep the most recent one)
+          // Use original history data to get proper endedAt timestamp for comparison
+          const meetingsMap = new Map();
+          histories.forEach((history, index) => {
+            const meeting = meetingsData[index];
+            const existing = meetingsMap.get(meeting.id);
+            
+            // Use endedAt from history if available, otherwise use createdAt
+            const currentEndTime = history.meeting?.endedAt || history.meeting?.createdAt;
+            const existingEndTime = existing?.originalEndTime;
+            
+            if (!existing) {
+              // Store original end time for comparison
+              meeting.originalEndTime = currentEndTime;
+              meetingsMap.set(meeting.id, meeting);
+            } else {
+              // Compare timestamps - keep the most recent one
+              if (currentEndTime && existingEndTime) {
+                const currentTime = new Date(currentEndTime).getTime();
+                const existingTime = new Date(existingEndTime).getTime();
+                if (currentTime > existingTime) {
+                  meeting.originalEndTime = currentEndTime;
+                  meetingsMap.set(meeting.id, meeting);
+                }
+              } else if (currentEndTime) {
+                // If existing has no end time but current does, use current
+                meeting.originalEndTime = currentEndTime;
+                meetingsMap.set(meeting.id, meeting);
+              }
+            }
+          });
+          
+          // Convert map back to array and sort by date (newest first)
+          const uniqueMeetings = Array.from(meetingsMap.values())
+            .map(m => {
+              // Remove temporary originalEndTime property
+              const { originalEndTime, ...meeting } = m;
+              return meeting;
+            })
+            .sort((a, b) => {
+              const dateA = new Date(a.date + ' ' + a.time);
+              const dateB = new Date(b.date + ' ' + b.time);
+              return dateB - dateA;
+            });
+          
+          setMeetings(uniqueMeetings);
+          console.log(`✅ Loaded ${uniqueMeetings.length} unique meetings from ${meetingsData.length} history files`);
           
           // Check notes availability in background (non-blocking)
           // Don't wait for this - load meetings first, then update notes status
+          // Use uniqueMeetings instead of meetingsData to avoid duplicate checks
           (async () => {
             const availabilityMap = new Map();
-            // Check notes in parallel for faster loading
-            const notesChecks = meetingsData.map(async (meeting) => {
+            // Check notes in parallel for faster loading - only for unique meetings
+            const notesChecks = uniqueMeetings.map(async (meeting) => {
               try {
                 const notes = await getMeetingNotes(meeting.id);
                 return { id: meeting.id, hasNotes: !!notes };

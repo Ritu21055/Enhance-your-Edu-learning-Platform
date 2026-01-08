@@ -660,6 +660,14 @@ export default function registerAIHandlers(socket, io) {
       clearInterval(llmService.questionGenerationTimer.get(meetingId));
       llmService.questionGenerationTimer.delete(meetingId);
     }
+    
+    // CRITICAL FIX: Emit event to frontend to clear displayed question
+    io.to(meeting.hostId).emit('clear_question', {
+      meetingId,
+      reason: 'Question generation stopped'
+    });
+    
+    console.log('✅ Question generation stopped and frontend notified for meeting:', meetingId);
   });
 
   // AI-Generated Meeting Highlights - Mark Highlight Event

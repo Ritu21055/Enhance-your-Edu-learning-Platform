@@ -359,10 +359,18 @@ const MeetingRoom = () => {
       setShowQuestionSuggestion(true);
     };
 
+    const handleClearQuestion = (data) => {
+      console.log('🧹 Clearing question display:', data);
+      setSuggestedQuestion(null);
+      setShowQuestionSuggestion(false);
+    };
+
     socket.on('follow_up_suggestion', handleFollowUpSuggestion);
+    socket.on('clear_question', handleClearQuestion);
 
     return () => {
       socket.off('follow_up_suggestion', handleFollowUpSuggestion);
+      socket.off('clear_question', handleClearQuestion);
     };
   }, [socket, isHost]);
 

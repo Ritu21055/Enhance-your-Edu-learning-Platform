@@ -41,6 +41,36 @@ class MeetingHistoryManager {
     // REMOVED: highlightReelPath parameter - Highlight reel feature removed
     try {
       const meetingId = meetingData.id;
+      
+      // CRITICAL FIX: Check if meeting already has history files and delete old ones
+      // This prevents duplicate entries for the same meeting
+      try {
+        const existingFiles = await fs.readdir(this.historyDir);
+        const existingMeetingFiles = existingFiles.filter(file => 
+          file.startsWith(`meeting_${meetingId}_`) && file.endsWith('.json')
+        );
+        
+        // Delete old files for this meeting to prevent duplicates
+        if (existingMeetingFiles.length > 0) {
+          console.log(`🗑️ Found ${existingMeetingFiles.length} existing history file(s) for meeting ${meetingId}, deleting old ones...`);
+          const deletePromises = existingMeetingFiles.map(async (file) => {
+            try {
+              const filePath = path.join(this.historyDir, file);
+              await fs.unlink(filePath);
+              console.log(`🗑️ Deleted old meeting history: ${file}`);
+              return true;
+            } catch (error) {
+              console.warn(`⚠️ Failed to delete old file ${file}:`, error.message);
+              return false;
+            }
+          });
+          await Promise.all(deletePromises);
+        }
+      } catch (error) {
+        // If directory doesn't exist or read fails, continue with creating new file
+        console.warn('⚠️ Could not check for existing files:', error.message);
+      }
+      
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const fileName = `meeting_${meetingId}_${timestamp}.json`;
       const filePath = path.join(this.historyDir, fileName);

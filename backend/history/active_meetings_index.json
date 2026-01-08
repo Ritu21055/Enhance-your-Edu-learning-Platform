@@ -20,15 +20,15 @@
     "lastUpdated": "2025-12-26T06:24:33.445Z"
   },
   "144": {
-    "title": "testing",
-    "host": "ritu (Host)",
-    "createdAt": "2026-01-07T14:30:08.078Z",
-    "endedAt": "2026-01-07T14:31:10.650Z",
-    "duration": 62571,
-    "participants": 1,
-    "hasRecording": true,
+    "title": "meeting",
+    "host": null,
+    "createdAt": "2026-01-08T13:10:58.557Z",
+    "endedAt": "2026-01-08T13:20:34.592Z",
+    "duration": 575815,
+    "participants": 0,
+    "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2026-01-07T14:31:10.788Z"
+    "lastUpdated": "2026-01-08T13:20:34.628Z"
   },
   "1234": {
     "title": "testing",
@@ -42,15 +42,15 @@
     "lastUpdated": "2026-01-07T15:14:49.856Z"
   },
   "HRK345": {
-    "title": "testing",
-    "host": null,
-    "createdAt": "2026-01-08T12:40:34.306Z",
-    "endedAt": "2026-01-08T12:45:17.975Z",
-    "duration": 283666,
-    "participants": 0,
+    "title": "Meeting HRK345",
+    "host": "NITU (Host)",
+    "createdAt": "2026-01-08T13:11:18.974Z",
+    "endedAt": "2026-01-08T13:12:21.337Z",
+    "duration": 62360,
+    "participants": 1,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2026-01-08T12:45:17.989Z"
+    "lastUpdated": "2026-01-08T13:12:21.348Z"
   },
   "STW014": {
     "title": "Meeting STW014",

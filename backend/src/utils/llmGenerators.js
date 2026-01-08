@@ -373,6 +373,12 @@ ${fullTranscript}
 CONVERSATION TRANSCRIPT (Who Said What):
 ${conversationTranscript}
 
+CRITICAL INSTRUCTIONS:
+1. Read the ENTIRE transcript carefully - do NOT just use the first few lines
+2. Identify the MAIN TOPIC discussed throughout the meeting (not just the opening)
+3. Focus on the ACTUAL DISCUSSION CONTENT, not greetings or introductions
+4. The summary should reflect what was ACTUALLY discussed, not generic statements
+
 IMPORTANT: The transcript is in ${detectedLanguage} language. Generate ALL notes in the SAME language (${detectedLanguage}). 
 - If ${detectedLanguage} is 'hindi', generate everything in Hindi.
 - If ${detectedLanguage} is 'english', generate everything in English.
@@ -381,7 +387,7 @@ Do NOT translate to English if the transcript is in Hindi or Hinglish.
 
 Please generate meeting notes in the following SIMPLE JSON format:
 {
-  "summary": "A well-structured paragraph summarizing the main topics discussed in the meeting. Write it as a proper paragraph with smooth flow and connections between ideas. The length should be appropriate based on the meeting content - short meetings with few topics should have shorter summaries (2-3 sentences), longer meetings with many topics should have longer summaries (5-8 sentences). Let the content determine the appropriate length.",
+  "summary": "A well-structured paragraph summarizing the MAIN TOPICS discussed throughout the meeting. Focus on the actual discussion content, not greetings. Write it as a proper paragraph with smooth flow. The length should be appropriate based on the meeting content - short meetings with few topics should have shorter summaries (2-3 sentences), longer meetings with many topics should have longer summaries (5-8 sentences).",
   "importantPoints": [
     "First important point discussed in the meeting",
     "Second important point discussed in the meeting",
@@ -390,21 +396,30 @@ Please generate meeting notes in the following SIMPLE JSON format:
 }
 
 REQUIREMENTS:
-1. Summary must be a proper paragraph format - NOT just bullet points or separate sentences. Write it as a flowing paragraph that summarizes the main topics and themes discussed. The length should be appropriate based on meeting content: short meetings (few topics) = shorter paragraph (2-3 sentences), longer meetings (many topics) = longer paragraph (5-8 sentences). Let the content determine the length naturally. Connect ideas smoothly and make it easy to read.
-2. Important points should be determined by analyzing the ACTUAL meeting content and topics discussed. For each meeting, identify what was actually important based on:
-   - What topics were discussed in detail during the meeting
+1. Summary must be a proper paragraph format - NOT just bullet points or separate sentences. Write it as a flowing paragraph that summarizes the MAIN TOPICS and themes discussed throughout the ENTIRE meeting. Focus on the actual discussion, not greetings or introductions. The length should be appropriate based on meeting content: short meetings (few topics) = shorter paragraph (2-3 sentences), longer meetings (many topics) = longer paragraph (5-8 sentences). Let the content determine the length naturally. Connect ideas smoothly and make it easy to read.
+
+2. Important points should be determined by analyzing the ACTUAL meeting content and topics discussed THROUGHOUT THE ENTIRE MEETING. Do NOT just repeat the opening lines. For each meeting, identify what was actually important based on:
+   - What topics were discussed in detail during the meeting (focus on the main discussion, not greetings)
    - What decisions were made or conclusions reached
    - What key information was shared or explained
    - What questions were asked and answered
    - What action items or next steps were mentioned
    - The depth and significance of each discussion topic
-   - The actual content and context of the meeting, not generic keywords
+   - The actual content and context of the meeting, not generic keywords or opening statements
+
 3. Important points should be concise bullet points - each point should be a clear, standalone statement about what was discussed. Keep each point to 1-2 sentences maximum for easy reading. The NUMBER of important points should match the meeting content: short meetings with few topics = fewer points (3-5), longer meetings with many topics = more points (8-15). Let the actual meeting content determine how many points are needed.
-4. Exclude: casual greetings, filler words, repetitive statements, off-topic discussions, meaningless chatter.
-5. Be concise but comprehensive - capture the essence of what was discussed.
+
+4. Exclude: casual greetings, filler words, repetitive statements, off-topic discussions, meaningless chatter, opening introductions that don't contain actual discussion content.
+
+5. Be concise but comprehensive - capture the essence of what was ACTUALLY DISCUSSED, not just what was said at the beginning.
+
 6. Summary should flow naturally as a paragraph, connecting ideas smoothly.
+
 7. Important points should be easy to read in bullet format - keep each point concise and clear.
+
 8. CRITICAL: Generate everything in ${detectedLanguage} language.
+
+9. CRITICAL: Read the ENTIRE transcript, not just the first few lines. The summary should reflect the MAIN TOPIC discussed throughout the meeting.
 
 Return ONLY valid JSON, no additional text.`;
 
@@ -454,6 +469,12 @@ ${fullTranscript}
 CONVERSATION TRANSCRIPT (Who Said What):
 ${conversationTranscript}
 
+CRITICAL INSTRUCTIONS:
+1. Read the ENTIRE transcript carefully - do NOT just use the first few lines
+2. Identify the MAIN TOPIC discussed throughout the meeting (not just the opening)
+3. Focus on the ACTUAL DISCUSSION CONTENT, not greetings or introductions
+4. The summary should reflect what was ACTUALLY discussed, not generic statements
+
 IMPORTANT: The transcript is in ${detectedLanguage} language. Generate ALL notes in the SAME language (${detectedLanguage}). 
 - If ${detectedLanguage} is 'hindi', generate everything in Hindi.
 - If ${detectedLanguage} is 'english', generate everything in English.
@@ -462,7 +483,7 @@ Do NOT translate to English if the transcript is in Hindi or Hinglish.
 
 Please generate meeting notes in the following SIMPLE JSON format:
 {
-  "summary": "A well-structured paragraph summarizing the main topics discussed in the meeting. Write it as a proper paragraph with smooth flow and connections between ideas. The length should be appropriate based on the meeting content - short meetings with few topics should have shorter summaries (2-3 sentences), longer meetings with many topics should have longer summaries (5-8 sentences). Let the content determine the appropriate length.",
+  "summary": "A well-structured paragraph summarizing the MAIN TOPICS discussed throughout the meeting. Focus on the actual discussion content, not greetings. Write it as a proper paragraph with smooth flow. The length should be appropriate based on the meeting content - short meetings with few topics should have shorter summaries (2-3 sentences), longer meetings with many topics should have longer summaries (5-8 sentences).",
   "importantPoints": [
     "First important point discussed in the meeting",
     "Second important point discussed in the meeting",
@@ -471,29 +492,43 @@ Please generate meeting notes in the following SIMPLE JSON format:
 }
 
 REQUIREMENTS:
-1. Summary must be a proper paragraph format - NOT just bullet points or separate sentences. Write it as a flowing paragraph that summarizes the main topics and themes discussed. The length should be appropriate based on meeting content: short meetings (few topics) = shorter paragraph (2-3 sentences), longer meetings (many topics) = longer paragraph (5-8 sentences). Let the content determine the length naturally. Connect ideas smoothly and make it easy to read.
-2. Important points should be determined by analyzing the ACTUAL meeting content and topics discussed. For each meeting, identify what was actually important based on:
-   - What topics were discussed in detail during the meeting
+1. Summary must be a proper paragraph format - NOT just bullet points or separate sentences. Write it as a flowing paragraph that summarizes the MAIN TOPICS and themes discussed throughout the ENTIRE meeting. Focus on the actual discussion, not greetings or introductions. The length should be appropriate based on meeting content: short meetings (few topics) = shorter paragraph (2-3 sentences), longer meetings (many topics) = longer paragraph (5-8 sentences). Let the content determine the length naturally. Connect ideas smoothly and make it easy to read.
+
+2. Important points should be determined by analyzing the ACTUAL meeting content and topics discussed THROUGHOUT THE ENTIRE MEETING. Do NOT just repeat the opening lines. For each meeting, identify what was actually important based on:
+   - What topics were discussed in detail during the meeting (focus on the main discussion, not greetings)
    - What decisions were made or conclusions reached
    - What key information was shared or explained
    - What questions were asked and answered
    - What action items or next steps were mentioned
    - The depth and significance of each discussion topic
-   - The actual content and context of the meeting, not generic keywords
+   - The actual content and context of the meeting, not generic keywords or opening statements
+
 3. Important points should be concise bullet points - each point should be a clear, standalone statement about what was discussed. Keep each point to 1-2 sentences maximum for easy reading. The NUMBER of important points should match the meeting content: short meetings with few topics = fewer points (3-5), longer meetings with many topics = more points (8-15). Let the actual meeting content determine how many points are needed.
-4. Exclude: casual greetings, filler words, repetitive statements, off-topic discussions, meaningless chatter.
-5. Be concise but comprehensive - capture the essence of what was discussed.
+
+4. Exclude: casual greetings, filler words, repetitive statements, off-topic discussions, meaningless chatter, opening introductions that don't contain actual discussion content.
+
+5. Be concise but comprehensive - capture the essence of what was ACTUALLY DISCUSSED, not just what was said at the beginning.
+
 6. Summary should flow naturally as a paragraph, connecting ideas smoothly.
+
 7. Important points should be easy to read in bullet format - keep each point concise and clear.
+
 8. CRITICAL: Generate everything in ${detectedLanguage} language.
+
+9. CRITICAL: Read the ENTIRE transcript, not just the first few lines. The summary should reflect the MAIN TOPIC discussed throughout the meeting.
 
 Return ONLY valid JSON, no additional text.`;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes for notes (longer response)
+      // INCREASE timeout to 5 minutes (300000ms) for longer transcripts
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Ollama request timeout - aborting after 5 minutes');
+        controller.abort();
+      }, 300000); // 5 minutes instead of 3
       
       console.log(`🤖 Ollama: Generating notes with model ${this.ollamaModel}...`);
+      console.log(`📊 Transcript length: ${fullTranscript.length} characters`);
       
       const response = await fetch(`${this.ollamaUrl}/api/generate`, {
         method: 'POST',
@@ -540,7 +575,13 @@ Return ONLY valid JSON, no additional text.`;
         throw new Error('Invalid JSON response from Ollama');
       }
     } catch (error) {
-      console.error('❌ Ollama notes generation error:', error);
+      // Better error handling
+      if (error.name === 'AbortError') {
+        console.error('❌ Ollama notes generation timeout - request took longer than 5 minutes');
+        console.error('💡 Suggestions: Check if Ollama server is running, reduce transcript length, or use a faster model');
+      } else {
+        console.error('❌ Ollama notes generation error:', error);
+      }
       throw error;
     }
   },
