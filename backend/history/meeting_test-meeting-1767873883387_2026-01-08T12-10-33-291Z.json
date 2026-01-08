@@ -1,0 +1,32 @@
+{
+  "meeting": {
+    "id": "test-meeting-1767873883387",
+    "title": "Meeting test-meeting-1767873883387",
+    "endedAt": "2026-01-08T12:10:33.291Z",
+    "status": "completed"
+  },
+  "notes": {
+    "summary": "The meeting centered on the profound impact of small, consistent habits, emphasizing that life is shaped more by daily minor actions than by major decisions or opportunities. It was highlighted that seemingly insignificant actions, when repeated with discipline, quietly create substantial long-term change, even if results are not immediately visible. The discussion also addressed the human tendency to underestimate these habits due to a desire for instant gratification, contrasting this with the silent, gradual nature of true growth. Furthermore, the speaker cautioned against the cumulative negative effects of small detrimental habits like procrastination, concluding that positive change begins with adopting just one small, consistent action.",
+    "importantPoints": [
+      "Success is primarily shaped by the small things done everyday, not just big decisions or opportunities.",
+      "Examples of effective small habits include drinking water, reading a few pages daily, saving small amounts, or choosing to walk short distances.",
+      "Consistent repetition of small actions leads to significant long-term impact, even if the results are invisible in the beginning.",
+      "Small habits demand discipline over daily motivation.",
+      "People often underestimate small habits because results are not instant, leading to a desire for instant success and growth.",
+      "Growth is a silent process that happens gradually over time.",
+      "Negative small habits like procrastinating, endless scrolling, or ignoring responsibilities also accumulate over time, leading to stress and missed opportunities.",
+      "Transformational change doesn't require changing everything at once; it starts with implementing one small, positive habit or action."
+    ]
+  },
+  "metadata": {
+    "savedAt": "2026-01-08T12:10:33.291Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "meetingNotes": true,
+      "questionGeneration": false,
+      "sentimentAnalysis": false,
+      "transcription": false
+    },
+    "notesGeneratedAt": "2026-01-08T12:10:33.291Z"
+  }
+}

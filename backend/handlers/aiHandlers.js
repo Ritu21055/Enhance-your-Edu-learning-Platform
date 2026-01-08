@@ -388,15 +388,30 @@ export default function registerAIHandlers(socket, io) {
         else if (contextLength < 1000) {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
-          const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+          let sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // RELAXED: Require at least 25 words, 12 unique words, 2 sentences (reduced from 40/20/3)
-          if (meaningfulWords < 25 || uniqueWords.size < 12 || sentences.length < 2) {
+          // FIX: Better sentence detection for transcripts without proper punctuation
+          if (sentences.length < 2 && contextLength >= 500) {
+            // Estimate sentences based on word count
+            const wordBasedEstimate = Math.floor(meaningfulWords / 15);
+            const commaBasedSentences = recentContext.split(/,/).filter(s => s.trim().length > 20);
+            const estimatedSentences = Math.max(
+              wordBasedEstimate,
+              Math.floor(commaBasedSentences.length / 2),
+              sentences.length
+            );
+            sentences = Array(Math.max(estimatedSentences, 1)).fill('');
+            console.log(`📝 Using estimated sentence count: ${estimatedSentences} (words: ${meaningfulWords})`);
+          }
+          
+          // RELAXED: Require at least 25 words, 12 unique words, 1 sentence (reduced from 2)
+          // For medium conversations, if words/unique words are sufficient, allow with 1 sentence
+          if (meaningfulWords < 25 || uniqueWords.size < 12 || sentences.length < 1) {
             console.log('📝 Skipping question generation - insufficient conversation quality:', {
               meaningfulWords,
               uniqueWords: uniqueWords.size,
               sentences: sentences.length,
-              required: '25 words, 12 unique, 2 sentences'
+              required: '25 words, 12 unique, 1 sentence'
             });
             return;
           }
@@ -414,17 +429,60 @@ export default function registerAIHandlers(socket, io) {
         else {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
-          const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+          let sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // RELAXED: Require at least 35 words, 18 unique words, 3 sentences (reduced from 40/20/3)
-          if (meaningfulWords < 35 || uniqueWords.size < 18 || sentences.length < 3) {
+          // FIX: Better sentence detection for transcripts without proper punctuation
+          // Web Speech API often doesn't add periods, so estimate sentences if count is low
+          if (sentences.length < 3 && contextLength >= 1000) {
+            // Method 1: Estimate based on word count (~15-20 words per sentence)
+            const wordBasedEstimate = Math.floor(meaningfulWords / 15);
+            
+            // Method 2: Count based on commas (common in speech)
+            const commaBasedSentences = recentContext.split(/,/).filter(s => s.trim().length > 20);
+            
+            // Method 3: Count based on "and", "but", "so" (common connectors)
+            const connectorBased = (recentContext.match(/\b(and|but|so|because|when|if|then)\b/gi) || []).length;
+            
+            // Use the maximum of all methods
+            const estimatedSentences = Math.max(
+              wordBasedEstimate,
+              Math.floor(commaBasedSentences.length / 2), // Comma-based (divide by 2 as commas are more frequent)
+              Math.floor(connectorBased / 2), // Connector-based
+              sentences.length // Original count
+            );
+            
+            // Create array for count (we just need the length)
+            sentences = Array(Math.max(estimatedSentences, 2)).fill('');
+            
+            console.log(`📝 Using estimated sentence count: ${estimatedSentences} (words: ${meaningfulWords}, word-based: ${wordBasedEstimate}, commas: ${commaBasedSentences.length}, connectors: ${connectorBased})`);
+          }
+          
+          // RELAXED: Require at least 35 words, 18 unique words, 2 sentences (reduced from 3)
+          // For substantial conversations, if words/unique words are sufficient, allow with 2 sentences
+          if (meaningfulWords < 35 || uniqueWords.size < 18) {
             console.log('📝 Skipping question generation - insufficient conversation quality:', {
               meaningfulWords,
               uniqueWords: uniqueWords.size,
               sentences: sentences.length,
-              required: '35 words, 18 unique, 3 sentences'
+              required: '35 words, 18 unique, 2 sentences'
             });
             return;
+          }
+          
+          // Sentence check: Allow if we have at least 2 sentences (or 1 if words are very high)
+          if (sentences.length < 2) {
+            // If we have very high word count, allow with 1 sentence
+            if (meaningfulWords >= 100 && uniqueWords.size >= 50) {
+              console.log('✅ Allowing question generation with 1 sentence due to high word/unique word count');
+            } else {
+              console.log('📝 Skipping question generation - insufficient sentences:', {
+                meaningfulWords,
+                uniqueWords: uniqueWords.size,
+                sentences: sentences.length,
+                required: '2 sentences (or 1 if 100+ words and 50+ unique)'
+              });
+              return;
+            }
           }
           
           // FIXED: Make participants check optional - generate general questions even without participants
@@ -520,10 +578,16 @@ export default function registerAIHandlers(socket, io) {
               topics: questionResult.topics,
               sentiment: questionResult.sentiment,
               confidence: questionResult.confidence,
-              timestamp: questionResult.timestamp
+              timestamp: questionResult.timestamp,
+              model: questionResult.model || 'rule-based', // Include model name (gemini, ollama, or rule-based)
+              responseTime: questionResult.responseTime || 0 // Include response time in milliseconds
             });
             
-            console.log('❓ Sent intelligent follow-up question to host:', questionResult.question);
+            console.log('❓ Sent intelligent follow-up question to host:', {
+              question: questionResult.question,
+              model: questionResult.model || 'rule-based',
+              responseTime: questionResult.responseTime || 0
+            });
           }
         } else {
           console.log('📝 Skipping question - empty or too short:', questionResult?.question);
