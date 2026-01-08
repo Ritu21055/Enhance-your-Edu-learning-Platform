@@ -358,7 +358,8 @@ export default function registerAIHandlers(socket, io) {
           contextLength,
           hasAnyParticipants,
           hasParticipantEmotions,
-          participantsCount: allParticipantsForQuestions.length
+          participantsCount: allParticipantsForQuestions.length,
+          contextPreview: recentContext.substring(0, 100) + (recentContext.length > 100 ? '...' : '')
         });
         
         // FURTHER RELAXED: Reduced minimum conversation requirement (70+ chars instead of 100+)
@@ -372,16 +373,24 @@ export default function registerAIHandlers(socket, io) {
         if (contextLength < 500) {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
-          const sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
+          let sentences = recentContext.split(/[.!?]+/).filter(s => s.trim().length > 10);
           
-          // FURTHER RELAXED: Require at least 15 words, 8 unique words, 1 sentence (reduced from 30/15/2)
-          // Even with emotions, need some conversation
-          if (meaningfulWords < 15 || uniqueWords.size < 8 || sentences.length < 1) {
+          // FIX: Web Speech API often doesn't add punctuation, so estimate sentences if count is low
+          if (sentences.length === 0 && meaningfulWords >= 10) {
+            // Estimate: ~10-15 words per sentence
+            const estimatedSentences = Math.max(1, Math.floor(meaningfulWords / 12));
+            sentences = Array(estimatedSentences).fill('');
+            console.log(`📝 No explicit sentences found, estimating ${estimatedSentences} sentences from ${meaningfulWords} words`);
+          }
+          
+          // FURTHER RELAXED: Require at least 10 words, 6 unique words, 0-1 sentence (very relaxed for early conversation)
+          // Web Speech API often doesn't add punctuation, so sentence count might be 0
+          if (meaningfulWords < 10 || uniqueWords.size < 6) {
             console.log('📝 Skipping question generation - insufficient conversation quality:', {
               meaningfulWords,
               uniqueWords: uniqueWords.size,
               sentences: sentences.length,
-              required: '15 words, 8 unique, 1 sentence'
+              required: '10 words, 6 unique (sentence requirement relaxed for Web Speech API)'
             });
             return;
           }
@@ -551,8 +560,9 @@ export default function registerAIHandlers(socket, io) {
           reason: 'All validation checks passed'
         });
         
-        console.log('🤖 Question generation with participant context:', {
+        console.log('✅ All validation checks passed! Generating question...', {
           meetingId,
+          contextLength,
           participantsWithEmotions: allParticipantsWithEmotions.length,
           participantsWithoutEmotions: participantsWithoutEmotions.length,
           totalParticipants: allParticipantsForQuestions.length,
@@ -579,19 +589,29 @@ export default function registerAIHandlers(socket, io) {
           
           // FIXED: Validate that question includes participant name if participants exist
           // But allow general questions if no participants
+          // RELAXED: Allow questions even if name isn't at the start - just check if name appears anywhere
           if (hasAnyParticipants && allParticipantsForQuestions.length > 0) {
             const participantNames = allParticipantsForQuestions.map(p => p.name);
-            const hasParticipantName = participantNames.some(name => 
-              questionText.toLowerCase().startsWith(name.toLowerCase()) || 
-              questionText.toLowerCase().includes(name.toLowerCase() + ',')
-            );
+            const hasParticipantName = participantNames.some(name => {
+              const lowerName = name.toLowerCase();
+              const lowerQuestion = questionText.toLowerCase();
+              // Check if name appears anywhere in the question (not just at start)
+              return lowerQuestion.includes(lowerName) || 
+                     lowerQuestion.includes(lowerName + ',') ||
+                     lowerQuestion.includes(lowerName + '?') ||
+                     lowerQuestion.includes(lowerName + '.');
+            });
             
             if (!hasParticipantName) {
-              console.log('⚠️ Question generated without participant name despite participants existing. Skipping.');
-              return; // Don't send question if it doesn't include participant name
+              console.log('⚠️ Question generated without participant name. Allowing anyway for better UX:', {
+                question: questionText.substring(0, 50),
+                participants: participantNames
+              });
+              // RELAXED: Don't skip - allow question even without explicit name
+              // The LLM might generate a good question that doesn't need a name
+            } else {
+              console.log('✅ Question includes participant name:', questionText);
             }
-            
-            console.log('✅ Question includes participant name:', questionText);
           }
           
           // Update last question time
@@ -624,7 +644,7 @@ export default function registerAIHandlers(socket, io) {
       } catch (error) {
         console.error('❌ Question generation failed:', error);
       }
-     }, 60000); // Check every 60 seconds (1 minute) - faster checking for better responsiveness
+     }, 30000); // Check every 30 seconds (reduced from 60s) - faster checking for better responsiveness
     
     // Store timer for cleanup
     llmService.questionGenerationTimer.set(meetingId, questionTimer);
