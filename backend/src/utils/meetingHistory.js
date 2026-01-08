@@ -114,7 +114,7 @@ class MeetingHistoryManager {
             highlightDetection: false, // Feature removed
             questionGeneration: true,
             sentimentAnalysis: !!sentimentData,
-            transcription: transcriptHistory.length > 0
+            transcription: transcriptHistory && transcriptHistory.length > 0
           }
         }
       };
