@@ -33,13 +33,13 @@
   "1234": {
     "title": "testing",
     "host": null,
-    "createdAt": "2026-01-07T15:10:30.492Z",
-    "endedAt": "2026-01-07T15:14:49.849Z",
-    "duration": 259346,
+    "createdAt": "2026-01-08T14:04:42.512Z",
+    "endedAt": "2026-01-08T14:08:01.951Z",
+    "duration": 199437,
     "participants": 0,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2026-01-07T15:14:49.856Z"
+    "lastUpdated": "2026-01-08T14:08:01.956Z"
   },
   "HRK345": {
     "title": "Meeting HRK345",

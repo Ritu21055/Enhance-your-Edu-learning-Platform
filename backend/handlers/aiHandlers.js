@@ -195,9 +195,30 @@ export default function registerAIHandlers(socket, io) {
     
     console.log('🤖 Starting question generation for meeting:', meetingId);
     
-    // Set up intelligent question generation (every 60 seconds - reduced frequency)
-    const questionTimer = setInterval(async () => {
+    // CRITICAL: Check if timer already exists for this meeting
+    if (llmService.questionGenerationTimer.has(meetingId)) {
+      console.log('⚠️ Timer already exists for meeting:', meetingId, '- clearing old timer');
+      clearInterval(llmService.questionGenerationTimer.get(meetingId));
+      llmService.questionGenerationTimer.delete(meetingId);
+    }
+    
+    // Function to check and generate questions
+    const checkAndGenerateQuestion = async () => {
       try {
+        // Verify meeting still exists
+        const currentMeeting = activeMeetings.get(meetingId);
+        if (!currentMeeting) {
+          console.log('⚠️ Meeting no longer exists, stopping timer for:', meetingId);
+          clearInterval(questionTimer);
+          llmService.questionGenerationTimer.delete(meetingId);
+          return;
+        }
+        
+        console.log('⏰ Question generation timer tick for meeting:', meetingId, {
+          participantsCount: currentMeeting.participants?.length || 0,
+          hostId: currentMeeting.hostId
+        });
+        
         // DEBUG: Check transcript history BEFORE getting context
         const hasHistory = llmService.transcriptHistory.has(meetingId);
         const rawHistory = hasHistory ? llmService.transcriptHistory.get(meetingId) : null;
@@ -644,10 +665,24 @@ export default function registerAIHandlers(socket, io) {
       } catch (error) {
         console.error('❌ Question generation failed:', error);
       }
-     }, 30000); // Check every 30 seconds (reduced from 60s) - faster checking for better responsiveness
+    };
+    
+    // Run immediately on start (don't wait 30 seconds)
+    console.log('🚀 Running initial question check immediately...');
+    checkAndGenerateQuestion();
+    
+    // Then set up interval to check every 30 seconds
+    const questionTimer = setInterval(checkAndGenerateQuestion, 30000);
     
     // Store timer for cleanup
     llmService.questionGenerationTimer.set(meetingId, questionTimer);
+    
+    console.log('✅ Question generation timer started for meeting:', meetingId, {
+      timerId: questionTimer,
+      interval: '30 seconds',
+      initialCheck: 'completed',
+      nextCheck: 'in 30 seconds'
+    });
   });
 
   // Stop question generation
