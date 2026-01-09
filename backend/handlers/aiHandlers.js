@@ -904,7 +904,10 @@ export default function registerAIHandlers(socket, io) {
       }
       
       // CRITICAL FIX: Generate meeting notes from transcriptData BEFORE saving
+      // Try transcriptData first, then fallback to llmService.transcriptHistory
       let notes = null;
+      let transcripts = null;
+      let transcriptSource = 'none';
       
       // Debug: Check all transcript sources
       console.log(`🔍 Debug transcript sources for meeting ${meetingId}:`, {
@@ -914,42 +917,74 @@ export default function registerAIHandlers(socket, io) {
         llmTranscriptCount: llmService.transcriptHistory.has(meetingId) ? llmService.transcriptHistory.get(meetingId).length : 0
       });
       
+      // Try transcriptData first
       if (transcriptData.has(meetingId)) {
-        const transcripts = transcriptData.get(meetingId);
-        if (transcripts && transcripts.length > 0) {
-          console.log(`📝 Generating meeting notes for meeting ${meetingId}...`, { 
-            transcriptCount: transcripts.length,
-            sampleTranscript: transcripts[0]?.transcript?.substring(0, 50) + '...'
-          });
-          try {
-            notes = await llmService.generateMeetingNotes(transcripts, meetingId);
-            console.log(`✅ Meeting notes generated for meeting ${meetingId}`, {
-              hasSummary: !!notes?.summary,
-              hasKeyPoints: !!notes?.importantPoints,
-              keyPointsCount: notes?.importantPoints?.length || 0
-            });
-            
-            // Save notes to meeting history
-            await meetingHistoryManager.saveMeetingNotes(meetingId, notes);
-            console.log(`💾 Meeting notes saved to history for meeting ${meetingId}`);
-          } catch (error) {
-            console.error(`❌ Error generating/saving meeting notes for meeting ${meetingId}:`, error);
-            console.error(`❌ Error stack:`, error.stack);
-            // Continue even if notes generation fails
+        const transcriptDataArray = transcriptData.get(meetingId);
+        if (transcriptDataArray && transcriptDataArray.length > 0) {
+          transcripts = transcriptDataArray;
+          transcriptSource = 'transcriptData';
+        }
+      }
+      
+      // FALLBACK: If transcriptData is empty, try llmService.transcriptHistory
+      if (!transcripts || transcripts.length === 0) {
+        if (llmService.transcriptHistory.has(meetingId)) {
+          const llmHistory = llmService.transcriptHistory.get(meetingId);
+          if (llmHistory && llmHistory.length > 0) {
+            // Convert llmHistory format to transcriptData format for notes generation
+            transcripts = llmHistory.map(entry => ({
+              timestamp: entry.timestamp || Date.now(),
+              participantId: entry.participantId || 'unknown',
+              participantName: entry.participantName || 'Unknown',
+              transcript: entry.transcript || entry.text || '',
+              language: entry.language || 'en-US',
+              confidence: entry.confidence || 0.8,
+              id: entry.id || `fallback-${Date.now()}-${Math.random()}`
+            }));
+            transcriptSource = 'llmService.transcriptHistory';
+            console.log(`📝 Using fallback transcript source (llmService.transcriptHistory) for meeting ${meetingId}: ${transcripts.length} entries`);
           }
-        } else {
-          console.log(`⚠️ No transcripts found in transcriptData for meeting ${meetingId} (array is empty)`);
+        }
+      }
+      
+      if (transcripts && transcripts.length > 0) {
+        console.log(`📝 Generating meeting notes for meeting ${meetingId}...`, { 
+          transcriptCount: transcripts.length,
+          source: transcriptSource,
+          sampleTranscript: transcripts[0]?.transcript?.substring(0, 50) + '...'
+        });
+        try {
+          notes = await llmService.generateMeetingNotes(transcripts, meetingId);
+          console.log(`✅ Meeting notes generated for meeting ${meetingId}`, {
+            hasSummary: !!notes?.summary,
+            hasImportantPoints: !!notes?.importantPoints,
+            importantPointsCount: notes?.importantPoints?.length || 0
+          });
+          
+          // Save notes to meeting history
+          await meetingHistoryManager.saveMeetingNotes(meetingId, notes);
+          console.log(`💾 Meeting notes saved to history for meeting ${meetingId}`);
+        } catch (error) {
+          console.error(`❌ Error generating/saving meeting notes for meeting ${meetingId}:`, error);
+          console.error(`❌ Error stack:`, error.stack);
+          // Continue even if notes generation fails
         }
       } else {
-        console.log(`⚠️ transcriptData does not have meeting ${meetingId}`);
-        console.log(`⚠️ Available transcriptData keys:`, Array.from(transcriptData.keys()));
+        console.log(`⚠️ No transcripts found for meeting ${meetingId} - cannot generate notes`, {
+          hasTranscriptData: transcriptData.has(meetingId),
+          transcriptDataCount: transcriptData.has(meetingId) ? transcriptData.get(meetingId).length : 0,
+          hasLLMHistory: llmService.transcriptHistory.has(meetingId),
+          llmHistoryCount: llmService.transcriptHistory.has(meetingId) ? llmService.transcriptHistory.get(meetingId).length : 0
+        });
       }
       
       // REMOVED: Highlight detection feature - no longer getting highlights
       const existingRecordingSession = recordingSessions.get(meetingId);
       
       // Get transcript history
-      const transcriptHistory = llmService.getTranscriptHistory(meetingId) || [];
+      const transcriptHistory = (llmService.transcriptHistory.has(meetingId) 
+        ? llmService.transcriptHistory.get(meetingId) 
+        : []) || [];
       
       // Get sentiment data
       const meetingSentimentData = sentimentData.get(meetingId);

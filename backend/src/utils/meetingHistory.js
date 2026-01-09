@@ -127,7 +127,7 @@ class MeetingHistoryManager {
       console.log('💾 Meeting saved to history:', {
         meetingId,
         fileName,
-        transcriptEntries: transcriptHistory.length,
+        transcriptEntries: transcriptHistory ? transcriptHistory.length : 0,
         hasRecording: !!recordingSession
       });
 
