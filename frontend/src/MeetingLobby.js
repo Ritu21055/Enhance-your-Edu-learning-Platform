@@ -12,7 +12,7 @@ import {
   TextField
 } from '@mui/material';
 import io from 'socket.io-client';
-import { getBackendUrl, testBackendConnection } from './config/network';
+import { getBackendUrl } from './config/network';
 import { createMeeting, storeMeeting } from './services/meetingsService';
 import { formatMeetingCode } from './services/meetingCodeService';
 import PasswordDialog from './components/PasswordDialog';
@@ -452,19 +452,7 @@ const MeetingLobby = () => {
                 size="small"
                 className="lobby-connecting-chip"
               />
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => {
-                  const backendUrl = getBackendUrl();
-                  console.log('🔍 Lobby Debug: Backend URL:', backendUrl);
-                  setError(`Backend URL: ${backendUrl}. If connection fails, enter host IP in the dialog.`);
-                }}
-                style={{ marginTop: '8px' }}
-              >
-                🔍 Test Backend Connection
-              </Button>
-              </Box>
+            </Box>
           )}
         </CardContent>
       </Card>
