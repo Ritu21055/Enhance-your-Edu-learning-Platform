@@ -1032,14 +1032,30 @@ class LLMService {
 
   // Clean up meeting data
   cleanupMeeting(meetingId) {
-    // REMOVED: transcriptionBuffer.delete - no longer exists (Google Cloud Speech-to-Text removed)
-    this.transcriptHistory.delete(meetingId);
-    this.lastQuestionTime.delete(meetingId);
+    console.log(`\n🧹 [CLEANUP] Starting cleanup for meeting: ${meetingId}`);
     
-    if (this.questionGenerationTimer.has(meetingId)) {
-      clearInterval(this.questionGenerationTimer.get(meetingId));
+    // REMOVED: transcriptionBuffer.delete - no longer exists (Google Cloud Speech-to-Text removed)
+    const hadTranscriptHistory = this.transcriptHistory.has(meetingId);
+    const transcriptCount = hadTranscriptHistory ? this.transcriptHistory.get(meetingId).length : 0;
+    this.transcriptHistory.delete(meetingId);
+    console.log(`🧹 [CLEANUP] Deleted transcript history (${transcriptCount} entries)`);
+    
+    const hadLastQuestionTime = this.lastQuestionTime.has(meetingId);
+    this.lastQuestionTime.delete(meetingId);
+    console.log(`🧹 [CLEANUP] Deleted last question time (${hadLastQuestionTime ? 'existed' : 'did not exist'})`);
+    
+    const hadTimer = this.questionGenerationTimer.has(meetingId);
+    if (hadTimer) {
+      const timerRef = this.questionGenerationTimer.get(meetingId);
+      clearInterval(timerRef);
       this.questionGenerationTimer.delete(meetingId);
+      console.log(`🧹 [CLEANUP] Stopped and deleted question generation timer`);
+    } else {
+      console.log(`🧹 [CLEANUP] No timer found to clean up`);
     }
+    
+    console.log(`✅ [CLEANUP] Cleanup completed for meeting: ${meetingId}`);
+    console.log(`${'='.repeat(80)}\n`);
   }
 }
 

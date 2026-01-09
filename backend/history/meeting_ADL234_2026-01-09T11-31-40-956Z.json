@@ -1,0 +1,110 @@
+{
+  "meeting": {
+    "id": "ADL234",
+    "title": "meeting",
+    "host": "VINESH",
+    "hostId": "Ja8r36r4kkz8m8ThAAAK",
+    "participants": [
+      {
+        "id": "Ja8r36r4kkz8m8ThAAAK",
+        "name": "VINESH",
+        "joinedAt": "2026-01-09T11:27:08.240Z",
+        "isHost": true,
+        "isApproved": true,
+        "audioEnabled": true,
+        "videoEnabled": true
+      }
+    ],
+    "createdAt": "2026-01-09T11:26:56.729Z",
+    "endedAt": "2026-01-09T11:31:40.957Z",
+    "duration": 284218,
+    "status": "completed"
+  },
+  "recording": null,
+  "transcript": {
+    "totalEntries": 6,
+    "data": [
+      {
+        "timestamp": 1767958036629,
+        "participantId": "gJtTcQjrS2C3nEmNAAAH",
+        "participantName": "ritu",
+        "transcript": "MI audible",
+        "language": "en-US",
+        "confidence": 0.80652916431427,
+        "id": "78c2f2ed-bce2-4e29-87ac-19db1e61b8d1"
+      },
+      {
+        "timestamp": 1767958061545,
+        "participantId": "gJtTcQjrS2C3nEmNAAAH",
+        "participantName": "ritu",
+        "transcript": "Glass okay let's start the meeting now good evening everyone and welcome to Real life talk today we are discussing something almost everyone experience is but really talks about openly stress and pressure in daily life joining me is a participanish welcome Ganesh",
+        "language": "en-US",
+        "confidence": 0.8837974667549133,
+        "id": "a2eb43cf-f5bb-481e-b74a-959b9d0126b8"
+      },
+      {
+        "timestamp": 1767958066120,
+        "participantId": "gJtTcQjrS2C3nEmNAAAH",
+        "participantName": "ritu",
+        "transcript": "we are talking about this topic because it's really dear",
+        "language": "en-US",
+        "confidence": 0.8704749345779419,
+        "id": "21783dbb-f297-4e0d-8641-d19b43f47ea0"
+      },
+      {
+        "timestamp": 1767958075298,
+        "participantId": "gJtTcQjrS2C3nEmNAAAH",
+        "participantName": "ritu",
+        "transcript": "when did you feel last",
+        "language": "en-US",
+        "confidence": 0.886875331401825,
+        "id": "a50a94ba-0cfa-44b8-a572-3e58324120df"
+      },
+      {
+        "timestamp": 1767958251992,
+        "participantId": "gJtTcQjrS2C3nEmNAAAH",
+        "participantName": "ritu",
+        "transcript": "it's okay not to be okay",
+        "language": "en-US",
+        "confidence": 0.8530712127685547,
+        "id": "773f6586-e80e-4e57-b5d4-891fb758f624"
+      },
+      {
+        "timestamp": 1767958260867,
+        "participantId": "gJtTcQjrS2C3nEmNAAAH",
+        "participantName": "ritu",
+        "transcript": "that's a powerful message before we end one last question can stress ever be positive",
+        "language": "en-US",
+        "confidence": 0.8819863796234131,
+        "id": "8f4123c8-7587-4f5f-84ed-33d60485643c"
+      }
+    ],
+    "fullTranscript": "MI audible Glass okay let's start the meeting now good evening everyone and welcome to Real life talk today we are discussing something almost everyone experience is but really talks about openly stress and pressure in daily life joining me is a participanish welcome Ganesh we are talking about this topic because it's really dear when did you feel last it's okay not to be okay that's a powerful message before we end one last question can stress ever be positive"
+  },
+  "sentiment": {
+    "totalParticipants": 1,
+    "sentimentCounts": {},
+    "lastUpdated": 1767958300188
+  },
+  "metadata": {
+    "savedAt": "2026-01-09T11:31:40.957Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": false,
+      "questionGeneration": true,
+      "sentimentAnalysis": true,
+      "transcription": true,
+      "meetingNotes": true
+    },
+    "notesGeneratedAt": "2026-01-09T11:31:48.840Z"
+  },
+  "notes": {
+    "summary": "The 'Real life talk' session centered on the widely experienced yet seldom openly discussed topic of stress and pressure in daily life, a subject the host identified as personally significant. The discussion encouraged introspection by asking about recent personal feelings, and importantly, conveyed the powerful message that 'it's okay not to be okay.' The meeting concluded by posing a final, thought-provoking question regarding the potential for stress to ever manifest as a positive force.",
+    "importantPoints": [
+      "The primary topic of the meeting was 'stress and pressure in daily life,' recognized as a common experience that is rarely talked about openly.",
+      "The host expressed the personal importance of discussing this topic.",
+      "A significant message shared was 'it's okay not to be okay,' promoting acceptance and vulnerability.",
+      "The session concluded with a question asking whether stress can ever be a positive experience."
+    ]
+  }
+}

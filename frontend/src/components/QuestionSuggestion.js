@@ -32,6 +32,28 @@ const QuestionSuggestion = ({
 }) => {
   const [expanded, setExpanded] = React.useState(false);
 
+  // Debug logging
+  React.useEffect(() => {
+    console.log('\n' + '='.repeat(80));
+    console.log('🎨 [QuestionSuggestion] Component render check:', {
+      isVisible,
+      hasQuestion: !!question,
+      question: question?.substring(0, 50) + (question?.length > 50 ? '...' : ''),
+      model,
+      sentiment,
+      confidence
+    });
+    
+    if (!isVisible) {
+      console.log('❌ [QuestionSuggestion] NOT VISIBLE - returning null');
+    } else if (!question) {
+      console.log('❌ [QuestionSuggestion] NO QUESTION - returning null');
+    } else {
+      console.log('✅ [QuestionSuggestion] RENDERING component - question should be visible');
+    }
+    console.log('='.repeat(80) + '\n');
+  }, [isVisible, question, model, sentiment, confidence]);
+
   if (!isVisible || !question) {
     return null;
   }

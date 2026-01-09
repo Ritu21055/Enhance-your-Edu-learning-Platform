@@ -207,21 +207,33 @@ export default function registerAIHandlers(socket, io) {
     
     // Function to check and generate questions
     const checkAndGenerateQuestion = async () => {
+      const tickStartTime = Date.now();
+      const tickId = `tick-${tickStartTime}`;
+      
+      console.log(`\n${'='.repeat(80)}`);
+      console.log(`🔵 [${tickId}] Question generation timer tick STARTED for meeting: ${meetingId}`);
+      console.log(`🔵 [${tickId}] Timer reference exists: ${!!questionTimerRef}`);
+      console.log(`🔵 [${tickId}] Timer in llmService map: ${llmService.questionGenerationTimer.has(meetingId)}`);
+      
       try {
         // Verify meeting still exists
         const currentMeeting = activeMeetings.get(meetingId);
         if (!currentMeeting) {
-          console.log('⚠️ Meeting no longer exists, stopping timer for:', meetingId);
+          console.log(`⚠️ [${tickId}] Meeting no longer exists, stopping timer for: ${meetingId}`);
           if (questionTimerRef) {
             clearInterval(questionTimerRef);
+            console.log(`🛑 [${tickId}] Cleared interval timer`);
           }
           llmService.questionGenerationTimer.delete(meetingId);
+          console.log(`🛑 [${tickId}] Removed timer from llmService map`);
           return;
         }
         
-        console.log('⏰ Question generation timer tick for meeting:', meetingId, {
+        console.log(`⏰ [${tickId}] Meeting exists - continuing question generation check:`, {
+          meetingId,
           participantsCount: currentMeeting.participants?.length || 0,
-          hostId: currentMeeting.hostId
+          hostId: currentMeeting.hostId,
+          hostName: currentMeeting.host
         });
         
         // DEBUG: Check transcript history BEFORE getting context
@@ -229,7 +241,7 @@ export default function registerAIHandlers(socket, io) {
         const rawHistory = hasHistory ? llmService.transcriptHistory.get(meetingId) : null;
         const transcriptHistoryCount = rawHistory ? rawHistory.length : 0;
         
-        console.log('🔍 PRE-CHECK: Transcript history status:', {
+        console.log(`🔍 [${tickId}] PRE-CHECK: Transcript history status:`, {
           meetingId,
           hasHistory,
           transcriptHistoryCount,
@@ -243,7 +255,7 @@ export default function registerAIHandlers(socket, io) {
         // Get recent transcript context (INCREASED: 10 minutes instead of 5 for better context)
         const recentContext = llmService.getRecentTranscriptContext(meetingId, 10);
         
-        console.log('🤖 Question generation check:', {
+        console.log(`🤖 [${tickId}] Question generation check:`, {
           meetingId,
           contextLength: recentContext.length,
           transcriptHistoryCount,
@@ -388,14 +400,17 @@ export default function registerAIHandlers(socket, io) {
           contextPreview: recentContext.substring(0, 100) + (recentContext.length > 100 ? '...' : '')
         });
         
-        // FURTHER RELAXED: Reduced minimum conversation requirement (70+ chars instead of 100+)
+        // FURTHER RELAXED: Reduced minimum conversation requirement (50+ chars instead of 70+)
         // Face expressions sirf tab use karein jab conversation substantial ho
-        if (contextLength < 70) {
-          console.log('📝 Skipping question generation - conversation too short (need at least 70 chars, got ' + contextLength + ')');
+        if (contextLength < 50) {
+          console.log(`📝 [${tickId}] SKIPPING question generation - conversation too short (need at least 50 chars, got ${contextLength})`);
+          console.log(`📝 [${tickId}] Context preview: "${recentContext.substring(0, 100)}${recentContext.length > 100 ? '...' : ''}"`);
+          console.log(`🔵 [${tickId}] Timer will continue - next check in 30 seconds`);
+          console.log(`${'='.repeat(80)}\n`);
           return; // Don't generate questions even with emotions if conversation is too short
         }
 
-        // Early conversation (70-500 chars): Very relaxed requirements
+        // Early conversation (50-500 chars): Very relaxed requirements
         if (contextLength < 500) {
           const meaningfulWords = recentContext.split(/\s+/).filter(word => word.length > 2).length;
           const uniqueWords = new Set(recentContext.toLowerCase().split(/\s+/).filter(w => w.length > 3));
@@ -646,7 +661,7 @@ export default function registerAIHandlers(socket, io) {
           // Send question suggestion to host
           const meeting = activeMeetings.get(meetingId);
           if (meeting && meeting.hostId) {
-            io.to(meeting.hostId).emit('follow_up_suggestion', {
+            const questionData = {
               meetingId,
               question: questionResult.question,
               topics: questionResult.topics,
@@ -655,39 +670,74 @@ export default function registerAIHandlers(socket, io) {
               timestamp: questionResult.timestamp,
               model: questionResult.model || 'rule-based', // Include model name (gemini, ollama, or rule-based)
               responseTime: questionResult.responseTime || 0 // Include response time in milliseconds
+            };
+            
+            console.log(`\n${'='.repeat(80)}`);
+            console.log(`❓ [${tickId}] SENDING question to frontend:`, {
+              meetingId,
+              hostId: meeting.hostId,
+              question: questionResult.question,
+              questionLength: questionResult.question.length,
+              model: questionResult.model || 'rule-based',
+              responseTime: questionResult.responseTime || 0,
+              topics: questionResult.topics,
+              sentiment: questionResult.sentiment,
+              confidence: questionResult.confidence
             });
             
-            console.log('❓ Sent intelligent follow-up question to host:', {
-              question: questionResult.question,
-              model: questionResult.model || 'rule-based',
-              responseTime: questionResult.responseTime || 0
+            io.to(meeting.hostId).emit('follow_up_suggestion', questionData);
+            
+            console.log(`✅ [${tickId}] Question EMITTED to host socket: ${meeting.hostId}`);
+            console.log(`✅ [${tickId}] Event name: 'follow_up_suggestion'`);
+            console.log(`${'='.repeat(80)}\n`);
+          } else {
+            console.log(`❌ [${tickId}] Cannot send question - meeting or hostId missing:`, {
+              hasMeeting: !!meeting,
+              hostId: meeting?.hostId,
+              meetingId
             });
           }
         } else {
-          console.log('📝 Skipping question - empty or too short:', questionResult?.question);
+          console.log(`📝 [${tickId}] SKIPPING question - empty or too short:`, questionResult?.question);
+          console.log(`🔵 [${tickId}] Timer will continue - next check in 30 seconds`);
         }
         
+        const tickDuration = Date.now() - tickStartTime;
+        console.log(`✅ [${tickId}] Question generation tick COMPLETED in ${tickDuration}ms`);
+        console.log(`${'='.repeat(80)}\n`);
+        
       } catch (error) {
-        console.error('❌ Question generation failed:', error);
+        const tickDuration = Date.now() - tickStartTime;
+        console.error(`❌ [${tickId}] Question generation FAILED after ${tickDuration}ms:`, error);
+        console.error(`❌ [${tickId}] Error stack:`, error.stack);
+        console.log(`🔵 [${tickId}] Timer will continue despite error - next check in 30 seconds`);
+        console.log(`${'='.repeat(80)}\n`);
       }
     };
     
     // Run immediately on start (don't wait 30 seconds)
+    console.log('\n🚀 Starting question generation for meeting:', meetingId);
     console.log('🚀 Running initial question check immediately...');
     checkAndGenerateQuestion();
     
     // Then set up interval to check every 30 seconds
-    questionTimerRef = setInterval(checkAndGenerateQuestion, 30000);
+    questionTimerRef = setInterval(() => {
+      console.log(`\n⏰ [INTERVAL] Timer tick triggered for meeting: ${meetingId}`);
+      checkAndGenerateQuestion();
+    }, 30000);
     
     // Store timer for cleanup
     llmService.questionGenerationTimer.set(meetingId, questionTimerRef);
     
-    console.log('✅ Question generation timer started for meeting:', meetingId, {
+    console.log('✅ Question generation timer STARTED and stored for meeting:', meetingId, {
       timerId: questionTimerRef,
       interval: '30 seconds',
       initialCheck: 'completed',
-      nextCheck: 'in 30 seconds'
+      nextCheck: 'in 30 seconds',
+      timerStored: llmService.questionGenerationTimer.has(meetingId),
+      totalActiveTimers: llmService.questionGenerationTimer.size
     });
+    console.log(`${'='.repeat(80)}\n`);
   });
 
   // Stop question generation
@@ -714,11 +764,23 @@ export default function registerAIHandlers(socket, io) {
       return;
     }
     
-    console.log('🛑 Stopping question generation for meeting:', meetingId);
+    console.log('\n🛑 STOPPING question generation for meeting:', meetingId);
+    console.log('🛑 Reason: stop_question_generation event received from host');
+    console.log('🛑 Host socket ID:', socket.id);
+    console.log('🛑 Meeting host ID:', meeting.hostId);
     
-    if (llmService.questionGenerationTimer.has(meetingId)) {
-      clearInterval(llmService.questionGenerationTimer.get(meetingId));
+    const timerExists = llmService.questionGenerationTimer.has(meetingId);
+    console.log('🛑 Timer exists in map:', timerExists);
+    
+    if (timerExists) {
+      const timerRef = llmService.questionGenerationTimer.get(meetingId);
+      console.log('🛑 Timer reference:', timerRef);
+      clearInterval(timerRef);
+      console.log('🛑 Interval cleared');
       llmService.questionGenerationTimer.delete(meetingId);
+      console.log('🛑 Timer removed from map');
+    } else {
+      console.log('⚠️ No timer found in map - may have already been stopped');
     }
     
     // CRITICAL FIX: Emit event to frontend to clear displayed question
@@ -727,7 +789,9 @@ export default function registerAIHandlers(socket, io) {
       reason: 'Question generation stopped'
     });
     
-    console.log('✅ Question generation stopped and frontend notified for meeting:', meetingId);
+    console.log('✅ Question generation STOPPED and frontend notified for meeting:', meetingId);
+    console.log('✅ Remaining active timers:', llmService.questionGenerationTimer.size);
+    console.log(`${'='.repeat(80)}\n`);
   });
 
   // AI-Generated Meeting Highlights - Mark Highlight Event

@@ -353,15 +353,33 @@ const MeetingRoom = () => {
     }
 
     const handleFollowUpSuggestion = (data) => {
-      console.log('❓ Received follow-up suggestion:', data);
+      console.log('\n' + '='.repeat(80));
+      console.log('❓ [FRONTEND] Received follow_up_suggestion event:', {
+        meetingId: data.meetingId,
+        question: data.question,
+        questionLength: data.question?.length,
+        model: data.model,
+        topics: data.topics,
+        sentiment: data.sentiment,
+        confidence: data.confidence,
+        timestamp: data.timestamp,
+        responseTime: data.responseTime
+      });
+      console.log('❓ [FRONTEND] Setting question state...');
       setSuggestedQuestion(data);
       setShowQuestionSuggestion(true);
+      console.log('✅ [FRONTEND] Question state updated - should be visible now');
+      console.log('='.repeat(80) + '\n');
     };
 
     const handleClearQuestion = (data) => {
-      console.log('🧹 Clearing question display:', data);
+      console.log('\n' + '='.repeat(80));
+      console.log('🧹 [FRONTEND] Received clear_question event:', data);
+      console.log('🧹 [FRONTEND] Clearing question display...');
       setSuggestedQuestion(null);
       setShowQuestionSuggestion(false);
+      console.log('✅ [FRONTEND] Question cleared from display');
+      console.log('='.repeat(80) + '\n');
     };
 
     socket.on('follow_up_suggestion', handleFollowUpSuggestion);
