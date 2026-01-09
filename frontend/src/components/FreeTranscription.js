@@ -98,6 +98,7 @@ const FreeTranscription = ({
 
         let interim = '';
         let final = '';
+        let finalConfidence = 0; // Track confidence from final results
 
         // Process all results
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -107,6 +108,7 @@ const FreeTranscription = ({
 
           if (result.isFinal) {
             final += transcriptText + ' ';
+            finalConfidence = conf; // Store confidence from final result
             setConfidence(conf);
             console.log('✅ FreeTranscription: FINAL transcript:', transcriptText);
           } else {
@@ -150,14 +152,14 @@ const FreeTranscription = ({
               transcript: finalText,
               timestamp: Date.now(),
               language: 'en-US',
-              confidence: conf
+              confidence: finalConfidence
             };
             
             console.log('📤 FreeTranscription: Sending transcript to server:', {
               transcript: finalText.substring(0, 50) + (finalText.length > 50 ? '...' : ''),
               participantId: currentParticipantId,
               meetingId,
-              confidence: conf
+              confidence: finalConfidence
             });
             
             socket.emit('transcript_update', transcriptData);
@@ -166,7 +168,7 @@ const FreeTranscription = ({
 
           // Notify parent
           if (onTranscriptUpdate) {
-            onTranscriptUpdate(finalText, conf);
+            onTranscriptUpdate(finalText, finalConfidence);
           }
         }
 
