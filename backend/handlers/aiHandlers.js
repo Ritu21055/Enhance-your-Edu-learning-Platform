@@ -955,6 +955,166 @@ export default function registerAIHandlers(socket, io) {
         console.log(`📝 Transcript history status for ${meetingId}: ${historyCount} entries stored`);
       }
       
+      // AUTO-RESTART: Check if question generation should be restarted
+      // Only check if timer is stopped AND we have enough transcripts (optimization: check every 3rd transcript or when crossing threshold)
+      const isQuestionGenerationStopped = !llmService.questionGenerationTimer.has(meetingId);
+      if (isQuestionGenerationStopped && (historyCount % 3 === 0 || historyCount >= 3)) {
+        // Get recent context to check if sufficient
+        const recentContext = llmService.getRecentTranscriptContext(meetingId, 10);
+        const contextLength = recentContext.length;
+        
+        // Check if we have sufficient context now (at least 50 chars)
+        if (contextLength >= 50) {
+          const meeting = activeMeetings.get(meetingId);
+          if (meeting && meeting.hostId) {
+            // Verify host is still connected
+            const hostSocket = io.sockets.sockets.get(meeting.hostId);
+            const isHostConnected = !!hostSocket && hostSocket.connected;
+            const meetingRoom = io.sockets.adapter.rooms.get(meetingId);
+            const isHostInRoom = meetingRoom ? meetingRoom.has(meeting.hostId) : false;
+            
+            if (isHostConnected && isHostInRoom) {
+              console.log(`\n${'='.repeat(80)}`);
+              console.log(`🔄 AUTO-RESTART: Question generation stopped but sufficient context now available`);
+              console.log(`🔄 Context length: ${contextLength} chars (minimum: 50)`);
+              console.log(`🔄 Transcript entries: ${historyCount}`);
+              console.log(`🔄 Host verified as connected: ${meeting.hostId}`);
+              console.log(`🔄 Automatically restarting question generation for meeting: ${meetingId}`);
+              console.log(`${'='.repeat(80)}\n`);
+              
+              // Emit start_question_generation event as if host requested it
+              // We'll trigger it by calling the handler logic directly
+              // But we need to be careful - we can't directly call socket.on handlers
+              // Instead, we'll emit an internal event or call the start logic
+              
+              // CRITICAL: Check if timer already exists (shouldn't, but double-check)
+              if (llmService.questionGenerationTimer.has(meetingId)) {
+                console.log('⚠️ AUTO-RESTART: Timer already exists, skipping restart');
+                return;
+              }
+              
+              // Create timer reference
+              let questionTimerRef = null;
+              
+              // Reuse the same checkAndGenerateQuestion function logic
+              // We'll create a simplified version that runs immediately
+              const checkAndGenerateQuestion = async () => {
+                const tickStartTime = Date.now();
+                const tickId = `auto-restart-${tickStartTime}`;
+                
+                console.log(`\n${'='.repeat(80)}`);
+                console.log(`🔄 [${tickId}] AUTO-RESTARTED question generation tick for meeting: ${meetingId}`);
+                
+                try {
+                  const currentMeeting = activeMeetings.get(meetingId);
+                  if (!currentMeeting) {
+                    console.log(`⚠️ [${tickId}] Meeting no longer exists, stopping auto-restarted timer`);
+                    if (questionTimerRef) {
+                      clearInterval(questionTimerRef);
+                    }
+                    llmService.questionGenerationTimer.delete(meetingId);
+                    return;
+                  }
+                  
+                  // Get recent context
+                  const recentContext = llmService.getRecentTranscriptContext(meetingId, 10);
+                  const contextLength = recentContext.length;
+                  
+                  if (contextLength < 50) {
+                    console.log(`📝 [${tickId}] AUTO-RESTART: Context too short (${contextLength} chars), will check again later`);
+                    return;
+                  }
+                  
+                  // Get participants and generate question (reuse existing logic)
+                  const allParticipants = currentMeeting?.participants || [];
+                  const hostId = currentMeeting?.hostId;
+                  
+                  // Get sentiment data for participants
+                  const sentimentDataForMeeting = sentimentData.get(meetingId);
+                  const allParticipantsWithEmotions = [];
+                  const participantEmotions = {};
+                  const participantNames = {};
+                  
+                  if (sentimentDataForMeeting && sentimentDataForMeeting.participants) {
+                    sentimentDataForMeeting.participants.forEach((data, key) => {
+                      const participant = allParticipants.find(p => p.id === key || p.name === key);
+                      if (participant) {
+                        allParticipantsWithEmotions.push({
+                          id: participant.id,
+                          name: participant.name.replace(' (Host)', '').trim(),
+                          emotion: data.emotion,
+                          timestamp: data.timestamp
+                        });
+                        participantEmotions[participant.id] = data.emotion;
+                        participantNames[participant.id] = participant.name.replace(' (Host)', '').trim();
+                      }
+                    });
+                  }
+                  
+                  // Generate question
+                  const questionResult = await llmService.generateFollowUpQuestion(
+                    recentContext,
+                    meetingId,
+                    allParticipantsWithEmotions,
+                    participantEmotions,
+                    participantNames
+                  );
+                  
+                  if (questionResult && questionResult.question && questionResult.question.trim().length > 10) {
+                    // Update last question time
+                    llmService.updateLastQuestionTime(meetingId);
+                    
+                    // Send question to host
+                    if (currentMeeting && currentMeeting.hostId) {
+                      const hostSocket = io.sockets.sockets.get(currentMeeting.hostId);
+                      const isHostConnected = !!hostSocket && hostSocket.connected;
+                      const meetingRoom = io.sockets.adapter.rooms.get(meetingId);
+                      const isHostInRoom = meetingRoom ? meetingRoom.has(currentMeeting.hostId) : false;
+                      
+                      if (isHostConnected && isHostInRoom) {
+                        const questionData = {
+                          meetingId,
+                          question: questionResult.question,
+                          topics: questionResult.topics,
+                          sentiment: questionResult.sentiment,
+                          confidence: questionResult.confidence,
+                          timestamp: questionResult.timestamp,
+                          model: questionResult.model || 'rule-based',
+                          responseTime: questionResult.responseTime || 0
+                        };
+                        
+                        io.to(currentMeeting.hostId).emit('follow_up_suggestion', questionData);
+                        console.log(`✅ [${tickId}] AUTO-RESTART: Question sent to host: ${questionResult.question.substring(0, 50)}...`);
+                      } else {
+                        console.log(`⚠️ [${tickId}] AUTO-RESTART: Host not connected, skipping question emission`);
+                      }
+                    }
+                  }
+                } catch (error) {
+                  console.error(`❌ [${tickId}] AUTO-RESTART: Question generation failed:`, error);
+                }
+              };
+              
+              // Run immediately
+              checkAndGenerateQuestion();
+              
+              // Set up interval for future checks
+              questionTimerRef = setInterval(() => {
+                checkAndGenerateQuestion();
+              }, 30000);
+              
+              // Store timer
+              llmService.questionGenerationTimer.set(meetingId, questionTimerRef);
+              
+              console.log(`✅ AUTO-RESTART: Question generation timer restarted for meeting: ${meetingId}`);
+              console.log(`${'='.repeat(80)}\n`);
+            } else {
+              console.log(`⚠️ AUTO-RESTART: Host not connected, cannot auto-restart question generation`);
+            }
+          }
+        }
+      }
+      
       // CRITICAL FIX: Broadcast transcript to all other participants in real-time
       const meeting = activeMeetings.get(meetingId);
       if (meeting && meeting.participants) {
