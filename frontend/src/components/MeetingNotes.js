@@ -29,7 +29,6 @@ import {
   School,
   Person,
   Chat,
-  Download,
   PictureAsPdf
 } from '@mui/icons-material';
 
@@ -40,23 +39,9 @@ const MeetingNotes = ({ notes, loading = false, error = null }) => {
     setExpanded(isExpanded ? panel : false);
   };
 
-  const handleDownload = (format = 'pdf') => {
+  const handleDownload = () => {
     if (!notes) return;
-
-    if (format === 'pdf') {
-      handleDownloadPDF();
-    } else {
-      const notesText = formatNotesAsText(notes);
-      const blob = new Blob([notesText], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `meeting-notes-${new Date().toISOString().split('T')[0]}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
+    handleDownloadPDF();
   };
 
   const handleDownloadPDF = () => {
@@ -212,99 +197,6 @@ const MeetingNotes = ({ notes, loading = false, error = null }) => {
     }, 250);
   };
 
-  const formatNotesAsText = (notes) => {
-    let text = 'MEETING NOTES\n';
-    text += '='.repeat(50) + '\n\n';
-
-    if (notes.summary) {
-      text += 'SUMMARY\n';
-      text += '-'.repeat(50) + '\n';
-      text += notes.summary + '\n\n';
-    }
-
-    if (notes.importantPoints && notes.importantPoints.length > 0) {
-      text += 'IMPORTANT POINTS\n';
-      text += '-'.repeat(50) + '\n';
-      notes.importantPoints.forEach((point, index) => {
-        text += `${index + 1}. ${point}\n`;
-      });
-      text += '\n';
-    }
-
-    if (notes.actionItems && notes.actionItems.length > 0) {
-      text += 'ACTION ITEMS\n';
-      text += '-'.repeat(50) + '\n';
-      notes.actionItems.forEach((item, index) => {
-        text += `${index + 1}. ${typeof item === 'string' ? item : item.task}\n`;
-        if (typeof item === 'object' && item.assignedTo) {
-          text += `   Assigned to: ${item.assignedTo}\n`;
-        }
-        if (typeof item === 'object' && item.deadline) {
-          text += `   Deadline: ${item.deadline}\n`;
-        }
-      });
-      text += '\n';
-    }
-
-    if (notes.decisions && notes.decisions.length > 0) {
-      text += 'DECISIONS\n';
-      text += '-'.repeat(50) + '\n';
-      notes.decisions.forEach((decision, index) => {
-        text += `${index + 1}. ${decision}\n`;
-      });
-      text += '\n';
-    }
-
-    if (notes.studyGuide) {
-      const { definitions, examples, formulas } = notes.studyGuide;
-      if (definitions && definitions.length > 0) {
-        text += 'DEFINITIONS\n';
-        text += '-'.repeat(50) + '\n';
-        definitions.forEach((def, index) => {
-          text += `${index + 1}. ${def}\n`;
-        });
-        text += '\n';
-      }
-      if (examples && examples.length > 0) {
-        text += 'EXAMPLES\n';
-        text += '-'.repeat(50) + '\n';
-        examples.forEach((ex, index) => {
-          text += `${index + 1}. ${ex}\n`;
-        });
-        text += '\n';
-      }
-      if (formulas && formulas.length > 0) {
-        text += 'FORMULAS\n';
-        text += '-'.repeat(50) + '\n';
-        formulas.forEach((formula, index) => {
-          text += `${index + 1}. ${formula}\n`;
-        });
-        text += '\n';
-      }
-    }
-
-    if (notes.participantContributions && Object.keys(notes.participantContributions).length > 0) {
-      text += 'PARTICIPANT CONTRIBUTIONS\n';
-      text += '-'.repeat(50) + '\n';
-      Object.entries(notes.participantContributions).forEach(([name, contributions]) => {
-        text += `${name}:\n`;
-        contributions.forEach((contribution, index) => {
-          text += `  ${index + 1}. ${contribution}\n`;
-        });
-        text += '\n';
-      });
-    }
-
-    if (notes.conversationTranscript && notes.conversationTranscript.length > 0) {
-      text += 'CONVERSATION TRANSCRIPT (Kisne Kya Bola)\n';
-      text += '='.repeat(50) + '\n';
-      notes.conversationTranscript.forEach((entry) => {
-        text += `[${entry.timestamp}] ${entry.speaker}: ${entry.text}\n`;
-      });
-    }
-
-    return text;
-  };
 
   if (loading) {
     return (
@@ -344,25 +236,15 @@ const MeetingNotes = ({ notes, loading = false, error = null }) => {
         <Typography variant="h4" component="h2" gutterBottom>
           Meeting Notes
         </Typography>
-        <Box display="flex" gap={1}>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<PictureAsPdf />}
-            onClick={() => handleDownload('pdf')}
-            sx={{ mb: 2 }}
-          >
-            Download PDF
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Download />}
-            onClick={() => handleDownload('text')}
-            sx={{ mb: 2 }}
-          >
-            Download Text
-          </Button>
-        </Box>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<PictureAsPdf />}
+          onClick={handleDownload}
+          sx={{ mb: 2 }}
+        >
+          Download PDF
+        </Button>
       </Box>
 
       {/* Summary */}
