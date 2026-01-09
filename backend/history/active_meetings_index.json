@@ -11,14 +11,15 @@
     "lastUpdated": "2026-01-08T14:28:37.167Z"
   },
   "123": {
-    "title": "Meeting 123",
-    "createdAt": "2025-12-26T06:24:38.665Z",
-    "endedAt": "2025-12-26T06:24:33.442Z",
-    "duration": 0,
-    "highlights": 0,
+    "title": "testing",
+    "host": "ritu (Host)",
+    "createdAt": "2026-01-09T10:37:51.473Z",
+    "endedAt": "2026-01-09T10:41:40.220Z",
+    "duration": 228646,
+    "participants": 1,
     "hasRecording": false,
     "hasTranscript": false,
-    "lastUpdated": "2025-12-26T06:24:33.445Z"
+    "lastUpdated": "2026-01-09T10:41:40.238Z"
   },
   "144": {
     "title": "meeting",

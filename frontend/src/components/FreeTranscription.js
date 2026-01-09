@@ -1,12 +1,13 @@
 /**
  * Free Transcription Component using Web Speech API
- * COMPLETELY REWRITTEN - Simple, working version
+ * Simple version with Show/Hide toggle button
  * Provides real-time transcription without any cloud costs
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
+  Paper,
   Typography,
   IconButton,
   Chip,
@@ -18,8 +19,7 @@ import {
   Mic,
   MicOff,
   Clear,
-  VolumeUp,
-  VolumeOff
+  Close
 } from '@mui/icons-material';
 
 const FreeTranscription = ({ 
@@ -27,10 +27,10 @@ const FreeTranscription = ({
   meetingId, 
   participantId,
   participantName,
-  isVisible = true,
-  onTranscriptUpdate,
-  isAudioEnabled = true  // NEW: Sync with main mic button
+  isVisible = false,  // Hidden by default - show with button
+  onTranscriptUpdate
 }) => {
+  const [isOpen, setIsOpen] = useState(isVisible);
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -75,10 +75,10 @@ const FreeTranscription = ({
       // Create recognition instance
       const recognition = new SpeechRecognition();
       
-      // Configuration - FIXED: Use single language code
+      // Configuration
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = 'en-US'; // FIXED: Single language only
+      recognition.lang = 'en-US';
       recognition.maxAlternatives = 1;
 
       // onstart handler
@@ -89,7 +89,7 @@ const FreeTranscription = ({
         setStatus('Listening...');
       };
 
-      // onresult handler - SIMPLE AND DIRECT
+      // onresult handler
       recognition.onresult = (event) => {
         console.log('🎤 FreeTranscription: onresult triggered', {
           resultIndex: event.resultIndex,
@@ -133,36 +133,16 @@ const FreeTranscription = ({
             return;
           }
           
-          // VALIDATE: Reject low confidence (if available)
-          if (confidence !== undefined && confidence !== null && confidence < 0.3) {
-            console.log('⚠️ FreeTranscription: Skipping low confidence transcript:', {
-              transcript: finalText,
-              confidence
-            });
-            return;
-          }
-          
           setTranscript(prev => {
-            const newText = prev + finalText;
+            const newText = prev + finalText + ' ';
             console.log('📝 FreeTranscription: Updated transcript:', newText);
             return newText;
           });
           setInterimTranscript(''); // Clear interim when we get final
           
           // Send to server
-          // FIX: Use socket.id as fallback if participantId is not available
           const currentParticipantId = participantId || socket?.id;
           if (socket && meetingId && currentParticipantId) {
-            // DEBUG: Check socket connection
-            if (!socket.connected) {
-              console.error('❌ FreeTranscription: Socket not connected!', {
-                socketId: socket?.id,
-                connected: socket?.connected,
-                meetingId,
-                participantId: currentParticipantId
-              });
-            }
-            
             const transcriptData = {
               meetingId,
               participantId: currentParticipantId,
@@ -170,36 +150,23 @@ const FreeTranscription = ({
               transcript: finalText,
               timestamp: Date.now(),
               language: 'en-US',
-              confidence: confidence
+              confidence: conf
             };
             
             console.log('📤 FreeTranscription: Sending transcript to server:', {
               transcript: finalText.substring(0, 50) + (finalText.length > 50 ? '...' : ''),
               participantId: currentParticipantId,
-              socketId: socket?.id,
-              socketConnected: socket?.connected,
               meetingId,
-              confidence,
-              transcriptLength: finalText.length
+              confidence: conf
             });
             
             socket.emit('transcript_update', transcriptData);
-            
-            // DEBUG: Verify emit was called
             console.log('✅ FreeTranscription: transcript_update event emitted');
-          } else {
-            console.error('❌ FreeTranscription: Cannot send transcript - missing data:', {
-              hasSocket: !!socket,
-              hasMeetingId: !!meetingId,
-              hasParticipantId: !!currentParticipantId,
-              socketConnected: socket?.connected,
-              socketId: socket?.id
-            });
           }
 
           // Notify parent
           if (onTranscriptUpdate) {
-            onTranscriptUpdate(finalText, confidence);
+            onTranscriptUpdate(finalText, conf);
           }
         }
 
@@ -213,7 +180,6 @@ const FreeTranscription = ({
         console.error('❌ FreeTranscription: Error:', event.error);
         
         if (event.error === 'no-speech') {
-          // Normal - just waiting
           setStatus('Waiting for speech...');
           return;
         }
@@ -231,7 +197,7 @@ const FreeTranscription = ({
           setStatus('Network Error - Retrying...');
           setIsListening(false);
           
-          // Auto-retry with exponential backoff (1s, 2s, 4s)
+          // Auto-retry with exponential backoff
           networkErrorRetryCountRef.current += 1;
           if (networkErrorRetryCountRef.current <= maxNetworkRetries) {
             const retryDelay = Math.min(1000 * Math.pow(2, networkErrorRetryCountRef.current - 1), 4000);
@@ -241,14 +207,14 @@ const FreeTranscription = ({
               if (recognitionRef.current && shouldAutoRestartRef.current) {
                 try {
                   recognitionRef.current.start();
-                  networkErrorRetryCountRef.current = 0; // Reset on success
+                  networkErrorRetryCountRef.current = 0;
                   console.log('✅ FreeTranscription: Auto-recovery successful');
-                  setError(null); // Clear error on success
+                  setError(null);
                   setStatus('Listening...');
                 } catch (e) {
                   console.error('❌ FreeTranscription: Auto-recovery failed:', e.message);
                   if (networkErrorRetryCountRef.current >= maxNetworkRetries) {
-                    setError('Network error - multiple retry attempts failed. Please check your connection.');
+                    setError('Network error - multiple retry attempts failed.');
                     setStatus('Network Error');
                     shouldAutoRestartRef.current = false;
                   }
@@ -256,10 +222,10 @@ const FreeTranscription = ({
               }
             }, retryDelay);
           } else {
-            setError('Network error - multiple retry attempts failed. Please check your connection.');
+            setError('Network error - multiple retry attempts failed.');
             setStatus('Network Error');
             shouldAutoRestartRef.current = false;
-            networkErrorRetryCountRef.current = 0; // Reset for next time
+            networkErrorRetryCountRef.current = 0;
           }
           return;
         }
@@ -289,12 +255,10 @@ const FreeTranscription = ({
       recognition.onend = () => {
         console.log('🛑 FreeTranscription: Recognition ended');
         setIsListening(false);
-        
-        // Reset network error retry count on normal end (successful recovery)
         networkErrorRetryCountRef.current = 0;
         
-        // Auto-restart if enabled (even after network errors if retries succeeded)
-        if (shouldAutoRestartRef.current) {
+        // Auto-restart if enabled
+        if (shouldAutoRestartRef.current && isOpen) {
           console.log('🔄 FreeTranscription: Auto-restarting...');
           setTimeout(() => {
             try {
@@ -303,7 +267,6 @@ const FreeTranscription = ({
               }
             } catch (e) {
               console.log('⚠️ FreeTranscription: Auto-restart failed:', e.message);
-              // Don't disable auto-restart on single failure, let it retry
             }
           }, 500);
         } else {
@@ -317,68 +280,48 @@ const FreeTranscription = ({
       setStatus('Ready');
       console.log('✅ FreeTranscription: Recognition initialized successfully');
 
-      // Store in window for sharing (optional)
-      window.recognition = recognition;
-
-      // Auto-start after socket is ready (ONLY if main mic is enabled)
-      // FIX: Handle case where participantId might be undefined initially (for participants)
-      const autoStartTimer = setTimeout(() => {
-        if (recognitionRef.current && socket && meetingId && isAudioEnabled) {
-          // Check if participantId is available (socket.id might be undefined initially)
-          const currentParticipantId = participantId || socket?.id;
-          
-          if (currentParticipantId) {
-            try {
-              console.log('🚀 FreeTranscription: Auto-starting...', {
-                participantId: currentParticipantId,
-                socketId: socket?.id,
-                isHost: socket?.id === participantId,
-                isAudioEnabled
-              });
-              shouldAutoRestartRef.current = true;
-              recognitionRef.current.start();
-            } catch (e) {
-              console.log('⚠️ FreeTranscription: Auto-start failed:', e.message);
-              setStatus('Start Failed');
-            }
-          } else {
-            console.log('⚠️ FreeTranscription: Waiting for participantId...', {
-              hasSocket: !!socket,
-              socketId: socket?.id,
-              participantId
-            });
-            // Retry after 1 more second if participantId not available
-            setTimeout(() => {
-              if (recognitionRef.current && socket?.id) {
-                try {
-                  console.log('🚀 FreeTranscription: Retrying auto-start with socket.id...', {
-                    socketId: socket.id
-                  });
-                  shouldAutoRestartRef.current = true;
-                  recognitionRef.current.start();
-                } catch (e) {
-                  console.log('⚠️ FreeTranscription: Retry failed:', e.message);
-                  setStatus('Start Failed');
-                }
+      // Auto-start when opened (if socket is ready)
+      if (isOpen) {
+        const autoStartTimer = setTimeout(() => {
+          if (recognitionRef.current && socket && meetingId) {
+            const currentParticipantId = participantId || socket?.id;
+            if (currentParticipantId) {
+              try {
+                console.log('🚀 FreeTranscription: Auto-starting...', {
+                  participantId: currentParticipantId,
+                  socketId: socket?.id
+                });
+                shouldAutoRestartRef.current = true;
+                recognitionRef.current.start();
+              } catch (e) {
+                console.log('⚠️ FreeTranscription: Auto-start failed:', e.message);
+                setStatus('Start Failed');
               }
-            }, 1000);
+            } else {
+              // Retry after 1 second
+              setTimeout(() => {
+                if (recognitionRef.current && socket?.id) {
+                  try {
+                    console.log('🚀 FreeTranscription: Retrying auto-start...');
+                    shouldAutoRestartRef.current = true;
+                    recognitionRef.current.start();
+                  } catch (e) {
+                    console.log('⚠️ FreeTranscription: Retry failed:', e.message);
+                  }
+                }
+              }, 1000);
+            }
           }
-        } else {
-          console.log('⚠️ FreeTranscription: Cannot auto-start - missing dependencies:', {
-            hasRecognition: !!recognitionRef.current,
-            hasSocket: !!socket,
-            meetingId,
-            participantId,
-            socketId: socket?.id,
-            isAudioEnabled
-          });
-        }
-      }, 2000); // 2 second delay
+        }, 1000);
+
+        return () => {
+          clearTimeout(autoStartTimer);
+        };
+      }
 
       // Cleanup
       return () => {
         console.log('🧹 FreeTranscription: Cleaning up...');
-        clearTimeout(autoStartTimer);
         shouldAutoRestartRef.current = false;
         if (recognitionRef.current) {
           try {
@@ -394,9 +337,9 @@ const FreeTranscription = ({
       setError(`Initialization failed: ${error.message}`);
       setStatus('Init Failed');
     }
-  }, [isSupported, socket, meetingId, participantId, participantName, onTranscriptUpdate, isAudioEnabled]);
+  }, [isSupported, socket, meetingId, participantId, participantName, onTranscriptUpdate, isOpen]);
 
-  // NEW: Sync transcription with main mic button
+  // Start/stop when panel is opened/closed
   useEffect(() => {
     if (!isSupported || !recognitionRef.current) {
       return;
@@ -404,24 +347,23 @@ const FreeTranscription = ({
 
     const recognition = recognitionRef.current;
 
-    if (isAudioEnabled) {
-      // Main mic is ON - Start transcription if not already listening
+    if (isOpen) {
+      // Panel opened - start transcription
       if (!isListening) {
-        console.log('🎤 FreeTranscription: Main mic ON - Starting transcription...');
+        console.log('🎤 FreeTranscription: Panel opened - Starting transcription...');
         try {
           shouldAutoRestartRef.current = true;
           recognition.start();
         } catch (e) {
-          // Already started or starting
           if (e.message && !e.message.includes('already')) {
             console.log('⚠️ FreeTranscription: Start failed:', e.message);
           }
         }
       }
     } else {
-      // Main mic is OFF - Stop transcription if listening
+      // Panel closed - stop transcription
       if (isListening) {
-        console.log('🎤 FreeTranscription: Main mic OFF - Stopping transcription...');
+        console.log('🎤 FreeTranscription: Panel closed - Stopping transcription...');
         shouldAutoRestartRef.current = false;
         try {
           recognition.stop();
@@ -430,7 +372,7 @@ const FreeTranscription = ({
         }
       }
     }
-  }, [isAudioEnabled, isSupported, isListening]);
+  }, [isOpen, isSupported, isListening]);
 
   // Toggle listening
   const toggleListening = () => {
@@ -466,56 +408,102 @@ const FreeTranscription = ({
     console.log('🧹 FreeTranscription: Transcript cleared');
   };
 
-  if (!isVisible) return null;
+  // Collapsed view - Show Transcription button
+  if (!isOpen) {
+    return (
+      <Paper
+        sx={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          zIndex: 9999,
+          p: 1,
+          cursor: 'pointer',
+          backgroundColor: '#7c3aed',
+          color: 'white',
+          '&:hover': {
+            backgroundColor: '#6d28d9'
+          }
+        }}
+        onClick={() => setIsOpen(true)}
+      >
+        <Box display="flex" alignItems="center" gap={1}>
+          <Mic />
+          <Typography variant="caption" sx={{ fontWeight: 500 }}>
+            Show Transcription
+          </Typography>
+        </Box>
+      </Paper>
+    );
+  }
 
+  // Main view
   return (
-    <Box 
-      sx={{ 
-        p: 2, 
-        mb: 2,
-        backgroundColor: 'transparent'
+    <Paper
+      sx={{
+        position: 'fixed',
+        bottom: 20,
+        right: 20,
+        zIndex: 9999,
+        width: 400,
+        maxHeight: 500,
+        p: 2,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        color: 'white',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
       }}
     >
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-        <Typography variant="h6" color="primary" sx={{ fontSize: '0.9rem' }}>
+        <Typography variant="h6" sx={{ color: 'white', fontSize: '1rem' }}>
           🆓 Free Live Transcription
         </Typography>
-        <Box display="flex" gap={1}>
-          <Chip 
-            label="100% Free" 
-            color="success" 
-            size="small" 
-            variant="outlined"
-            sx={{ fontSize: '0.7rem', height: '20px' }}
-          />
-          <Chip 
+        <Box display="flex" gap={1} alignItems="center">
+          <Chip
             label={status}
             color={isListening ? 'success' : 'default'}
             size="small"
             sx={{ fontSize: '0.7rem', height: '20px' }}
           />
+          <IconButton
+            size="small"
+            onClick={() => setIsOpen(false)}
+            sx={{ color: 'white' }}
+          >
+            <Close />
+          </IconButton>
         </Box>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2, fontSize: '0.8rem' }}>
           {error}
         </Alert>
       )}
 
       {!isSupported && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Web Speech API not supported. Please use Chrome, Edge, or Safari.
+        <Alert severity="warning" sx={{ mb: 2, fontSize: '0.8rem' }}>
+          Web Speech API not supported. Use Chrome, Edge, or Safari.
         </Alert>
       )}
 
       <Box display="flex" alignItems="center" gap={2} mb={2}>
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontStyle: 'italic' }}>
-          🎤 Controlled by main mic button
-        </Typography>
-        <Box sx={{ flexGrow: 1 }} />
+        <Tooltip title={isListening ? "Stop listening" : "Start listening"}>
+          <IconButton
+            onClick={toggleListening}
+            disabled={!isSupported}
+            color={isListening ? "error" : "primary"}
+            sx={{
+              backgroundColor: isListening ? 'rgba(244, 67, 54, 0.1)' : 'rgba(25, 118, 210, 0.1)',
+              '&:hover': {
+                backgroundColor: isListening ? 'rgba(244, 67, 54, 0.2)' : 'rgba(25, 118, 210, 0.2)'
+              }
+            }}
+          >
+            {isListening ? <MicOff /> : <Mic />}
+          </IconButton>
+        </Tooltip>
         <Tooltip title="Clear transcript">
-          <IconButton onClick={clearTranscript} disabled={!transcript} size="small">
+          <IconButton onClick={clearTranscript} disabled={!transcript} sx={{ color: 'white' }}>
             <Clear />
           </IconButton>
         </Tooltip>
@@ -523,88 +511,97 @@ const FreeTranscription = ({
 
       {isListening && (
         <Box mb={2}>
-          <LinearProgress 
-            variant="indeterminate" 
+          <LinearProgress
+            variant="indeterminate"
             color="primary"
             sx={{ height: 4, borderRadius: 2 }}
           />
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            Listening... Speak clearly for best results
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', color: 'rgba(255,255,255,0.7)' }}>
+            Listening... Speak clearly
           </Typography>
         </Box>
       )}
 
-      <Box 
-        sx={{ 
-          minHeight: 80, 
-          maxHeight: 200, 
+      <Box
+        sx={{
+          minHeight: 150,
+          maxHeight: 300,
           overflowY: 'auto',
           p: 1.5,
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
           borderRadius: 1,
-          border: 'none'
+          mb: 1
         }}
       >
         {transcript && (
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              mb: 1, 
+          <Typography
+            variant="body2"
+            sx={{
+              mb: 1,
               lineHeight: 1.6,
-              color: 'white'
+              color: 'white',
+              fontSize: '0.9rem',
+              wordBreak: 'break-word'
             }}
           >
             {transcript}
           </Typography>
         )}
-        
+
         {interimTranscript && (
-          <Typography 
-            variant="body2" 
-            sx={{ 
+          <Typography
+            variant="body2"
+            sx={{
               color: 'rgba(255, 255, 255, 0.7)',
-              fontStyle: 'italic'
+              fontStyle: 'italic',
+              fontSize: '0.9rem',
+              wordBreak: 'break-word'
             }}
           >
             {interimTranscript}
           </Typography>
         )}
-        
+
         {!transcript && !interimTranscript && (
-          <Typography 
-            variant="body2" 
-            sx={{ 
+          <Typography
+            variant="body2"
+            sx={{
               textAlign: 'center',
               fontStyle: 'italic',
-              color: 'rgba(255, 255, 255, 0.6)'
+              color: 'rgba(255, 255, 255, 0.5)',
+              fontSize: '0.9rem'
             }}
           >
-            {isListening ? 'Listening for speech...' : 'Turn on your mic to start transcription'}
+            {isListening ? 'Listening for speech...' : 'Click mic to start'}
           </Typography>
         )}
       </Box>
 
       {confidence > 0 && (
         <Box mt={1} display="flex" alignItems="center" gap={1}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
             Confidence:
           </Typography>
-          <LinearProgress 
-            variant="determinate" 
-            value={confidence * 100} 
-            sx={{ 
-              flexGrow: 1, 
-              height: 4, 
+          <LinearProgress
+            variant="determinate"
+            value={confidence * 100}
+            sx={{
+              flexGrow: 1,
+              height: 4,
               borderRadius: 2,
               backgroundColor: 'rgba(0,0,0,0.1)'
             }}
           />
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.7rem' }}>
             {Math.round(confidence * 100)}%
           </Typography>
         </Box>
       )}
-    </Box>
+
+      <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.7rem', mt: 1, display: 'block' }}>
+        Participant: {participantName || 'Unknown'} | Meeting: {meetingId}
+      </Typography>
+    </Paper>
   );
 };
 

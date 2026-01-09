@@ -880,14 +880,13 @@ const MeetingRoom = () => {
       </Box>
 
 
-      {/* Free Transcription for AI Question Generation - Visible UI, controlled by main mic */}
+      {/* Free Transcription for AI Question Generation - Toggle button to show/hide */}
       <FreeTranscription
         socket={socket}
         meetingId={meetingId}
         participantId={socket?.id}
         participantName={finalUserName}
-        isVisible={true}
-        isAudioEnabled={isAudioEnabled}
+        isVisible={false}
         onTranscriptUpdate={(transcript, confidence) => {
           console.log('📝 Transcript update received:', { transcript, confidence });
         }}
