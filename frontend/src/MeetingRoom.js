@@ -48,7 +48,6 @@ import QuestionSuggestion from './components/QuestionSuggestion';
 // import ShareHighlightReel from './components/ShareHighlightReel';
 // import AIHighlightNotification from './components/AIHighlightNotification';
 import FreeTranscription from './components/FreeTranscription';
-import TranscriptionDebug from './components/TranscriptionDebug';
 
 // Import Meeting Media Protection
 import meetingMediaProtection from './utils/meetingMediaProtection';
@@ -881,24 +880,17 @@ const MeetingRoom = () => {
       </Box>
 
 
-      {/* Free Transcription for AI Question Generation - Hidden UI, runs in background */}
+      {/* Free Transcription for AI Question Generation - Visible UI, controlled by main mic */}
       <FreeTranscription
         socket={socket}
         meetingId={meetingId}
         participantId={socket?.id}
         participantName={finalUserName}
-        isVisible={false}
+        isVisible={true}
+        isAudioEnabled={isAudioEnabled}
         onTranscriptUpdate={(transcript, confidence) => {
           console.log('📝 Transcript update received:', { transcript, confidence });
         }}
-      />
-
-      {/* Transcription Debug Component - Temporary */}
-      <TranscriptionDebug
-        socket={socket}
-        meetingId={meetingId}
-        participantId={socket?.id}
-        participantName={finalUserName}
       />
 
       {/* REMOVED: AI Highlight Notifications - Feature removed */}

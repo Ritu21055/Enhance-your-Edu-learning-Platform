@@ -28,7 +28,8 @@ const FreeTranscription = ({
   participantId,
   participantName,
   isVisible = true,
-  onTranscriptUpdate 
+  onTranscriptUpdate,
+  isAudioEnabled = true  // NEW: Sync with main mic button
 }) => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -319,10 +320,10 @@ const FreeTranscription = ({
       // Store in window for sharing (optional)
       window.recognition = recognition;
 
-      // Auto-start after socket is ready
+      // Auto-start after socket is ready (ONLY if main mic is enabled)
       // FIX: Handle case where participantId might be undefined initially (for participants)
       const autoStartTimer = setTimeout(() => {
-        if (recognitionRef.current && socket && meetingId) {
+        if (recognitionRef.current && socket && meetingId && isAudioEnabled) {
           // Check if participantId is available (socket.id might be undefined initially)
           const currentParticipantId = participantId || socket?.id;
           
@@ -331,7 +332,8 @@ const FreeTranscription = ({
               console.log('🚀 FreeTranscription: Auto-starting...', {
                 participantId: currentParticipantId,
                 socketId: socket?.id,
-                isHost: socket?.id === participantId
+                isHost: socket?.id === participantId,
+                isAudioEnabled
               });
               shouldAutoRestartRef.current = true;
               recognitionRef.current.start();
@@ -367,7 +369,8 @@ const FreeTranscription = ({
             hasSocket: !!socket,
             meetingId,
             participantId,
-            socketId: socket?.id
+            socketId: socket?.id,
+            isAudioEnabled
           });
         }
       }, 2000); // 2 second delay
@@ -391,7 +394,43 @@ const FreeTranscription = ({
       setError(`Initialization failed: ${error.message}`);
       setStatus('Init Failed');
     }
-  }, [isSupported, socket, meetingId, participantId, participantName, onTranscriptUpdate]);
+  }, [isSupported, socket, meetingId, participantId, participantName, onTranscriptUpdate, isAudioEnabled]);
+
+  // NEW: Sync transcription with main mic button
+  useEffect(() => {
+    if (!isSupported || !recognitionRef.current) {
+      return;
+    }
+
+    const recognition = recognitionRef.current;
+
+    if (isAudioEnabled) {
+      // Main mic is ON - Start transcription if not already listening
+      if (!isListening) {
+        console.log('🎤 FreeTranscription: Main mic ON - Starting transcription...');
+        try {
+          shouldAutoRestartRef.current = true;
+          recognition.start();
+        } catch (e) {
+          // Already started or starting
+          if (e.message && !e.message.includes('already')) {
+            console.log('⚠️ FreeTranscription: Start failed:', e.message);
+          }
+        }
+      }
+    } else {
+      // Main mic is OFF - Stop transcription if listening
+      if (isListening) {
+        console.log('🎤 FreeTranscription: Main mic OFF - Stopping transcription...');
+        shouldAutoRestartRef.current = false;
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.log('⚠️ FreeTranscription: Stop failed:', e.message);
+        }
+      }
+    }
+  }, [isAudioEnabled, isSupported, isListening]);
 
   // Toggle listening
   const toggleListening = () => {
@@ -471,24 +510,12 @@ const FreeTranscription = ({
       )}
 
       <Box display="flex" alignItems="center" gap={2} mb={2}>
-        <Tooltip title={isListening ? "Stop listening" : "Start listening"}>
-          <IconButton
-            onClick={toggleListening}
-            disabled={!isSupported}
-            color={isListening ? "error" : "primary"}
-            sx={{ 
-              backgroundColor: isListening ? 'rgba(244, 67, 54, 0.1)' : 'rgba(25, 118, 210, 0.1)',
-              '&:hover': {
-                backgroundColor: isListening ? 'rgba(244, 67, 54, 0.2)' : 'rgba(25, 118, 210, 0.2)'
-              }
-            }}
-          >
-            {isListening ? <MicOff /> : <Mic />}
-          </IconButton>
-        </Tooltip>
-
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontStyle: 'italic' }}>
+          🎤 Controlled by main mic button
+        </Typography>
+        <Box sx={{ flexGrow: 1 }} />
         <Tooltip title="Clear transcript">
-          <IconButton onClick={clearTranscript} disabled={!transcript}>
+          <IconButton onClick={clearTranscript} disabled={!transcript} size="small">
             <Clear />
           </IconButton>
         </Tooltip>
@@ -552,7 +579,7 @@ const FreeTranscription = ({
               color: 'rgba(255, 255, 255, 0.6)'
             }}
           >
-            {isListening ? 'Listening for speech...' : 'Transcription will start automatically when meeting begins'}
+            {isListening ? 'Listening for speech...' : 'Turn on your mic to start transcription'}
           </Typography>
         )}
       </Box>
