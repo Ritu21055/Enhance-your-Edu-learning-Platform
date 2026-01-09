@@ -1,0 +1,53 @@
+{
+  "meeting": {
+    "id": "FER468",
+    "title": "Meeting FER468",
+    "host": "ritu (Host)",
+    "hostId": "8h2AbsB4m0jn0riIAAAJ",
+    "participants": [
+      {
+        "id": "8h2AbsB4m0jn0riIAAAJ",
+        "name": "ritu (Host)",
+        "joinedAt": "2026-01-09T11:57:46.765Z",
+        "isHost": true,
+        "isApproved": true,
+        "audioEnabled": true,
+        "videoEnabled": true
+      },
+      {
+        "id": "Z9JOmecb9n5kKF56AAAY",
+        "name": "VINESH",
+        "joinedAt": "2026-01-09T11:59:46.663Z",
+        "isHost": false,
+        "isApproved": false,
+        "audioEnabled": true,
+        "videoEnabled": true
+      }
+    ],
+    "createdAt": "2026-01-09T11:57:42.225Z",
+    "endedAt": "2026-01-09T12:00:15.099Z",
+    "duration": 152113,
+    "status": "completed"
+  },
+  "recording": null,
+  "transcript": {
+    "totalEntries": 0,
+    "data": [],
+    "fullTranscript": ""
+  },
+  "sentiment": {
+    "totalParticipants": 1,
+    "sentimentCounts": {},
+    "lastUpdated": 1767960014854
+  },
+  "metadata": {
+    "savedAt": "2026-01-09T12:00:15.099Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": false,
+      "questionGeneration": true,
+      "sentimentAnalysis": true,
+      "transcription": false
+    }
+  }
+}

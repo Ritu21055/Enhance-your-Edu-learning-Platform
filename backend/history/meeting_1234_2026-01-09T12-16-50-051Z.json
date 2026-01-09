@@ -1,0 +1,110 @@
+{
+  "meeting": {
+    "id": "1234",
+    "title": "testing",
+    "host": "Vinesh",
+    "hostId": "gCu8YC05rLiu4udhAAAK",
+    "participants": [
+      {
+        "id": "gCu8YC05rLiu4udhAAAK",
+        "name": "Vinesh",
+        "joinedAt": "2026-01-09T12:12:00.699Z",
+        "isHost": true,
+        "isApproved": true,
+        "audioEnabled": true,
+        "videoEnabled": true
+      }
+    ],
+    "createdAt": "2026-01-09T12:11:32.314Z",
+    "endedAt": "2026-01-09T12:16:50.051Z",
+    "duration": 317732,
+    "status": "completed"
+  },
+  "recording": null,
+  "transcript": {
+    "totalEntries": 6,
+    "data": [
+      {
+        "timestamp": 1767960787110,
+        "participantId": "TOnwp6tW94QAwKemAAAE",
+        "participantName": "ritu",
+        "transcript": "in a world that celebrate success achievements and perfect stories failure often feels like a Taboo we are thought to hide it to be ashamed of it and sometimes even to fear it more than anything else but the truth is failure doesn't mean the end of the road in many cases if the point where the real growth begins to explore this honestly I am joined by a participant Vinesh who has person personally face setbacks and chosen to move forward instead of giving up welcome Ganesh",
+        "language": "en-US",
+        "confidence": 0.8849048614501953,
+        "id": "af87b88e-55ad-4a3a-84d5-2d0336aabe61"
+      },
+      {
+        "timestamp": 1767960804159,
+        "participantId": "TOnwp6tW94QAwKemAAAE",
+        "participantName": "ritu",
+        "transcript": "I don't just think of exams or jobs I think of women is the transcription going on",
+        "language": "en-US",
+        "confidence": 0.855058491230011,
+        "id": "d6ed7faf-a5d2-4e51-b47b-346a73661ec3"
+      },
+      {
+        "timestamp": 1767960806665,
+        "participantId": "TOnwp6tW94QAwKemAAAE",
+        "participantName": "ritu",
+        "transcript": "check",
+        "language": "en-US",
+        "confidence": 0.7726619839668274,
+        "id": "6f78ff0c-ec22-4d74-b553-b039ca8d33fd"
+      },
+      {
+        "timestamp": 1767960811951,
+        "participantId": "TOnwp6tW94QAwKemAAAE",
+        "participantName": "ritu",
+        "transcript": "is your speech converting to text",
+        "language": "en-US",
+        "confidence": 0.818165123462677,
+        "id": "aa1491ec-b7fe-40d5-84bd-4c4e7729b942"
+      },
+      {
+        "timestamp": 1767960819260,
+        "participantId": "TOnwp6tW94QAwKemAAAE",
+        "participantName": "ritu",
+        "transcript": "ok make sure that you speeches converting to text Ok continue",
+        "language": "en-US",
+        "confidence": 0.8676748275756836,
+        "id": "7fdfa032-8054-4874-9318-55207c9031c5"
+      },
+      {
+        "timestamp": 1767960849164,
+        "participantId": "TOnwp6tW94QAwKemAAAE",
+        "participantName": "ritu",
+        "transcript": "best and still",
+        "language": "en-US",
+        "confidence": 0.8312826156616211,
+        "id": "4f3b9ce8-b4c1-40d3-b797-38ca71f99cc8"
+      }
+    ],
+    "fullTranscript": "in a world that celebrate success achievements and perfect stories failure often feels like a Taboo we are thought to hide it to be ashamed of it and sometimes even to fear it more than anything else but the truth is failure doesn't mean the end of the road in many cases if the point where the real growth begins to explore this honestly I am joined by a participant Vinesh who has person personally face setbacks and chosen to move forward instead of giving up welcome Ganesh I don't just think of exams or jobs I think of women is the transcription going on check is your speech converting to text ok make sure that you speeches converting to text Ok continue best and still"
+  },
+  "sentiment": {
+    "totalParticipants": 1,
+    "sentimentCounts": {},
+    "lastUpdated": 1767961008056
+  },
+  "metadata": {
+    "savedAt": "2026-01-09T12:16:50.051Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": false,
+      "questionGeneration": true,
+      "sentimentAnalysis": true,
+      "transcription": true,
+      "meetingNotes": true
+    },
+    "notesGeneratedAt": "2026-01-09T12:17:09.729Z"
+  },
+  "notes": {
+    "summary": "The meeting commenced with an introduction to the concept of failure, positing it as a point of growth rather than an end, and welcomed a participant named Vinesh (also referred to as Ganesh) to share experiences regarding personal setbacks. However, the subsequent conversation primarily focused on technical checks, ensuring that the speech-to-text transcription system was actively converting speech to text before the main discussion could properly begin.",
+    "importantPoints": [
+      "The initial discussion focused on reframing failure not as a taboo, but as a critical point for real growth.",
+      "Participant Vinesh (or Ganesh) was welcomed to share personal experiences with facing setbacks and moving forward.",
+      "A significant portion of the meeting involved Ritu verifying and confirming the functionality of the speech-to-text transcription system.",
+      "The substantive discussion on failure, setbacks, or personal experiences had not fully commenced within the provided transcript."
+    ]
+  }
+}

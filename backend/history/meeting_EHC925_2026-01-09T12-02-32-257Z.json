@@ -1,0 +1,62 @@
+{
+  "meeting": {
+    "id": "EHC925",
+    "title": "meeting",
+    "host": "Vinesh",
+    "hostId": "IxRmZhT4lGr1TZ3QAAAm",
+    "participants": [
+      {
+        "id": "IxRmZhT4lGr1TZ3QAAAm",
+        "name": "Vinesh",
+        "joinedAt": "2026-01-09T12:01:16.052Z",
+        "isHost": true,
+        "isApproved": true,
+        "audioEnabled": true,
+        "videoEnabled": true
+      }
+    ],
+    "createdAt": "2026-01-09T12:00:53.730Z",
+    "endedAt": "2026-01-09T12:02:32.257Z",
+    "duration": 98161,
+    "status": "completed"
+  },
+  "recording": null,
+  "transcript": {
+    "totalEntries": 1,
+    "data": [
+      {
+        "timestamp": 1767960095060,
+        "participantId": "-xACD7x-oQ7z9O5EAAAe",
+        "participantName": "ritu",
+        "transcript": "can I audible Vineet",
+        "language": "en-US",
+        "confidence": 0.885365903377533,
+        "id": "0d8cd4e6-8b05-486e-9fb3-38ca80700954"
+      }
+    ],
+    "fullTranscript": "can I audible Vineet"
+  },
+  "sentiment": {
+    "totalParticipants": 1,
+    "sentimentCounts": {},
+    "lastUpdated": 1767960150264
+  },
+  "metadata": {
+    "savedAt": "2026-01-09T12:02:32.257Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": false,
+      "questionGeneration": true,
+      "sentimentAnalysis": true,
+      "transcription": true,
+      "meetingNotes": true
+    },
+    "notesGeneratedAt": "2026-01-09T12:03:17.937Z"
+  },
+  "notes": {
+    "summary": "The meeting commenced with an audio check, where Ritu confirmed her audibility with Vineet.",
+    "importantPoints": [
+      "Ritu performed an audio check by asking if she was audible to Vineet."
+    ]
+  }
+}

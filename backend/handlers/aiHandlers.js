@@ -661,6 +661,36 @@ export default function registerAIHandlers(socket, io) {
           // Send question suggestion to host
           const meeting = activeMeetings.get(meetingId);
           if (meeting && meeting.hostId) {
+            // CRITICAL FIX: Verify host socket is still connected before emitting
+            const hostSocket = io.sockets.sockets.get(meeting.hostId);
+            const isHostConnected = !!hostSocket && hostSocket.connected;
+            const meetingRoom = io.sockets.adapter.rooms.get(meetingId);
+            const isHostInRoom = meetingRoom ? meetingRoom.has(meeting.hostId) : false;
+            
+            console.log(`\n${'='.repeat(80)}`);
+            console.log(`❓ [${tickId}] PRE-CHECK: Host connection verification:`, {
+              meetingId,
+              hostId: meeting.hostId,
+              hostName: meeting.host,
+              hasHostSocket: !!hostSocket,
+              isHostConnected,
+              isHostInRoom,
+              meetingRoomSize: meetingRoom ? meetingRoom.size : 0,
+              roomSocketIds: meetingRoom ? Array.from(meetingRoom) : []
+            });
+            
+            if (!isHostConnected || !isHostInRoom) {
+              console.log(`⚠️ [${tickId}] Host socket NOT CONNECTED or NOT IN ROOM - skipping question emission:`, {
+                hostId: meeting.hostId,
+                isHostConnected,
+                isHostInRoom,
+                reason: !isHostConnected ? 'Host socket disconnected' : 'Host not in meeting room'
+              });
+              console.log(`⚠️ [${tickId}] Question generated but NOT sent - host disconnected during generation`);
+              console.log(`${'='.repeat(80)}\n`);
+              return; // Skip emitting if host is not connected
+            }
+            
             const questionData = {
               meetingId,
               question: questionResult.question,
@@ -672,10 +702,10 @@ export default function registerAIHandlers(socket, io) {
               responseTime: questionResult.responseTime || 0 // Include response time in milliseconds
             };
             
-            console.log(`\n${'='.repeat(80)}`);
             console.log(`❓ [${tickId}] SENDING question to frontend:`, {
               meetingId,
               hostId: meeting.hostId,
+              hostName: meeting.host,
               question: questionResult.question,
               questionLength: questionResult.question.length,
               model: questionResult.model || 'rule-based',
@@ -689,6 +719,7 @@ export default function registerAIHandlers(socket, io) {
             
             console.log(`✅ [${tickId}] Question EMITTED to host socket: ${meeting.hostId}`);
             console.log(`✅ [${tickId}] Event name: 'follow_up_suggestion'`);
+            console.log(`✅ [${tickId}] Host verified as connected and in room`);
             console.log(`${'='.repeat(80)}\n`);
           } else {
             console.log(`❌ [${tickId}] Cannot send question - meeting or hostId missing:`, {
