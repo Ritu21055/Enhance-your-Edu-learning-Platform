@@ -18,16 +18,26 @@ const getNetworkConfig = () => {
     protocol,
     port,
     isLocalhost: hostname === 'localhost' || hostname === '127.0.0.1',
-    isIP: /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+    isIP: /^\d+\.\d+\.\d+\.\d+$/.test(hostname),
+    hasEnvBackendUrl: !!process.env.REACT_APP_BACKEND_URL
   });
   
-  // If accessing via localhost or 127.0.0.1, use local config
+  // Production: Use environment variable for backend URL (when deployed on Vercel)
+  if (process.env.REACT_APP_BACKEND_URL) {
+    console.log('🌐 Using production backend URL from environment');
+    return {
+      BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
+      FRONTEND_URL: `${protocol}//${hostname}${port ? ':' + port : ''}`
+    };
+  }
+  
+  // Development: If accessing via localhost or 127.0.0.1, use local config
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     console.log('🏠 Using localhost config');
     return LOCAL_CONFIG;
   }
   
-  // For all other cases (including IP addresses), use the same hostname for backend
+  // Network access: For all other cases (including IP addresses), use the same hostname for backend
   const config = {
     BACKEND_URL: `${protocol}//${hostname}:5000`,
     FRONTEND_URL: `${protocol}//${hostname}:${port || 3000}`
