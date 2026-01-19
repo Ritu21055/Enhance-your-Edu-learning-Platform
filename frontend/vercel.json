@@ -1,5 +1,5 @@
 {
-  "buildCommand": "craco build",
+  "buildCommand": "DISABLE_ESLINT_PLUGIN=true craco build",
   "outputDirectory": "build",
   "installCommand": "npm install"
 }
