@@ -29,24 +29,19 @@ import {
   Group,
   Schedule,
   AccessTime,
-  PlayArrow,
-  Star,
   Description,
-  PictureAsPdf,
   CheckCircle,
   Cancel
 } from '@mui/icons-material';
 import '../css/MeetingsHistory.css';
-import { getMeetings, getMeetingStats, clearAllMeetings } from '../services/meetingsService';
-import { getMeetingHistory, getAllMeetingHistories, deleteAllMeetingHistories, getMeetingNotes } from '../services/meetingHistoryApi';
+import { getMeetings } from '../services/meetingsService';
+import { deleteAllMeetingHistories, getMeetingNotes } from '../services/meetingHistoryApi';
 import MeetingNotes from '../components/MeetingNotes';
 
 const MeetingsHistory = () => {
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [highlightReels, setHighlightReels] = useState(new Map());
-  const [expandedMeeting, setExpandedMeeting] = useState(null);
   const [selectedMeetingNotes, setSelectedMeetingNotes] = useState(null);
   const [notesLoading, setNotesLoading] = useState(false);
   const [notesError, setNotesError] = useState(null);
@@ -338,24 +333,12 @@ const MeetingsHistory = () => {
       // Fallback to local meetings on error
       const localMeetings = getMeetings();
       setMeetings(localMeetings);
-      setHighlightReels(new Map());
+      // setHighlightReels(new Map()); // Unused - commented out
     } finally {
       setLoading(false);
     }
   };
 
-  // Load highlight reel data for meetings
-  const loadHighlightReelData = async (meetingId) => {
-    try {
-      const history = await getMeetingHistory(meetingId);
-      if (history && history.highlightReel) {
-        return history.highlightReel;
-      }
-    } catch (error) {
-      console.error('Error loading highlight reel data:', error);
-    }
-    return null;
-  };
 
   const getStatusColor = (status) => {
     switch (status) {

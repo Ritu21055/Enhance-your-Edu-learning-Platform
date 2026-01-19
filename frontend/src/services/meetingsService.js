@@ -1,7 +1,5 @@
 // meetingsService.js - Service for managing meeting data
 import { 
-  getAllMeetingHistories, 
-  getMeetingHistory, 
   saveMeetingToHistory, 
   updateMeetingStatus as updateMeetingStatusApi,
   addParticipantToMeeting as addParticipantToMeetingApi
