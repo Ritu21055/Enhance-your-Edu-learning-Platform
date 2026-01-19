@@ -1,0 +1,99 @@
+{
+  "meeting": {
+    "id": "MDS362",
+    "title": "testing",
+    "host": "Vinesh",
+    "hostId": "yRzqdPg-equNlfAiAAAU",
+    "participants": [
+      {
+        "id": "yRzqdPg-equNlfAiAAAU",
+        "name": "Vinesh",
+        "joinedAt": "2026-01-09T12:44:06.642Z",
+        "isHost": true,
+        "isApproved": true,
+        "audioEnabled": true,
+        "videoEnabled": true
+      }
+    ],
+    "createdAt": "2026-01-09T12:43:42.917Z",
+    "endedAt": "2026-01-09T12:45:43.127Z",
+    "duration": 120170,
+    "status": "completed"
+  },
+  "recording": null,
+  "transcript": {
+    "totalEntries": 5,
+    "data": [
+      {
+        "timestamp": 1767962689952,
+        "participantId": "6Zg8xUbhlOpF65J0AAAP",
+        "participantName": "ritu",
+        "transcript": "my audible",
+        "language": "en-US",
+        "confidence": 0.7308945655822754,
+        "id": "0175bd62-0854-4ab0-8045-f2a346559954"
+      },
+      {
+        "timestamp": 1767962694527,
+        "participantId": "6Zg8xUbhlOpF65J0AAAP",
+        "participantName": "ritu",
+        "transcript": "ok let's start the meeting",
+        "language": "en-US",
+        "confidence": 0.8459751009941101,
+        "id": "0f7a2b8f-4871-4b42-8794-b025340b7ee5"
+      },
+      {
+        "timestamp": 1767962700823,
+        "participantId": "6Zg8xUbhlOpF65J0AAAP",
+        "participantName": "ritu",
+        "transcript": "hi Vinesh",
+        "language": "en-US",
+        "confidence": 0.8868753910064697,
+        "id": "6df0cdb6-2a12-4b56-9dbf-24e09a566905"
+      },
+      {
+        "timestamp": 1767962708360,
+        "participantId": "6Zg8xUbhlOpF65J0AAAP",
+        "participantName": "ritu",
+        "transcript": "thanks for joining let's discuss the team outing the plan for next month",
+        "language": "en-US",
+        "confidence": 0.8868752121925354,
+        "id": "9132546d-18b4-457e-b320-432a618b58bb"
+      },
+      {
+        "timestamp": 1767962718738,
+        "participantId": "6Zg8xUbhlOpF65J0AAAP",
+        "participantName": "ritu",
+        "transcript": "a beach or a theme park",
+        "language": "en-US",
+        "confidence": 0.8674810528755188,
+        "id": "de43d761-e19c-431e-958f-d2c9b189dea9"
+      }
+    ],
+    "fullTranscript": "my audible ok let's start the meeting hi Vinesh thanks for joining let's discuss the team outing the plan for next month a beach or a theme park"
+  },
+  "sentiment": {
+    "totalParticipants": 1,
+    "sentimentCounts": {},
+    "lastUpdated": 1767962741334
+  },
+  "metadata": {
+    "savedAt": "2026-01-09T12:45:43.127Z",
+    "version": "1.0",
+    "aiFeatures": {
+      "highlightDetection": false,
+      "questionGeneration": true,
+      "sentimentAnalysis": true,
+      "transcription": true,
+      "meetingNotes": true
+    },
+    "notesGeneratedAt": "2026-01-09T12:46:13.890Z"
+  },
+  "notes": {
+    "summary": "The meeting was held to discuss the upcoming team outing scheduled for next month. Initial ideas for the outing location were proposed, with options including a beach or a theme park.",
+    "importantPoints": [
+      "The primary topic of discussion was the team outing planned for next month.",
+      "Two potential locations were suggested for the team outing: a beach or a theme park."
+    ]
+  }
+}

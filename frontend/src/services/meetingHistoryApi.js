@@ -217,7 +217,7 @@ export const deleteMeetingHistory = async (meetingId) => {
   } catch (error) {
     console.error('Error deleting meeting history:', error);
     return false;
-  }
+  } 
 };
 
 // Delete all meeting histories

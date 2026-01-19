@@ -13,7 +13,7 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
 
   // Configuration constants (optimized for realistic fatigue detection)
   const FATIGUE_THRESHOLD = 30; // Percentage threshold for fatigue detection (increased for realistic triggering)
-  const SUSTAINED_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds (increased for realistic detection)
+  const SUSTAINED_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds (increased for realistic detection)
   const ANALYSIS_INTERVAL = 30 * 1000; // Analyze every 30 seconds (less frequent)
   const HISTORY_DURATION = 15 * 60 * 1000; // Keep 15 minutes of history
   const MAX_HISTORY_ENTRIES = 30; // Limit memory usage
@@ -285,13 +285,13 @@ const useFatigueDetection = (sentimentData, isHost, socket) => {
       const meetingDuration = Date.now() - meetingStartTime;
       
       if (meetingDuration >= SUSTAINED_DURATION) {
-        console.log('🧠 Fatigue Detection: Time-based fatigue triggered after 2 minutes');
+        console.log('🧠 Fatigue Detection: Time-based fatigue triggered after 15 minutes');
         
         // Create a simulated fatigue alert
         const alertMessage = {
           type: 'medium',
           title: '⏰ Meeting Duration Alert',
-          message: 'You\'ve been in this meeting for over 2 minutes. Consider taking a break or checking in with participants.',
+          message: 'You\'ve been in this meeting for over 15 minutes. Consider taking a break or checking in with participants.',
           suggestions: [
             'Take a 5-minute break',
             'Ask participants how they\'re feeling',

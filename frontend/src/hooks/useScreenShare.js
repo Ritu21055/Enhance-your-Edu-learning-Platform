@@ -328,8 +328,26 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
       trickle: false, // Set to false for faster connection (waits for all ICE candidates)
       config: {
         iceServers: [
+          // STUN servers - tried first for direct connections (fast, free)
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
+          { urls: 'stun:stun1.l.google.com:19302' },
+          
+          // TURN servers - fallback for cross-country/firewall scenarios (reliable relay)
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          },
+          {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
         ]
       }
     });
