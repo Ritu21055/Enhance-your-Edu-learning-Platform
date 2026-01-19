@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import MeetingLobby from './MeetingLobby';
 import MeetingRoom from './MeetingRoom';
 import MeetingsHistory from './pages/MeetingsHistory';
+import { startKeepAlive, stopKeepAlive } from './config/network';
 
 const theme = createTheme({
   palette: {
@@ -26,6 +27,17 @@ const theme = createTheme({
 });
 
 function App() {
+  // Start keep-alive ping when app loads (prevents server from sleeping on free tier)
+  useEffect(() => {
+    // Start keep-alive ping
+    startKeepAlive();
+    
+    // Cleanup: Stop keep-alive when component unmounts
+    return () => {
+      stopKeepAlive();
+    };
+  }, []);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

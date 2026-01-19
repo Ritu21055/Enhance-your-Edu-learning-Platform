@@ -3,7 +3,7 @@
 
 // For local development (same computer)
 const LOCAL_CONFIG = {
-  BACKEND_URL: 'http://10.48.208.193:5000', 
+  BACKEND_URL: 'http://192.168.0.114:5000', 
   FRONTEND_URL: 'http://localhost:3000'
 };
 
@@ -84,5 +84,75 @@ console.log('🌐 Network Configuration:', {
   isLocalhost: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
   isNetworkAccess: window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
 });
+
+// Keep-alive ping to prevent server from sleeping (for free tier deployments)
+let keepAliveInterval = null;
+
+export const startKeepAlive = () => {
+  // Only run keep-alive in production (deployed) environments
+  // Skip for localhost/127.0.0.1 (local development)
+  const isLocalhost = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1' ||
+                      window.location.hostname.startsWith('192.168.') ||
+                      window.location.hostname.startsWith('10.');
+  
+  if (isLocalhost) {
+    console.log('🏠 Keep-alive disabled: Running on localhost');
+    return;
+  }
+  
+  // Stop existing interval if any
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+  }
+  
+  const backendUrl = config.BACKEND_URL;
+  const healthEndpoint = `${backendUrl}/api/health`;
+  
+  console.log('🔄 Starting keep-alive ping to prevent server sleep...');
+  console.log('   Backend URL:', backendUrl);
+  console.log('   Ping interval: Every 10 minutes');
+  
+  // Ping immediately on start
+  const pingServer = async () => {
+    try {
+      const startTime = Date.now();
+      const response = await fetch(healthEndpoint, {
+        method: 'GET',
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+      const responseTime = Date.now() - startTime;
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`✅ Keep-alive ping successful (${responseTime}ms):`, data.status);
+      } else {
+        console.log(`⚠️ Keep-alive ping failed: HTTP ${response.status} (${responseTime}ms)`);
+      }
+    } catch (error) {
+      console.log(`❌ Keep-alive ping error: ${error.message}`);
+    }
+  };
+  
+  // Initial ping
+  pingServer();
+  
+  // Set up interval: ping every 10 minutes (600000 ms)
+  // Render free tier sleeps after 15 minutes, so 10 minutes is safe
+  keepAliveInterval = setInterval(pingServer, 10 * 60 * 1000);
+  
+  console.log('✅ Keep-alive started successfully');
+};
+
+export const stopKeepAlive = () => {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+    console.log('🛑 Keep-alive stopped');
+  }
+};
 
 export default config;
