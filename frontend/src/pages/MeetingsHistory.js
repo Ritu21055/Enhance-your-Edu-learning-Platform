@@ -35,7 +35,7 @@ import {
 } from '@mui/icons-material';
 import '../css/MeetingsHistory.css';
 import { getMeetings } from '../services/meetingsService';
-import { deleteAllMeetingHistories, getMeetingNotes } from '../services/meetingHistoryApi';
+import { deleteAllMeetingHistories, getMeetingNotes, getAllMeetingHistories } from '../services/meetingHistoryApi';
 import MeetingNotes from '../components/MeetingNotes';
 
 const MeetingsHistory = () => {
@@ -221,9 +221,108 @@ const MeetingsHistory = () => {
       
       if (result.success) {
         console.log(`✅ Deleted ${result.deletedCount} meeting histories`);
-        // Clear local state
-        setMeetings([]);
-        setHighlightReels(new Map());
+        
+        // IMPORTANT: Reload meetings from backend after deletion to ensure fresh data
+        // This prevents showing old meetings that might still be cached
+        try {
+          const histories = await getAllMeetingHistories({ lightweight: true });
+          
+          if (histories && histories.length > 0) {
+            // Convert backend format to frontend format (same as in useEffect)
+            const meetingsData = histories.map(history => {
+              const meeting = history.meeting;
+              const highlightReel = history.highlightReel;
+              
+              let dateString = meeting.createdAt;
+              let timeString = 'Time not available';
+              
+              if (meeting.createdAt) {
+                try {
+                  const createdAt = new Date(meeting.createdAt);
+                  if (!isNaN(createdAt.getTime())) {
+                    timeString = createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                  } else {
+                    dateString = meeting.createdAt;
+                  }
+                } catch (error) {
+                  dateString = meeting.createdAt || 'Date not available';
+                }
+              } else {
+                dateString = 'Date not available';
+              }
+              
+              return {
+                id: meeting.id,
+                title: meeting.title || `Meeting ${meeting.id}`,
+                date: dateString,
+                time: timeString,
+                duration: Math.round((meeting.duration || 0) / 1000 / 60),
+                participants: meeting.participants?.length || 0,
+                status: meeting.status || 'completed',
+                highlightReel: highlightReel ? {
+                  path: highlightReel.path,
+                  url: highlightReel.url,
+                  generatedAt: highlightReel.generatedAt,
+                  highlightCount: highlightReel.highlightCount || history.highlights?.total || 0
+                } : null,
+                highlights: history.highlights?.total || 0,
+                recording: history.recording,
+                transcript: history.transcript?.totalEntries || 0
+              };
+            });
+            
+            // Deduplicate meetings (same logic as in useEffect)
+            const meetingsMap = new Map();
+            histories.forEach((history, index) => {
+              const meeting = meetingsData[index];
+              const existing = meetingsMap.get(meeting.id);
+              const currentEndTime = history.meeting?.endedAt || history.meeting?.createdAt;
+              const existingEndTime = existing?.originalEndTime;
+              
+              if (!existing) {
+                meeting.originalEndTime = currentEndTime;
+                meetingsMap.set(meeting.id, meeting);
+              } else {
+                if (currentEndTime && existingEndTime) {
+                  const currentTime = new Date(currentEndTime).getTime();
+                  const existingTime = new Date(existingEndTime).getTime();
+                  if (currentTime > existingTime) {
+                    meeting.originalEndTime = currentEndTime;
+                    meetingsMap.set(meeting.id, meeting);
+                  }
+                } else if (currentEndTime) {
+                  meeting.originalEndTime = currentEndTime;
+                  meetingsMap.set(meeting.id, meeting);
+                }
+              }
+            });
+            
+            const uniqueMeetings = Array.from(meetingsMap.values())
+              .map(m => {
+                const { originalEndTime, ...meeting } = m;
+                return meeting;
+              })
+              .sort((a, b) => {
+                const dateA = new Date(a.date + ' ' + a.time);
+                const dateB = new Date(b.date + ' ' + b.time);
+                return dateB - dateA;
+              });
+            
+            setMeetings(uniqueMeetings);
+            console.log(`✅ Reloaded ${uniqueMeetings.length} unique meetings after deletion`);
+          } else {
+            // No meetings found - clear state
+            setMeetings([]);
+            setNotesAvailability(new Map());
+            console.log('✅ All meetings deleted, state cleared');
+          }
+        } catch (reloadError) {
+          console.error('⚠️ Error reloading meetings after deletion:', reloadError);
+          // Still clear the state even if reload fails
+          setMeetings([]);
+          setNotesAvailability(new Map());
+        }
+        
         // Show success message
         alert(`Successfully deleted ${result.deletedCount} meeting history file(s).`);
       } else {
@@ -300,14 +399,60 @@ const MeetingsHistory = () => {
           };
         });
         
-        setMeetings(meetingsData);
-        setHighlightReels(new Map());
+        // CRITICAL FIX: Deduplicate meetings by meeting ID (keep the most recent one)
+        // Use original history data to get proper endedAt timestamp for comparison
+        const meetingsMap = new Map();
+        histories.forEach((history, index) => {
+          const meeting = meetingsData[index];
+          const existing = meetingsMap.get(meeting.id);
+          
+          // Use endedAt from history if available, otherwise use createdAt
+          const currentEndTime = history.meeting?.endedAt || history.meeting?.createdAt;
+          const existingEndTime = existing?.originalEndTime;
+          
+          if (!existing) {
+            // Store original end time for comparison
+            meeting.originalEndTime = currentEndTime;
+            meetingsMap.set(meeting.id, meeting);
+          } else {
+            // Compare timestamps - keep the most recent one
+            if (currentEndTime && existingEndTime) {
+              const currentTime = new Date(currentEndTime).getTime();
+              const existingTime = new Date(existingEndTime).getTime();
+              if (currentTime > existingTime) {
+                meeting.originalEndTime = currentEndTime;
+                meetingsMap.set(meeting.id, meeting);
+              }
+            } else if (currentEndTime) {
+              // If existing has no end time but current does, use current
+              meeting.originalEndTime = currentEndTime;
+              meetingsMap.set(meeting.id, meeting);
+            }
+          }
+        });
+        
+        // Convert map back to array and sort by date (newest first)
+        const uniqueMeetings = Array.from(meetingsMap.values())
+          .map(m => {
+            // Remove temporary originalEndTime property
+            const { originalEndTime, ...meeting } = m;
+            return meeting;
+          })
+          .sort((a, b) => {
+            const dateA = new Date(a.date + ' ' + a.time);
+            const dateB = new Date(b.date + ' ' + b.time);
+            return dateB - dateA;
+          });
+        
+        setMeetings(uniqueMeetings);
+        console.log(`✅ Refreshed ${uniqueMeetings.length} unique meetings from ${meetingsData.length} history files`);
         
         // Check notes availability in background (non-blocking)
+        // Use uniqueMeetings instead of meetingsData to avoid duplicate checks
         (async () => {
           const availabilityMap = new Map();
-          // Check notes in parallel for faster loading
-          const notesChecks = meetingsData.map(async (meeting) => {
+          // Check notes in parallel for faster loading - only for unique meetings
+          const notesChecks = uniqueMeetings.map(async (meeting) => {
             try {
               const notes = await getMeetingNotes(meeting.id);
               return { id: meeting.id, hasNotes: !!notes };
@@ -323,17 +468,15 @@ const MeetingsHistory = () => {
           setNotesAvailability(availabilityMap);
         })();
       } else {
-        // Fallback to local meetings
-        const localMeetings = getMeetings();
-        setMeetings(localMeetings);
-        setHighlightReels(new Map());
+        // No meetings found - clear state
+        setMeetings([]);
+        setNotesAvailability(new Map());
       }
     } catch (error) {
       console.error('❌ Error refreshing meetings:', error);
-      // Fallback to local meetings on error
-      const localMeetings = getMeetings();
-      setMeetings(localMeetings);
-      // setHighlightReels(new Map()); // Unused - commented out
+      // On error, clear meetings
+      setMeetings([]);
+      setNotesAvailability(new Map());
     } finally {
       setLoading(false);
     }

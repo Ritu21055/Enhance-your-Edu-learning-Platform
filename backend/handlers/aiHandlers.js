@@ -542,7 +542,7 @@ export default function registerAIHandlers(socket, io) {
                 sentences: sentences.length,
                 required: '2 sentences (or 1 if 100+ words and 50+ unique)'
               });
-              return;
+            return;
             }
           }
           
@@ -569,9 +569,9 @@ export default function registerAIHandlers(socket, io) {
         // Additional check: Only use intelligent trigger for very early conversations (< 200 chars)
         // For longer conversations, skip the double validation
         if (contextLength < 200) {
-          if (!llmService.shouldGenerateQuestionIntelligently(meetingId, recentContext, hasParticipantEmotions)) {
+        if (!llmService.shouldGenerateQuestionIntelligently(meetingId, recentContext, hasParticipantEmotions)) {
             console.log('⏰ Skipping question generation - very early conversation requirements not met');
-            return;
+          return;
           }
         } else {
           console.log('✅ Conversation length sufficient, skipping intelligent trigger double-check');
@@ -651,7 +651,7 @@ export default function registerAIHandlers(socket, io) {
               // RELAXED: Don't skip - allow question even without explicit name
               // The LLM might generate a good question that doesn't need a name
             } else {
-              console.log('✅ Question includes participant name:', questionText);
+            console.log('✅ Question includes participant name:', questionText);
             }
           }
           
