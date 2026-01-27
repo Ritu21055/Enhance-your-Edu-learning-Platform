@@ -399,38 +399,25 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
         kind: videoTrack.kind
       });
       
-      // CRITICAL FIX: Wait for track to be in 'live' state before setting stream
-      const setupStream = () => {
-        if (videoTrack.readyState === 'live' && videoTrack.enabled) {
-          console.log('🖥️ Screen Share: Video track is ready, setting remote screen stream');
-          setRemoteScreenStream(stream);
-          
-          // Force a re-render to ensure UI updates
-          setTimeout(() => {
-            console.log('🖥️ Screen Share: Verifying remote stream after set:', {
-              streamActive: stream.active,
-              videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
-              videoTrackReady: stream.getVideoTracks()[0]?.readyState
-            });
-          }, 100);
-        } else {
-          console.warn('🖥️ Screen Share: Video track not ready yet, waiting...', {
-            readyState: videoTrack.readyState,
-            enabled: videoTrack.enabled
-          });
-          // Retry after 200ms
-          setTimeout(setupStream, 200);
-        }
-      };
-      
-      // CRITICAL: Ensure video track is enabled
+      // CRITICAL FIX: Set stream immediately - don't wait for 'live' state
+      // The video element will handle the stream display when ready
       if (!videoTrack.enabled) {
         console.warn('🖥️ Screen Share: Video track is disabled, enabling it');
         videoTrack.enabled = true;
       }
       
-      // Start setup process
-      setupStream();
+      // Set stream immediately - video element will handle ready state
+      console.log('🖥️ Screen Share: Setting remote screen stream immediately');
+      setRemoteScreenStream(stream);
+      
+      // Verify stream after a short delay
+      setTimeout(() => {
+        console.log('🖥️ Screen Share: Verifying remote stream after set:', {
+          streamActive: stream.active,
+          videoTrackEnabled: stream.getVideoTracks()[0]?.enabled,
+          videoTrackReady: stream.getVideoTracks()[0]?.readyState
+        });
+      }, 100);
     });
 
     // Handle connection
@@ -466,43 +453,17 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
             videoTrack.enabled = true;
           }
           
-          // CRITICAL FIX: Wait for track to be ready if not already
-          if (videoTrack.readyState !== 'live') {
-            console.warn('🖥️ Screen Share: Video track not ready, waiting...', {
-              readyState: videoTrack.readyState
-            });
-            // Wait for track to be ready before adding to peer
-            const checkReady = setInterval(() => {
-              if (videoTrack.readyState === 'live') {
-                clearInterval(checkReady);
-                console.log('🖥️ Screen Share: Video track is now ready, adding stream');
-                try {
-                  peer.addStream(screenShareStreamRef.current);
-                  console.log('🖥️ Screen Share: Successfully added stream to new peer (after wait)', {
-                    videoTracks: videoTracks.length,
-                    audioTracks: audioTracks.length,
-                    videoTrackEnabled: videoTrack.enabled,
-                    videoTrackReady: videoTrack.readyState
-                  });
-                } catch (err) {
-                  console.error('🖥️ Screen Share: Error adding stream after wait:', err);
-                }
-              }
-            }, 100);
-            
-            // Cleanup after 5 seconds
-            setTimeout(() => clearInterval(checkReady), 5000);
-            return; // Don't add stream yet
-          }
+          // CRITICAL FIX: Add stream immediately - don't wait for 'live' state
+          // The peer connection will handle the stream when ready
+          console.log('🖥️ Screen Share: Adding stream to peer immediately');
+          peer.addStream(screenShareStreamRef.current);
+          console.log('🖥️ Screen Share: Successfully added stream to new peer', {
+            videoTracks: videoTracks.length,
+            audioTracks: audioTracks.length,
+            videoTrackEnabled: videoTrack.enabled,
+            videoTrackReady: videoTrack.readyState
+          });
         }
-        
-        peer.addStream(screenShareStreamRef.current);
-        console.log('🖥️ Screen Share: Successfully added stream to new peer', {
-          videoTracks: videoTracks.length,
-          audioTracks: audioTracks.length,
-          videoTrackEnabled: videoTracks[0]?.enabled,
-          videoTrackReady: videoTracks[0]?.readyState
-        });
       } catch (error) {
         console.error('🖥️ Screen Share: Error adding stream to new peer:', error);
       }
