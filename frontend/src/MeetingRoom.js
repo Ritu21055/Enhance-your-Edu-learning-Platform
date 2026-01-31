@@ -80,6 +80,8 @@ const MeetingRoom = () => {
   
   // Media Request Feature State
   const [showMediaRequestDialog, setShowMediaRequestDialog] = useState(false);
+  // Show Transcription panel (opened from header button)
+  const [showTranscriptionPanel, setShowTranscriptionPanel] = useState(false);
   
   // Recording Notification State (for participants)
   // REMOVED: Recording feature
@@ -812,16 +814,20 @@ const MeetingRoom = () => {
             >
               {showSentimentDashboard ? 'Hide Analytics' : 'Show Analytics'}
             </Button>
-            
-            {/* AI Status Display */}
-            {aiStatus && (
-              <Box sx={{ p: 1, backgroundColor: aiStatus.status === 'ready' ? '#e8f5e8' : aiStatus.status === 'limited' ? '#fff3cd' : '#f8d7da', borderRadius: 1, border: `1px solid ${aiStatus.status === 'ready' ? '#28a745' : aiStatus.status === 'limited' ? '#ffc107' : '#dc3545'}` }}>
-                <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {aiStatus.status === 'ready' ? '✅' : aiStatus.status === 'limited' ? '⚠️' : '❌'}
-                  <strong>AI Status:</strong> {aiStatus.message}
-                </Typography>
-              </Box>
-            )}
+
+            <Button
+              variant="contained"
+              color="primary"
+              className="ai-analytics-button"
+              onClick={() => setShowTranscriptionPanel(true)}
+              startIcon={<Mic />}
+              sx={{
+                backgroundColor: '#7c3aed',
+                '&:hover': { backgroundColor: '#6d28d9' }
+              }}
+            >
+              Show Transcription
+            </Button>
           </Box>
         )}
       </Box>
@@ -898,13 +904,14 @@ const MeetingRoom = () => {
       </Box>
 
 
-      {/* Free Transcription for AI Question Generation - Toggle button to show/hide */}
+      {/* Free Transcription - opened from header "Show Transcription" or floating button */}
       <FreeTranscription
         socket={socket}
         meetingId={meetingId}
         participantId={socket?.id}
         participantName={finalUserName}
-        isVisible={false}
+        isVisible={showTranscriptionPanel}
+        onClose={() => setShowTranscriptionPanel(false)}
         onTranscriptUpdate={(transcript, confidence) => {
           console.log('📝 Transcript update received:', { transcript, confidence });
         }}

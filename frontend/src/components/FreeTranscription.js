@@ -27,7 +27,8 @@ const FreeTranscription = ({
   meetingId, 
   participantId,
   participantName,
-  isVisible = false,  // Hidden by default - show with button
+  isVisible = false,  // When true (e.g. from header button), show panel
+  onClose,            // Called when panel is closed (e.g. from header flow)
   onTranscriptUpdate
 }) => {
   const [isOpen, setIsOpen] = useState(isVisible);
@@ -410,8 +411,8 @@ const FreeTranscription = ({
     console.log('🧹 FreeTranscription: Transcript cleared');
   };
 
-  // Collapsed view - Show Transcription button (same size as control icons on mobile)
-  if (!isOpen) {
+  // Collapsed view - Show Transcription button (hidden when panel open or opened from header)
+  if (!isOpen && !isVisible) {
     return (
       <Paper
         className="free-transcription-toggle-btn"
@@ -487,7 +488,10 @@ const FreeTranscription = ({
           />
           <IconButton
             size="small"
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              setIsOpen(false);
+              if (onClose) onClose();
+            }}
             sx={{ color: 'white' }}
           >
             <Close />
