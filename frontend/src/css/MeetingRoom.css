@@ -771,11 +771,12 @@
   max-width: none;
 }
 
-/* Desktop: single row, compact bar - no wrap */
+/* Desktop: single row, compact bar - no wrap, tight spacing */
 @media (min-width: 769px) {
   .meeting-controls-bottom .MuiStack-root {
     flex-wrap: nowrap !important;
     row-gap: 0 !important;
+    gap: 5px !important;
   }
 }
 
@@ -799,8 +800,8 @@
   .meeting-controls-bottom .MuiStack-root {
     flex-wrap: wrap;
     justify-content: center;
-    gap: 6px !important;
-    row-gap: 8px !important;
+    gap: 4px !important;
+    row-gap: 6px !important;
     max-width: 100%;
     min-width: 0;
   }
@@ -865,8 +866,8 @@
   }
   
   .meeting-controls-bottom .MuiStack-root {
-    gap: 5px !important;
-    row-gap: 6px !important;
+    gap: 3px !important;
+    row-gap: 5px !important;
   }
   
   .meeting-controls-bottom .control-button,
