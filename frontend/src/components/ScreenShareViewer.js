@@ -37,6 +37,10 @@ const ScreenShareViewer = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [remoteTrackEnded, setRemoteTrackEnded] = useState(false);
+  const remoteRetryCountRef = useRef(0);
+  const REMOTE_RETRY_MAX = 25;
+  const REMOTE_RETRY_INTERVAL_MS = 200;
 
   // Handle local screen stream - use ref callback for immediate setup
   useEffect(() => {
@@ -154,6 +158,9 @@ const ScreenShareViewer = ({
         return;
       }
       
+      setRemoteTrackEnded(false);
+      remoteRetryCountRef.current = 0;
+      
       // CRITICAL FIX: Set stream immediately - don't wait for readyState 'live' (causes black screen for host)
       const setupVideo = () => {
         // Ensure video track is enabled
@@ -189,24 +196,36 @@ const ScreenShareViewer = ({
               videoElement.srcObject = remoteScreenStream;
             }
             
-            // CRITICAL FIX: Check if video has actual frames
+            // CRITICAL FIX: Only consider "ready" when we have real dimensions (not 2x2 placeholder - fixes host black screen)
             const checkVideoReady = () => {
-              const hasVideoWidth = videoElement.videoWidth > 0;
-              const hasVideoHeight = videoElement.videoHeight > 0;
+              const w = videoElement.videoWidth || 0;
+              const h = videoElement.videoHeight || 0;
+              const isRealSize = w > 10 && h > 10;
+              const hasAnySize = w > 0 && h > 0;
               
-              if (hasVideoWidth && hasVideoHeight) {
+              if (isRealSize) {
                 console.log('🖥️✅ ScreenShareViewer: Video has frames!', {
-                  width: videoElement.videoWidth,
-                  height: videoElement.videoHeight,
+                  width: w,
+                  height: h,
                   readyState: videoElement.readyState
                 });
+                remoteRetryCountRef.current = 0;
+                return;
+              }
+              if (hasAnySize) {
+                console.warn('🖥️ ScreenShareViewer: Video placeholder size (e.g. 2x2), retrying...', { w, h });
               } else {
                 console.warn('🖥️ ScreenShareViewer: Video has no frames yet, retrying...', {
-                  videoWidth: videoElement.videoWidth,
-                  videoHeight: videoElement.videoHeight,
+                  videoWidth: w,
+                  videoHeight: h,
                   readyState: videoElement.readyState
                 });
-                setTimeout(checkVideoReady, 200);
+              }
+              remoteRetryCountRef.current += 1;
+              if (remoteRetryCountRef.current < REMOTE_RETRY_MAX) {
+                videoElement.srcObject = remoteScreenStream;
+                videoElement.play().catch(() => {});
+                setTimeout(checkVideoReady, REMOTE_RETRY_INTERVAL_MS);
               }
             };
             
@@ -253,11 +272,14 @@ const ScreenShareViewer = ({
         }
       };
       
-      // Listen for track readyState changes
+      // Listen for track readyState changes and track ended (connection lost)
       const handleTrackReadyStateChange = () => {
         console.log('🖥️ ScreenShareViewer: Video track readyState changed:', videoTrack.readyState);
         if (videoTrack.readyState === 'live') {
+          setRemoteTrackEnded(false);
           setupVideo();
+        } else if (videoTrack.readyState === 'ended') {
+          setRemoteTrackEnded(true);
         }
       };
       
@@ -281,8 +303,13 @@ const ScreenShareViewer = ({
         videoElement.play().catch(err => console.warn('Play error:', err));
       };
       
+      const handlePlaying = () => {
+        videoElement.play().catch(() => {});
+      };
+      
       videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
       videoElement.addEventListener('loadeddata', handleLoadedData);
+      videoElement.addEventListener('playing', handlePlaying);
       
       // Cleanup
       return () => {
@@ -291,8 +318,11 @@ const ScreenShareViewer = ({
         videoTrack.removeEventListener('ended', handleTrackReadyStateChange);
         videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
         videoElement.removeEventListener('loadeddata', handleLoadedData);
+        videoElement.removeEventListener('playing', handlePlaying);
       };
     } else {
+      setRemoteTrackEnded(false);
+      remoteRetryCountRef.current = 0;
       console.log('🖥️ ScreenShareViewer: No remote screen stream or video element', {
         hasStream: !!remoteScreenStream,
         hasElement: !!remoteVideoRef.current
@@ -502,6 +532,26 @@ const ScreenShareViewer = ({
               zIndex: 1
             }}
           />
+          {remoteTrackEnded && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(0,0,0,0.85)',
+                zIndex: 2
+              }}
+            >
+              <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
+                Screen share connection lost
+              </Typography>
+            </Box>
+          )}
         </Box>
       )}
 

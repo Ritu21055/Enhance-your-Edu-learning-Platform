@@ -26,6 +26,7 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = [], 
   const screenSharePeersRef = useRef({});
   const screenShareStreamRef = useRef(null);
   const isScreenSharingRef = useRef(false);
+  const screenShareStoppedRef = useRef(false);
 
   // Initialize screen sharing socket events
   useEffect(() => {
@@ -125,6 +126,7 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = [], 
       console.log('🖥️ Screen Share: DATA KEYS:', data ? Object.keys(data) : 'no data');
       console.log('🖥️ Screen Share: DATA VALUES:', data ? Object.values(data) : 'no data');
       
+      screenShareStoppedRef.current = false;
       // Check if data and participant exist before adding
       if (data && data.participant) {
         console.log('🖥️ Screen Share: Adding participant to screen share list', data.participant);
@@ -232,6 +234,8 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = [], 
         // Clear remote screen stream when screen sharing stops
         console.log('🖥️ Screen Share: Clearing remote screen stream');
         setRemoteScreenStream(null);
+        screenShareStoppedRef.current = true;
+        setScreenShareError(null);
         
         // Remove screen sharing class from body
         document.body.classList.remove('screen-sharing-active');
@@ -250,6 +254,8 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = [], 
         // Even with invalid data, clear the remote stream as a fallback
         console.log('🖥️ Screen Share: Fallback - Clearing remote screen stream due to invalid data');
         setRemoteScreenStream(null);
+        screenShareStoppedRef.current = true;
+        setScreenShareError(null);
         document.body.classList.remove('screen-sharing-active');
       }
     });
@@ -425,9 +431,10 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = [], 
       console.log('🖥️ Screen Share: Connected to', participantId);
     });
 
-    // Handle errors
+    // Handle errors - don't show alert after user has stopped screen share
     peer.on('error', (err) => {
       console.error('🖥️ Screen Share: Peer error for', participantId, err);
+      if (screenShareStoppedRef.current) return;
       setScreenShareError(`Connection error: ${err.message}`);
     });
 
@@ -868,6 +875,7 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = [], 
       screenShareStreamRef.current = stream;
       setIsScreenSharing(true);
       isScreenSharingRef.current = true;
+      screenShareStoppedRef.current = false;
 
       // CRITICAL: Add screen share stream to all existing peer connections
       console.log('🖥️ Screen Share: Adding stream to existing peer connections');
@@ -1284,6 +1292,8 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = [], 
   const stopScreenShare = useCallback(() => {
     console.log('🖥️🖥️🖥️ STOP SCREEN SHARE - DETAILED DEBUG');
     console.trace('🖥️ Stack trace at stop');
+    screenShareStoppedRef.current = true;
+    setScreenShareError(null);
     
     // CRITICAL: Capture video state BEFORE stopping
     let localVideoTrack = null;
