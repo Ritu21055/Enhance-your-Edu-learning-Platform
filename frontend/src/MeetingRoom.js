@@ -3,7 +3,9 @@ import {
   Box,
   Typography,
   Container,
-  Button
+  Button,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import { People, Psychology, Videocam, Mic } from '@mui/icons-material';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
@@ -91,6 +93,7 @@ const MeetingRoom = () => {
   // });
   
   // Refs (localVideoRef comes from useWebRTC hook)
+  const rollbackScreenShareRef = useRef(null);
 
   // Custom hooks - Video Call (clean implementation)
   const {
@@ -196,7 +199,7 @@ const MeetingRoom = () => {
 
   // Screen sharing (separate hook - not part of video call)
   // Pass participants so screen share can create peer connections proactively
-  const screenShareHook = useScreenShare(socket, meetingId, finalUserName, isHost, participants);
+  const screenShareHook = useScreenShare(socket, meetingId, finalUserName, isHost, participants, () => rollbackScreenShareRef.current?.());
   
   const {
     isScreenSharing: isNewScreenSharing,
@@ -227,6 +230,10 @@ const MeetingRoom = () => {
     }
   }, [startNewScreenShare, stopNewScreenShare]);
 
+  useEffect(() => {
+    rollbackScreenShareRef.current = () => handleScreenShareChange(null, false);
+    return () => { rollbackScreenShareRef.current = null; };
+  }, [handleScreenShareChange]);
 
   const {
     chatMessages,
@@ -511,7 +518,8 @@ const MeetingRoom = () => {
     handleScreenShareChange,
     socket,
     meetingId,
-    socket?.id
+    socket?.id,
+    setNewScreenShareError
   );
   
   // Use screen sharing from media controls or fallback to screen share hook
@@ -1162,6 +1170,18 @@ const MeetingRoom = () => {
 
       {/* REMOVED: Highlight Dashboard - Feature removed */}
       {/* REMOVED: Share Highlight Reel Dialog - Feature removed */}
+
+      {/* Screen share error toast */}
+      <Snackbar
+        open={!!newScreenShareError}
+        autoHideDuration={6000}
+        onClose={() => setNewScreenShareError(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setNewScreenShareError(null)} severity="warning" sx={{ width: '100%' }}>
+          {newScreenShareError}
+        </Alert>
+      </Snackbar>
 
       {/* Screen Share Viewer - Show when there's active screen sharing (local or remote) */}
       {(isNewScreenSharing || newRemoteScreenStream) && (

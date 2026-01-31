@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
  * Clean Media Controls Hook
  * Simple, reliable audio/video/screen share controls
  */
-export const useMediaControls = (localStream, onScreenShareChange, socket, meetingId, participantId) => {
+export const useMediaControls = (localStream, onScreenShareChange, socket, meetingId, participantId, onScreenShareError) => {
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabledState, setIsVideoEnabledState] = useState(true);
   
@@ -422,6 +422,12 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
       });
 
       try {
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+          const msg = 'Screen share is not supported in this browser. Use HTTPS and a modern browser.';
+          console.warn('🖥️ Screen share:', msg);
+          onScreenShareError?.(msg);
+          return;
+        }
         console.log('🖥️🖥️ Calling getDisplayMedia...');
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -647,7 +653,11 @@ export const useMediaControls = (localStream, onScreenShareChange, socket, meeti
       } catch (error) {
         console.error('🖥️🖥️❌❌❌ SCREEN SHARE ERROR:', error);
         console.trace('🖥️🖥️ Stack trace at error');
-        
+        const userMessage = error?.name === 'NotAllowedError' || error?.message?.includes('Permission')
+          ? 'Screen share was cancelled or permission denied.'
+          : (error?.message || 'Screen share failed. Use HTTPS and try again.');
+        onScreenShareError?.(userMessage);
+
         // CRITICAL: Protect video even if screen share fails
         const videoTrack = localStream?.getVideoTracks()[0];
         const videoWasEnabled = isVideoEnabled;

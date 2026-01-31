@@ -5,7 +5,7 @@ import SimplePeer from 'simple-peer';
  * Custom hook for screen sharing functionality
  * Handles screen capture, peer connections, and stream management
  */
-const useScreenShare = (socket, meetingId, userName, isHost, participants = []) => {
+const useScreenShare = (socket, meetingId, userName, isHost, participants = [], onScreenShareFailed) => {
   console.log('🖥️ Screen Share: useScreenShare hook called', {
     hasSocket: !!socket,
     socketConnected: socket?.connected,
@@ -929,6 +929,13 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = []) 
       console.log('🖥️ Screen Share: Creating peer connections proactively for all participants');
       const otherParticipants = participants.filter(p => p.id !== socket?.id);
       console.log('🖥️ Screen Share: Other participants to connect to:', otherParticipants.map(p => ({ id: p.id, name: p.name })));
+
+      if (otherParticipants.length === 0) {
+        setScreenShareError('No other participants in the meeting yet. Please wait and try again.');
+        stream.getTracks().forEach((t) => t.stop());
+        onScreenShareFailed?.();
+        return;
+      }
       
       // CRITICAL FIX: Add delay between peer creations to prevent network congestion
       otherParticipants.forEach((participant, index) => {
