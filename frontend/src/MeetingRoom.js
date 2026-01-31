@@ -75,9 +75,9 @@ const MeetingRoom = () => {
   const [showQuestionSuggestion, setShowQuestionSuggestion] = useState(false);
   const [isQuestionGenerationActive, setIsQuestionGenerationActive] = useState(false);
   
-  // AI Status state
+  // AI Status (used only for auto-start question generation - not displayed in UI)
   const [aiStatus, setAiStatus] = useState(null);
-  
+
   // Media Request Feature State
   const [showMediaRequestDialog, setShowMediaRequestDialog] = useState(false);
   // Show Transcription panel (opened from header button)
