@@ -771,12 +771,12 @@
   max-width: none;
 }
 
-/* Desktop: single row, compact bar - no wrap, tight spacing */
+/* Desktop: single row, compact bar - no wrap, icons chipak ke */
 @media (min-width: 769px) {
   .meeting-controls-bottom .MuiStack-root {
     flex-wrap: nowrap !important;
     row-gap: 0 !important;
-    gap: 5px !important;
+    gap: 2px !important;
   }
 }
 
