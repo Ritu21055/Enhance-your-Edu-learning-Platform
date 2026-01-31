@@ -154,21 +154,12 @@ const ScreenShareViewer = ({
         return;
       }
       
-      // CRITICAL FIX: Force enable video track and wait for it to be truly live
+      // CRITICAL FIX: Set stream immediately - don't wait for readyState 'live' (causes black screen for host)
       const setupVideo = () => {
         // Ensure video track is enabled
         if (!videoTrack.enabled) {
           console.warn('🖥️ ScreenShareViewer: Video track is disabled, enabling it');
           videoTrack.enabled = true;
-        }
-        
-        // CRITICAL: Wait for track to be in 'live' state with actual frames
-        if (videoTrack.readyState !== 'live') {
-          console.warn('🖥️ ScreenShareViewer: Video track not live yet, waiting...', {
-            readyState: videoTrack.readyState
-          });
-          setTimeout(setupVideo, 200);
-          return;
         }
         
         // CRITICAL: Ensure video element is visible and ready
@@ -180,7 +171,7 @@ const ScreenShareViewer = ({
         videoElement.style.width = '100%';
         videoElement.style.height = '100%';
         
-        // CRITICAL FIX: Always set srcObject (even if same) to force update
+        // CRITICAL FIX: Set srcObject immediately - don't wait for track readyState (fixes host black screen)
         console.log('🖥️ ScreenShareViewer: Force setting srcObject for remote screen stream');
         videoElement.srcObject = remoteScreenStream;
         
@@ -189,9 +180,9 @@ const ScreenShareViewer = ({
         videoElement.playsInline = true;
         videoElement.autoplay = true;
         
-        // Play video with retry mechanism
+        // Play video with retry mechanism - don't require readyState 'live' (fixes host black screen)
         const playVideo = () => {
-          if (videoElement && remoteScreenStream && remoteScreenStream.active && videoTrack?.enabled && videoTrack?.readyState === 'live') {
+          if (videoElement && remoteScreenStream && videoTrack?.enabled) {
             // CRITICAL FIX: Double-check srcObject is set
             if (videoElement.srcObject !== remoteScreenStream) {
               console.warn('🖥️ ScreenShareViewer: srcObject lost, restoring');
@@ -215,27 +206,24 @@ const ScreenShareViewer = ({
                   videoHeight: videoElement.videoHeight,
                   readyState: videoElement.readyState
                 });
-                // Retry after 200ms
                 setTimeout(checkVideoReady, 200);
               }
             };
             
             videoElement.play().then(() => {
               console.log('🖥️✅ ScreenShareViewer: Remote screen stream playing successfully');
-              // Check if video has frames after play
               setTimeout(checkVideoReady, 100);
             }).catch(err => {
               console.warn('🖥️ ScreenShareViewer: Remote video play error (will retry):', err);
-              setTimeout(playVideo, 300); // Retry playing
+              setTimeout(playVideo, 300);
             });
           } else {
             console.warn('🖥️ ScreenShareViewer: Remote stream not ready, retrying...', {
               streamActive: remoteScreenStream?.active,
               trackEnabled: videoTrack?.enabled,
-              trackReady: videoTrack?.readyState,
               hasElement: !!videoElement
             });
-            setTimeout(playVideo, 300); // Retry if not ready
+            setTimeout(playVideo, 300);
           }
         };
         
