@@ -411,51 +411,9 @@ const FreeTranscription = ({
     console.log('🧹 FreeTranscription: Transcript cleared');
   };
 
-  // Collapsed view - Show Transcription button (hidden when panel open or opened from header)
+  // No floating button - transcription is opened only from header "Show Transcription" (for all users)
   if (!isOpen && !isVisible) {
-    return (
-      <Paper
-        className="free-transcription-toggle-btn"
-        sx={{
-          position: 'fixed',
-          bottom: { xs: 72, sm: 20 },
-          right: { xs: 12, sm: 20 },
-          zIndex: 1001,
-          p: 0,
-          cursor: 'pointer',
-          backgroundColor: '#7c3aed',
-          color: 'white',
-          width: { xs: 40, sm: 'auto' },
-          height: { xs: 40, sm: 'auto' },
-          minWidth: { xs: 40, sm: 'auto' },
-          minHeight: { xs: 40, sm: 'auto' },
-          borderRadius: { xs: '50%', sm: 1 },
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          '&:hover': {
-            backgroundColor: '#6d28d9'
-          }
-        }}
-        onClick={() => setIsOpen(true)}
-      >
-        <Tooltip title="Show Transcription">
-          <Box display="flex" alignItems="center" justifyContent="center" gap={{ xs: 0, sm: 1 }} sx={{ p: { xs: 0, sm: 1 } }}>
-            <Mic sx={{ fontSize: { xs: 20, sm: 24 } }} />
-            <Typography
-              variant="caption"
-              sx={{
-                fontWeight: 500,
-                display: { xs: 'none', sm: 'block' },
-                fontSize: { sm: '0.75rem' }
-              }}
-            >
-              Show Transcription
-            </Typography>
-          </Box>
-        </Tooltip>
-      </Paper>
-    );
+    return null;
   }
 
   // Main view (responsive position on mobile - above control bar)

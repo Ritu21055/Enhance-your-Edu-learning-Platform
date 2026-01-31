@@ -786,50 +786,52 @@ const MeetingRoom = () => {
           </Typography>
         </Box>
         
-        {/* AI Features - Sentiment Dashboard Toggle and Camera Request */}
-        {isHost && (
-          <Box className="ai-features-notification" sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              color="primary"
-              className="ai-analytics-button"
-              onClick={() => setShowMediaRequestDialog(true)}
-              startIcon={<><Videocam /><Mic /></>}
-            >
-              Request Camera Access
-            </Button>
+        {/* Header actions: host-only (Request Camera, Show Analytics) + Show Transcription for all */}
+        <Box className="ai-features-notification" sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          {isHost && (
+            <>
+              <Button
+                variant="contained"
+                color="primary"
+                className="ai-analytics-button"
+                onClick={() => setShowMediaRequestDialog(true)}
+                startIcon={<><Videocam /><Mic /></>}
+              >
+                Request Camera Access
+              </Button>
 
-            <Button
-              variant="contained"
-              color="primary"
-              className="ai-analytics-button"
-              onClick={() => setShowSentimentDashboard(!showSentimentDashboard)}
-              startIcon={<Psychology />}
-              sx={{
-                backgroundColor: showSentimentDashboard ? '#5a67d8' : '#667eea',
-                '&:hover': {
-                  backgroundColor: showSentimentDashboard ? '#4c51bf' : '#5a67d8'
-                }
-              }}
-            >
-              {showSentimentDashboard ? 'Hide Analytics' : 'Show Analytics'}
-            </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                className="ai-analytics-button"
+                onClick={() => setShowSentimentDashboard(!showSentimentDashboard)}
+                startIcon={<Psychology />}
+                sx={{
+                  backgroundColor: showSentimentDashboard ? '#5a67d8' : '#667eea',
+                  '&:hover': {
+                    backgroundColor: showSentimentDashboard ? '#4c51bf' : '#5a67d8'
+                  }
+                }}
+              >
+                {showSentimentDashboard ? 'Hide Analytics' : 'Show Analytics'}
+              </Button>
+            </>
+          )}
 
-            <Button
-              variant="contained"
-              color="primary"
-              className="ai-analytics-button"
-              onClick={() => setShowTranscriptionPanel(true)}
-              startIcon={<Mic />}
-              sx={{
-                backgroundColor: '#7c3aed',
-                '&:hover': { backgroundColor: '#6d28d9' }
-              }}
-            >
-              Show Transcription
-            </Button>
-          </Box>
-        )}
+          <Button
+            variant="contained"
+            color="primary"
+            className="ai-analytics-button"
+            onClick={() => setShowTranscriptionPanel(true)}
+            startIcon={<Mic />}
+            sx={{
+              backgroundColor: '#7c3aed',
+              '&:hover': { backgroundColor: '#6d28d9' }
+            }}
+          >
+            Show Transcription
+          </Button>
+        </Box>
       </Box>
 
       {/* AI Features - Sentiment Dashboard */}
