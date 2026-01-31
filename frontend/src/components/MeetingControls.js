@@ -77,8 +77,8 @@ const MeetingControls = ({
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
-          gap: { xs: 3, sm: 4, md: 8 },
-          rowGap: { xs: 5, sm: 6 },
+          gap: { xs: '3px', sm: '4px', md: '8px' },
+          rowGap: { xs: '5px', sm: '6px' },
           padding: { xs: 0, sm: '12px 8px', md: '12px 24px' }
         }}
       >
