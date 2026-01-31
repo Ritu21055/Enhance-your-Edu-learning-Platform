@@ -35,12 +35,14 @@ const FreeTranscription = ({
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
+  const [receivedTranscripts, setReceivedTranscripts] = useState([]); // Other participants' speech (host/participant)
   const [isSupported, setIsSupported] = useState(false);
   const [error, setError] = useState(null);
   const [confidence, setConfidence] = useState(0);
   const [status, setStatus] = useState('Initializing...');
   
   const recognitionRef = useRef(null);
+  const maxReceivedTranscripts = 50;
   const isInitializedRef = useRef(false);
   const shouldAutoRestartRef = useRef(false);
   const networkErrorRetryCountRef = useRef(0);
@@ -342,6 +344,25 @@ const FreeTranscription = ({
     }
   }, [isSupported, socket, meetingId, participantId, participantName, onTranscriptUpdate, isOpen]);
 
+  // Listen for other participants' transcripts (host sees participant speech, participant sees host speech)
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleTranscriptReceived = (data) => {
+      if (!data?.transcript?.trim()) return;
+      const name = data.participantName || 'Unknown';
+      setReceivedTranscripts((prev) => {
+        const next = [...prev, { participantName: name, transcript: data.transcript.trim(), timestamp: data.timestamp || Date.now() }];
+        return next.slice(-maxReceivedTranscripts);
+      });
+    };
+
+    socket.on('transcript_received', handleTranscriptReceived);
+    return () => {
+      socket.off('transcript_received', handleTranscriptReceived);
+    };
+  }, [socket]);
+
   // Start/stop when panel is opened/closed
   useEffect(() => {
     if (!isSupported || !recognitionRef.current) {
@@ -408,6 +429,7 @@ const FreeTranscription = ({
   const clearTranscript = () => {
     setTranscript('');
     setInterimTranscript('');
+    setReceivedTranscripts([]);
     console.log('🧹 FreeTranscription: Transcript cleared');
   };
 
@@ -486,7 +508,7 @@ const FreeTranscription = ({
           </IconButton>
         </Tooltip>
         <Tooltip title="Clear transcript">
-          <IconButton onClick={clearTranscript} disabled={!transcript} sx={{ color: 'white' }}>
+          <IconButton onClick={clearTranscript} disabled={!transcript && !receivedTranscripts.length} sx={{ color: 'white' }}>
             <Clear />
           </IconButton>
         </Tooltip>
@@ -516,6 +538,26 @@ const FreeTranscription = ({
           mb: 1
         }}
       >
+        {receivedTranscripts.length > 0 && (
+          <Box sx={{ mb: 1.5 }}>
+            {receivedTranscripts.map((entry, idx) => (
+              <Typography
+                key={`${entry.timestamp}-${idx}`}
+                variant="body2"
+                sx={{
+                  mb: 0.75,
+                  lineHeight: 1.6,
+                  color: 'rgba(255, 255, 255, 0.95)',
+                  fontSize: '0.9rem',
+                  wordBreak: 'break-word'
+                }}
+              >
+                <strong style={{ color: '#c4b5fd' }}>{entry.participantName}:</strong> {entry.transcript}
+              </Typography>
+            ))}
+          </Box>
+        )}
+
         {transcript && (
           <Typography
             variant="body2"
@@ -527,7 +569,7 @@ const FreeTranscription = ({
               wordBreak: 'break-word'
             }}
           >
-            {transcript}
+            <strong style={{ color: '#a5b4fc' }}>You:</strong> {transcript}
           </Typography>
         )}
 
