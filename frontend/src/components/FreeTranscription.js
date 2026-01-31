@@ -410,7 +410,7 @@ const FreeTranscription = ({
     console.log('🧹 FreeTranscription: Transcript cleared');
   };
 
-  // Collapsed view - Show Transcription button (responsive: above controls on mobile)
+  // Collapsed view - Show Transcription button (same size as control icons on mobile)
   if (!isOpen) {
     return (
       <Paper
@@ -418,13 +418,20 @@ const FreeTranscription = ({
         sx={{
           position: 'fixed',
           bottom: { xs: 72, sm: 20 },
-          right: { xs: 8, sm: 20 },
+          right: { xs: 12, sm: 20 },
           zIndex: 999,
-          p: { xs: 0.75, sm: 1 },
+          p: 0,
           cursor: 'pointer',
           backgroundColor: '#7c3aed',
           color: 'white',
+          width: { xs: 40, sm: 'auto' },
+          height: { xs: 40, sm: 'auto' },
           minWidth: { xs: 40, sm: 'auto' },
+          minHeight: { xs: 40, sm: 'auto' },
+          borderRadius: { xs: '50%', sm: 1 },
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           '&:hover': {
             backgroundColor: '#6d28d9'
           }
@@ -432,7 +439,7 @@ const FreeTranscription = ({
         onClick={() => setIsOpen(true)}
       >
         <Tooltip title="Show Transcription">
-          <Box display="flex" alignItems="center" gap={{ xs: 0.5, sm: 1 }}>
+          <Box display="flex" alignItems="center" justifyContent="center" gap={{ xs: 0, sm: 1 }} sx={{ p: { xs: 0, sm: 1 } }}>
             <Mic sx={{ fontSize: { xs: 20, sm: 24 } }} />
             <Typography
               variant="caption"

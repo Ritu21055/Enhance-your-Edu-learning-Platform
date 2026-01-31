@@ -776,14 +776,16 @@
   background: rgba(15, 15, 35, 0.98) !important;
 }
 
-/* Responsive adjustments for control bar */
+/* Responsive adjustments for control bar - equal icon sizes, no overflow */
 @media (max-width: 768px) {
   .meeting-controls-bottom {
     left: 0;
     right: 0;
     width: 100%;
-    padding: 12px 8px;
+    padding: 12px 12px;
     border-radius: 0;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
   
   .meeting-controls-bottom .MuiStack-root {
@@ -791,57 +793,107 @@
     justify-content: center;
     gap: 6px !important;
     row-gap: 8px !important;
+    max-width: 100%;
+    min-width: 0;
   }
   
-  .control-button {
-    width: 44px !important;
-    min-width: 44px !important;
-    height: 44px !important;
+  /* All control icons same size - including AudioButton wrapper */
+  .meeting-controls-bottom .control-button,
+  .meeting-controls-bottom span .control-button {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    flex-shrink: 0;
   }
   
-  .control-button .MuiSvgIcon-root {
-    font-size: 22px !important;
+  .meeting-controls-bottom .control-button .MuiSvgIcon-root,
+  .meeting-controls-bottom span .control-button .MuiSvgIcon-root {
+    font-size: 20px !important;
   }
   
-  .leave-button {
-    padding: 8px 12px !important;
+  .meeting-controls-bottom .leave-button {
+    padding: 8px !important;
     font-size: 0.8125rem !important;
-    min-width: 44px !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    flex-shrink: 0;
   }
   
-  /* Hide Leave button text on small screens - show icon only to prevent overflow */
-  .leave-button .leave-button-text {
+  .meeting-controls-bottom .leave-button .MuiSvgIcon-root {
+    font-size: 20px !important;
+  }
+  
+  /* Hide Leave button text on small screens - icon only */
+  .meeting-controls-bottom .leave-button .leave-button-text {
     display: none;
   }
   
-  .leave-button .MuiButton-startIcon {
+  .meeting-controls-bottom .leave-button .MuiButton-startIcon {
     margin: 0;
+  }
+  
+  /* All control wrappers (e.g. AudioButton) - same size as other icons */
+  .meeting-controls-bottom .control-button-wrapper {
+    display: inline-flex !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    flex-shrink: 0;
+  }
+  
+  .meeting-controls-bottom .control-button-wrapper .control-button {
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
   }
 }
 
 @media (max-width: 480px) {
   .meeting-controls-bottom {
-    padding: 10px 6px;
+    padding: 10px 12px;
   }
   
   .meeting-controls-bottom .MuiStack-root {
-    gap: 4px !important;
+    gap: 5px !important;
     row-gap: 6px !important;
   }
   
-  .control-button {
-    width: 40px !important;
-    min-width: 40px !important;
-    height: 40px !important;
+  .meeting-controls-bottom .control-button,
+  .meeting-controls-bottom span .control-button {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
   }
   
-  .control-button .MuiSvgIcon-root {
-    font-size: 20px !important;
+  .meeting-controls-bottom .control-button .MuiSvgIcon-root,
+  .meeting-controls-bottom span .control-button .MuiSvgIcon-root {
+    font-size: 18px !important;
   }
   
-  .leave-button {
-    padding: 6px 8px !important;
-    min-width: 40px !important;
+  .meeting-controls-bottom .leave-button {
+    padding: 6px !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+  }
+  
+  .meeting-controls-bottom .leave-button .MuiSvgIcon-root {
+    font-size: 18px !important;
+  }
+  
+  .meeting-controls-bottom .control-button-wrapper {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+  }
+  
+  .meeting-controls-bottom .control-button-wrapper .control-button {
+    min-width: 36px !important;
+    min-height: 36px !important;
   }
 }
 
@@ -1613,7 +1665,7 @@
   
   .meeting-controls-bottom {
     bottom: 0;
-    padding: 12px 8px;
+    padding: 12px 12px;
     border-radius: 0;
   }
 }
@@ -1637,18 +1689,12 @@
   }
   
   .meeting-controls-bottom {
-    padding: 10px 6px;
+    padding: 10px 12px;
   }
   
   .meeting-controls-bottom .MuiStack-root {
     gap: 4px !important;
     row-gap: 6px !important;
-  }
-  
-  .control-button {
-    width: 40px !important;
-    min-width: 40px !important;
-    height: 40px !important;
   }
   
   .local-video-item {

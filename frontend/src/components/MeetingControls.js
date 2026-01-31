@@ -75,9 +75,11 @@ const MeetingControls = ({
         useFlexGap
         sx={{ 
           width: '100%',
-          gap: { xs: 6, sm: 12, md: 24 },
-          rowGap: { xs: 8, sm: 12 },
-          padding: { xs: '8px 4px', sm: '12px 8px', md: '20px 24px' }
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          gap: { xs: 5, sm: 12, md: 24 },
+          rowGap: { xs: 6, sm: 12 },
+          padding: { xs: 0, sm: '12px 8px', md: '20px 24px' }
         }}
       >
         {/* Audio Control - With Lock Support */}
@@ -88,7 +90,7 @@ const MeetingControls = ({
               : (isAudioEnabled ? 'Mute Audio' : 'Unmute Audio')
           }
         >
-          <span>
+          <span className="control-button-wrapper">
             <AudioButton
               isAudioEnabled={isAudioEnabled}
               onToggleAudio={handleToggleAudio}
@@ -192,7 +194,7 @@ const MeetingControls = ({
           </IconButton>
         )}
         
-        {/* Leave/End Meeting Button - icon-only on small screens via CSS .leave-button-text */}
+        {/* Leave/End Meeting Button - same size as other icons on mobile (icon only) */}
         <Button
           onClick={onLeaveMeeting}
           startIcon={<CallEnd />}
@@ -200,7 +202,10 @@ const MeetingControls = ({
           title={isHost ? 'End Meeting' : 'Leave Meeting'}
           sx={{
             minWidth: { xs: 40, sm: 'auto' },
-            padding: { xs: '8px', sm: '8px 16px', md: '12px 24px' },
+            width: { xs: 40, sm: 'auto' },
+            height: { xs: 40, sm: 'auto' },
+            padding: { xs: 0, sm: '8px 16px', md: '12px 24px' },
+            borderRadius: { xs: '50%', sm: '25px' },
             fontSize: { xs: '0.75rem', sm: '0.875rem', md: '1rem' }
           }}
         >
