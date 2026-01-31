@@ -759,7 +759,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 20px 24px;
+  padding: 12px 24px;
   background: rgba(15, 15, 35, 0.98) !important;
   backdrop-filter: blur(20px);
   border-radius: 0;
@@ -769,6 +769,14 @@
   z-index: 1000;
   width: 100%;
   max-width: none;
+}
+
+/* Desktop: single row, compact bar - no wrap */
+@media (min-width: 769px) {
+  .meeting-controls-bottom .MuiStack-root {
+    flex-wrap: nowrap !important;
+    row-gap: 0 !important;
+  }
 }
 
 /* Override Material-UI Paper default background */
@@ -1665,7 +1673,7 @@
   
   .meeting-controls-bottom {
     bottom: 0;
-    padding: 12px 12px;
+     padding: 12px 12px;
     border-radius: 0;
   }
 }

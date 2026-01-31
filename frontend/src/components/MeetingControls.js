@@ -71,15 +71,15 @@ const MeetingControls = ({
         direction="row" 
         alignItems="center" 
         justifyContent="center"
-        flexWrap="wrap"
+        flexWrap={{ xs: 'wrap', sm: 'wrap', md: 'nowrap' }}
         useFlexGap
         sx={{ 
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
-          gap: { xs: 5, sm: 12, md: 24 },
+          gap: { xs: 5, sm: 12, md: 16 },
           rowGap: { xs: 6, sm: 12 },
-          padding: { xs: 0, sm: '12px 8px', md: '20px 24px' }
+          padding: { xs: 0, sm: '12px 8px', md: '12px 24px' }
         }}
       >
         {/* Audio Control - With Lock Support */}
