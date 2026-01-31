@@ -782,22 +782,66 @@
     left: 0;
     right: 0;
     width: 100%;
-    padding: 16px 20px;
+    padding: 12px 8px;
     border-radius: 0;
   }
   
+  .meeting-controls-bottom .MuiStack-root {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px !important;
+    row-gap: 8px !important;
+  }
+  
   .control-button {
-    width: 48px !important;
-    height: 48px !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
   }
   
   .control-button .MuiSvgIcon-root {
-    font-size: 24px !important;
+    font-size: 22px !important;
   }
   
   .leave-button {
-    padding: 8px 16px !important;
-    font-size: 0.875rem !important;
+    padding: 8px 12px !important;
+    font-size: 0.8125rem !important;
+    min-width: 44px !important;
+  }
+  
+  /* Hide Leave button text on small screens - show icon only to prevent overflow */
+  .leave-button .leave-button-text {
+    display: none;
+  }
+  
+  .leave-button .MuiButton-startIcon {
+    margin: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .meeting-controls-bottom {
+    padding: 10px 6px;
+  }
+  
+  .meeting-controls-bottom .MuiStack-root {
+    gap: 4px !important;
+    row-gap: 6px !important;
+  }
+  
+  .control-button {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+  }
+  
+  .control-button .MuiSvgIcon-root {
+    font-size: 20px !important;
+  }
+  
+  .leave-button {
+    padding: 6px 8px !important;
+    min-width: 40px !important;
   }
 }
 
@@ -1563,14 +1607,14 @@
   }
   
   .control-button {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
   }
   
   .meeting-controls-bottom {
-    bottom: 10px;
-    padding: 12px 20px;
-    border-radius: 40px;
+    bottom: 0;
+    padding: 12px 8px;
+    border-radius: 0;
   }
 }
 
@@ -1590,6 +1634,21 @@
   
   .waiting-approval-title {
     font-size: 1.5rem;
+  }
+  
+  .meeting-controls-bottom {
+    padding: 10px 6px;
+  }
+  
+  .meeting-controls-bottom .MuiStack-root {
+    gap: 4px !important;
+    row-gap: 6px !important;
+  }
+  
+  .control-button {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
   }
   
   .local-video-item {

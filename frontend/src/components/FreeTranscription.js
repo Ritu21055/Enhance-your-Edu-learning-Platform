@@ -410,45 +410,57 @@ const FreeTranscription = ({
     console.log('🧹 FreeTranscription: Transcript cleared');
   };
 
-  // Collapsed view - Show Transcription button
+  // Collapsed view - Show Transcription button (responsive: above controls on mobile)
   if (!isOpen) {
     return (
       <Paper
+        className="free-transcription-toggle-btn"
         sx={{
           position: 'fixed',
-          bottom: 20,
-          right: 20,
-          zIndex: 9999,
-          p: 1,
+          bottom: { xs: 72, sm: 20 },
+          right: { xs: 8, sm: 20 },
+          zIndex: 999,
+          p: { xs: 0.75, sm: 1 },
           cursor: 'pointer',
           backgroundColor: '#7c3aed',
           color: 'white',
+          minWidth: { xs: 40, sm: 'auto' },
           '&:hover': {
             backgroundColor: '#6d28d9'
           }
         }}
         onClick={() => setIsOpen(true)}
       >
-        <Box display="flex" alignItems="center" gap={1}>
-          <Mic />
-          <Typography variant="caption" sx={{ fontWeight: 500 }}>
-            Show Transcription
-          </Typography>
-        </Box>
+        <Tooltip title="Show Transcription">
+          <Box display="flex" alignItems="center" gap={{ xs: 0.5, sm: 1 }}>
+            <Mic sx={{ fontSize: { xs: 20, sm: 24 } }} />
+            <Typography
+              variant="caption"
+              sx={{
+                fontWeight: 500,
+                display: { xs: 'none', sm: 'block' },
+                fontSize: { sm: '0.75rem' }
+              }}
+            >
+              Show Transcription
+            </Typography>
+          </Box>
+        </Tooltip>
       </Paper>
     );
   }
 
-  // Main view
+  // Main view (responsive position on mobile - above control bar)
   return (
     <Paper
       sx={{
         position: 'fixed',
-        bottom: 20,
-        right: 20,
-        zIndex: 9999,
-        width: 400,
-        maxHeight: 500,
+        bottom: { xs: 72, sm: 20 },
+        right: { xs: 8, sm: 20 },
+        zIndex: 999,
+        width: { xs: 'calc(100vw - 16px)', sm: 400 },
+        maxWidth: 400,
+        maxHeight: { xs: '50vh', sm: 500 },
         p: 2,
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
         color: 'white',

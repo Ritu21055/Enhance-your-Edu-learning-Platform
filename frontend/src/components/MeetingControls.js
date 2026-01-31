@@ -65,13 +65,20 @@ const MeetingControls = ({
       className="meeting-controls-bottom"
       elevation={0}
       sx={{ backgroundColor: 'transparent' }}
+      data-testid="meeting-controls"
     >
       <Stack 
         direction="row" 
-        spacing={3} 
         alignItems="center" 
         justifyContent="center"
-        sx={{ width: '100%' }}
+        flexWrap="wrap"
+        useFlexGap
+        sx={{ 
+          width: '100%',
+          gap: { xs: 6, sm: 12, md: 24 },
+          rowGap: { xs: 8, sm: 12 },
+          padding: { xs: '8px 4px', sm: '12px 8px', md: '20px 24px' }
+        }}
       >
         {/* Audio Control - With Lock Support */}
         <Tooltip 
@@ -185,13 +192,19 @@ const MeetingControls = ({
           </IconButton>
         )}
         
-        {/* Leave/End Meeting Button */}
+        {/* Leave/End Meeting Button - icon-only on small screens via CSS .leave-button-text */}
         <Button
           onClick={onLeaveMeeting}
           startIcon={<CallEnd />}
           className="leave-button"
+          title={isHost ? 'End Meeting' : 'Leave Meeting'}
+          sx={{
+            minWidth: { xs: 40, sm: 'auto' },
+            padding: { xs: '8px', sm: '8px 16px', md: '12px 24px' },
+            fontSize: { xs: '0.75rem', sm: '0.875rem', md: '1rem' }
+          }}
         >
-          {isHost ? 'End Meeting' : 'Leave Meeting'}
+          <span className="leave-button-text">{isHost ? 'End Meeting' : 'Leave Meeting'}</span>
         </Button>
       </Stack>
     </Paper>
