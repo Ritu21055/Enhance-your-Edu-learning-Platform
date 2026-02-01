@@ -141,28 +141,34 @@ const FreeTranscription = ({
         }
         if (event.error === 'aborted') {
           setIsListening(false);
-          setStatus('Stopped');
-          shouldAutoRestartRef.current = false;
+          setStatus('Reconnecting...');
+          if (shouldAutoRestartRef.current && isOpenRef.current && createAndStartRecognitionRef.current) {
+            setTimeout(() => {
+              if (shouldAutoRestartRef.current && createAndStartRecognitionRef.current) {
+                createAndStartRecognitionRef.current();
+              }
+            }, 400);
+          } else {
+            setStatus('Stopped');
+          }
           return;
         }
         if (event.error === 'network') {
           setStatus('Network Error - Retrying...');
           setIsListening(false);
           networkErrorRetryCountRef.current += 1;
-          if (networkErrorRetryCountRef.current <= maxNetworkRetries) {
-            const retryDelay = Math.min(1000 * Math.pow(2, networkErrorRetryCountRef.current - 1), 4000);
-            setTimeout(() => {
-              if (shouldAutoRestartRef.current && createAndStartRecognitionRef.current) {
-                createAndStartRecognitionRef.current();
-                networkErrorRetryCountRef.current = 0;
-              }
-            }, retryDelay);
-          } else {
-            setError('Network error - multiple retry attempts failed.');
-            setStatus('Network Error');
-            shouldAutoRestartRef.current = false;
-            networkErrorRetryCountRef.current = 0;
+          const retryDelay = networkErrorRetryCountRef.current <= maxNetworkRetries
+            ? Math.min(1000 * Math.pow(2, networkErrorRetryCountRef.current - 1), 4000)
+            : 12000;
+          if (networkErrorRetryCountRef.current > maxNetworkRetries) {
+            setError(null);
           }
+          setTimeout(() => {
+            if (shouldAutoRestartRef.current && isOpenRef.current && createAndStartRecognitionRef.current) {
+              createAndStartRecognitionRef.current();
+              networkErrorRetryCountRef.current = 0;
+            }
+          }, retryDelay);
           return;
         }
         if (event.error === 'not-allowed') {
@@ -181,7 +187,16 @@ const FreeTranscription = ({
         }
         setError(`Error: ${event.error}`);
         setIsListening(false);
-        setStatus('Error');
+        setStatus('Reconnecting...');
+        if (shouldAutoRestartRef.current && isOpenRef.current && createAndStartRecognitionRef.current) {
+          setTimeout(() => {
+            if (shouldAutoRestartRef.current && createAndStartRecognitionRef.current) {
+              createAndStartRecognitionRef.current();
+            }
+          }, 600);
+        } else {
+          setStatus('Error');
+        }
       };
 
       recognition.onend = () => {
@@ -189,7 +204,21 @@ const FreeTranscription = ({
         networkErrorRetryCountRef.current = 0;
         recognitionRef.current = null;
         if (shouldAutoRestartRef.current && isOpenRef.current && createAndStartRecognitionRef.current) {
-          setTimeout(() => createAndStartRecognitionRef.current(), 500);
+          const tryRestart = (attempt = 0) => {
+            const delay = Math.min(500 + attempt * 500, 10000);
+            try {
+              if (createAndStartRecognitionRef.current) {
+                createAndStartRecognitionRef.current();
+              }
+            } catch (e) {
+              if (shouldAutoRestartRef.current && isOpenRef.current) {
+                setTimeout(() => tryRestart(attempt + 1), delay);
+              } else {
+                setStatus('Stopped');
+              }
+            }
+          };
+          setTimeout(() => tryRestart(0), 500);
         } else {
           setStatus('Stopped');
         }
@@ -221,17 +250,40 @@ const FreeTranscription = ({
     setStatus('Stopped');
   }, []);
 
-  // Auto-start when panel opens (and socket ready); stop when panel closes
+  // Auto-start when panel opens (with retries for participant); stop when panel closes
   useEffect(() => {
     if (!isSupported) return;
-    if (isOpen && socket && meetingId && (participantId || socket?.id)) {
-      const t = setTimeout(() => createAndStartRecognition(), 500);
-      return () => clearTimeout(t);
-    }
     if (!isOpen) {
       stopListening();
+      return;
     }
+    if (!socket || !meetingId) return;
+    const participantIdOrSocket = participantId || socket?.id;
+    if (!participantIdOrSocket) return;
+
+    const delays = [500, 1500, 3000, 5000];
+    const timers = delays.map((delay, i) =>
+      setTimeout(() => {
+        if (!isOpenRef.current) return;
+        if (recognitionRef.current) return;
+        createAndStartRecognition();
+      }, delay)
+    );
+    return () => timers.forEach((t) => clearTimeout(t));
   }, [isOpen, isSupported, socket, meetingId, participantId, createAndStartRecognition, stopListening]);
+
+  // Keep-alive: restart recognition if it stopped while panel is open (meeting khatam hone tak chalu)
+  const KEEP_ALIVE_INTERVAL_MS = 48000;
+  useEffect(() => {
+    if (!isOpen || !isSupported || !createAndStartRecognitionRef.current) return;
+    const id = setInterval(() => {
+      if (!isOpenRef.current || !shouldAutoRestartRef.current) return;
+      if (!recognitionRef.current && socket && meetingId && (participantId || socket?.id)) {
+        createAndStartRecognitionRef.current?.();
+      }
+    }, KEEP_ALIVE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [isOpen, isSupported, socket, meetingId, participantId]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -344,7 +396,7 @@ const FreeTranscription = ({
       )}
 
       <Box display="flex" alignItems="center" gap={2} mb={2}>
-        <Tooltip title={isListening ? "Stop listening" : "Start listening"}>
+        <Tooltip title={isListening ? "Stop listening" : "Start listening (one click – stays on)"}>
           <IconButton
             onClick={toggleListening}
             disabled={!isSupported}
@@ -374,7 +426,7 @@ const FreeTranscription = ({
             sx={{ height: 4, borderRadius: 2 }}
           />
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', color: 'rgba(255,255,255,0.7)' }}>
-            Listening... Speak clearly
+            Listening... Speak clearly (auto-restarts if stopped)
           </Typography>
         </Box>
       )}
