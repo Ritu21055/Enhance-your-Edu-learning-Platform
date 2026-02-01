@@ -794,7 +794,7 @@ const MeetingRoom = () => {
           </Typography>
         </Box>
         
-        {/* Header actions: host-only (Request Camera, Show Analytics) + Show Transcription for all */}
+        {/* Header actions: host-only (Request Camera/Mic, Show Analytics) + Show Transcription for all */}
         <Box className="ai-features-notification" sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           {isHost && (
             <>
@@ -805,7 +805,7 @@ const MeetingRoom = () => {
                 onClick={() => setShowMediaRequestDialog(true)}
                 startIcon={<><Videocam /><Mic /></>}
               >
-                Request Camera Access
+                Request Camera/Mic Access
               </Button>
 
               <Button
