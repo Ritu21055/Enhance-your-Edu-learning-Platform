@@ -331,7 +331,7 @@ const useScreenShare = (socket, meetingId, userName, isHost, participants = [], 
     
     const peer = new SimplePeer({
       initiator: shouldBeInitiator,
-      trickle: false, // Set to false for faster connection (waits for all ICE candidates)
+      trickle: true, // Send ICE candidates as they're gathered; more reliable across NAT/firewall
       config: {
         iceServers: [
           // STUN servers - tried first for direct connections (fast, free)
