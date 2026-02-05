@@ -48,6 +48,8 @@ const FreeTranscription = ({
   const maxNetworkRetries = 3;
   const isOpenRef = useRef(isOpen);
   const createAndStartRecognitionRef = useRef(null);
+  const lastResultTimeRef = useRef(0);
+  const noSpeechRestartTimerRef = useRef(null);
 
   isOpenRef.current = isOpen;
 
@@ -86,9 +88,10 @@ const FreeTranscription = ({
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
-      recognition.maxAlternatives = 1;
+      recognition.maxAlternatives = 3;
 
       recognition.onstart = () => {
+        lastResultTimeRef.current = Date.now();
         console.log('✅ FreeTranscription: Recognition STARTED');
         setIsListening(true);
         setError(null);
@@ -111,9 +114,10 @@ const FreeTranscription = ({
             interim += transcriptText;
           }
         }
+        if (final || interim) lastResultTimeRef.current = Date.now();
         if (final) {
           const finalText = final.trim();
-          if (!finalText || finalText.length < 3) return;
+          if (!finalText) return;
           const fillerWords = ['um', 'uh', 'ah', 'er', 'hmm', 'mm', 'mhm'];
           if (fillerWords.includes(finalText.toLowerCase())) return;
           setTranscript(prev => prev + finalText + ' ');
@@ -137,6 +141,16 @@ const FreeTranscription = ({
       recognition.onerror = (event) => {
         if (event.error === 'no-speech') {
           setStatus('Waiting for speech...');
+          if (noSpeechRestartTimerRef.current) clearTimeout(noSpeechRestartTimerRef.current);
+          noSpeechRestartTimerRef.current = setTimeout(() => {
+            noSpeechRestartTimerRef.current = null;
+            if (!shouldAutoRestartRef.current || !isOpenRef.current || !createAndStartRecognitionRef.current) return;
+            if (recognitionRef.current) {
+              try { recognitionRef.current.stop(); } catch (e) { /* ignore */ }
+              recognitionRef.current = null;
+            }
+            createAndStartRecognitionRef.current?.();
+          }, 1500);
           return;
         }
         if (event.error === 'aborted') {
@@ -205,20 +219,26 @@ const FreeTranscription = ({
         recognitionRef.current = null;
         if (shouldAutoRestartRef.current && isOpenRef.current && createAndStartRecognitionRef.current) {
           const tryRestart = (attempt = 0) => {
-            const delay = Math.min(500 + attempt * 500, 10000);
-            try {
-              if (createAndStartRecognitionRef.current) {
-                createAndStartRecognitionRef.current();
-              }
-            } catch (e) {
-              if (shouldAutoRestartRef.current && isOpenRef.current) {
-                setTimeout(() => tryRestart(attempt + 1), delay);
-              } else {
+            const delay = Math.min(300 + attempt * 400, 8000);
+            setTimeout(() => {
+              if (!shouldAutoRestartRef.current || !isOpenRef.current) {
                 setStatus('Stopped');
+                return;
               }
-            }
+              try {
+                if (createAndStartRecognitionRef.current) {
+                  createAndStartRecognitionRef.current();
+                }
+              } catch (e) {
+                if (shouldAutoRestartRef.current && isOpenRef.current) {
+                  tryRestart(attempt + 1);
+                } else {
+                  setStatus('Stopped');
+                }
+              }
+            }, delay);
           };
-          setTimeout(() => tryRestart(0), 500);
+          tryRestart(0);
         } else {
           setStatus('Stopped');
         }
@@ -240,6 +260,10 @@ const FreeTranscription = ({
   // Stop listening and discard instance (so next start uses a fresh instance)
   const stopListening = React.useCallback(() => {
     shouldAutoRestartRef.current = false;
+    if (noSpeechRestartTimerRef.current) {
+      clearTimeout(noSpeechRestartTimerRef.current);
+      noSpeechRestartTimerRef.current = null;
+    }
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -285,10 +309,33 @@ const FreeTranscription = ({
     return () => clearInterval(id);
   }, [isOpen, isSupported, socket, meetingId, participantId]);
 
+  // Watchdog: if listening but no result for 12s, restart (fixes stuck recognition)
+  const NO_RESULT_RESTART_MS = 12000;
+  useEffect(() => {
+    if (!isOpen || !isSupported || !createAndStartRecognitionRef.current) return;
+    const id = setInterval(() => {
+      if (!isOpenRef.current || !shouldAutoRestartRef.current || !recognitionRef.current) return;
+      const elapsed = Date.now() - lastResultTimeRef.current;
+      if (lastResultTimeRef.current > 0 && elapsed > NO_RESULT_RESTART_MS) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) { /* ignore */ }
+        recognitionRef.current = null;
+        lastResultTimeRef.current = 0;
+        createAndStartRecognitionRef.current?.();
+      }
+    }, 6000);
+    return () => clearInterval(id);
+  }, [isOpen, isSupported]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       shouldAutoRestartRef.current = false;
+      if (noSpeechRestartTimerRef.current) {
+        clearTimeout(noSpeechRestartTimerRef.current);
+        noSpeechRestartTimerRef.current = null;
+      }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();

@@ -28,8 +28,8 @@ function isValidTranscript(transcript, confidence) {
   
   const trimmed = transcript.trim();
   
-  // Reject empty or very short transcripts
-  if (trimmed.length < 3) {
+  // Reject empty or single-char (allow 2+ chars so "am", "we", "is", "to" flow through)
+  if (trimmed.length < 2) {
     return false;
   }
   
